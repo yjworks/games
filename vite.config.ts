@@ -8,6 +8,7 @@ const STATIC_PRECACHE = [
   './icon.svg',
   './icon-192.png',
   './icon-512.png',
+  './maskable-512.png',
 ];
 
 /**
