@@ -140,7 +140,7 @@ export default function App() {
     <GameShell
       meta={meta}
       tutorial={minesweeperTutorial}
-      actions={<button className="shell-btn" onClick={restart} aria-label="새 판">새 판</button>}
+      actions={<button className="db-btn shell-btn" onClick={restart} aria-label="새 판">새 판</button>}
     >
       <div
         className="ms-root"

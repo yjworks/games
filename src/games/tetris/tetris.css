@@ -48,7 +48,7 @@
 .t-panel-next { flex: 1; min-width: 0; overflow: hidden; }
 
 .t-stat { display: flex; align-items: baseline; gap: 5px; }
-.t-stat span { font-size: 0.64rem; color: #8b94a8; }
+.t-stat span { font-size: 0.64rem; color: var(--db-sub); }
 .t-stat strong { font-size: 0.85rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .t-stat.big { width: 100%; }
 .t-stat.big strong { font-size: 1.15rem; color: #22c1a4; }
@@ -134,7 +134,7 @@
 }
 .t-overlay h2 { margin: 0; font-size: 1.35rem; font-weight: 900; }
 .t-overlay p { margin: 0; font-size: 0.82rem; color: #a9b3c6; line-height: 1.6; }
-.t-overlay .t-lore { max-width: 280px; font-size: 0.8rem; color: #8b94a8; line-height: 1.8; }
+.t-overlay .t-lore { max-width: 280px; font-size: 0.8rem; color: var(--db-sub); line-height: 1.8; }
 
 .t-btn {
   min-height: 48px;

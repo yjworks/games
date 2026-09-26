@@ -103,7 +103,7 @@ export default function App() {
       tutorial={kkodleTutorial}
       actions={
         status !== 'playing' ? (
-          <button className="shell-btn" onClick={() => setShowResult(true)} aria-label="결과 보기">결과</button>
+          <button className="db-btn shell-btn" onClick={() => setShowResult(true)} aria-label="결과 보기">결과</button>
         ) : undefined
       }
     >

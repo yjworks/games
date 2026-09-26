@@ -27,7 +27,7 @@
   padding: 0 4px;
   font-variant-numeric: tabular-nums;
 }
-.sl-stats strong { color: #eef1f7; font-size: 0.92rem; }
+.sl-stats strong { color: var(--db-text); font-size: 0.92rem; }
 .sl-stats .sl-right { margin-left: auto; }
 
 /* ── 윗줄: 스톡 · 버린 더미 · 기초 더미 ── */
@@ -142,7 +142,7 @@
   max-width: 320px;
   padding: 24px 20px;
   border-radius: 22px;
-  background: #151a24;
+  background: var(--db-card);
   border: 1px solid var(--g-border);
   text-align: center;
   display: flex;
@@ -159,7 +159,7 @@
   color: #04231b;
   background: #10a37f;
 }
-.sl-btn.ghost { background: rgba(255, 255, 255, 0.08); color: #eef1f7; }
+.sl-btn.ghost { background: rgba(255, 255, 255, 0.08); color: var(--db-text); }
 
 @media (max-height: 520px) {
   .sl-root { gap: 5px; }

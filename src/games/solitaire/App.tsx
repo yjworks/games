@@ -88,7 +88,7 @@ export default function App() {
       meta={meta}
       tutorial={solitaireTutorial}
       actions={
-        <button className="shell-btn" onClick={() => newGame(game.drawCount === 1 ? 3 : 1)}
+        <button className="db-btn shell-btn" onClick={() => newGame(game.drawCount === 1 ? 3 : 1)}
           aria-label="뽑기 장수 바꾸기">{game.drawCount}장</button>
       }
     >

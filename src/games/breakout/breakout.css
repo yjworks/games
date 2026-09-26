@@ -24,7 +24,7 @@
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
-.bo-stats strong { color: #eef1f7; font-size: 0.95rem; }
+.bo-stats strong { color: var(--db-text); font-size: 0.95rem; }
 .bo-stats .bo-right { margin-left: auto; }
 .bo-lives { letter-spacing: 2px; color: #5eead4; }
 
@@ -82,7 +82,7 @@
   color: #04231f;
   background: #5eead4;
 }
-.bo-btn.ghost { background: rgba(255, 255, 255, 0.1); color: #eef1f7; }
+.bo-btn.ghost { background: rgba(255, 255, 255, 0.1); color: var(--db-text); }
 
 .bo-controls { width: 100%; max-width: 420px; display: flex; gap: 6px; flex-shrink: 0; }
 .bo-controls button {

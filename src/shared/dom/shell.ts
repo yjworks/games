@@ -1,5 +1,6 @@
 import { GameMeta, HUB_HREF } from '../registry';
 import { getPrefs, setPrefs } from '../prefs';
+import { createDbHome } from '../brand';
 
 /**
  * React를 쓰지 않는 게임(스도쿠)용 공통 상단 바.
@@ -9,7 +10,7 @@ export function mountShellBar(meta: GameMeta, extraActions: HTMLElement[] = []):
   document.title = `${meta.title} · 딴짓`;
 
   const bar = document.createElement('header');
-  bar.className = 'shell-bar';
+  bar.className = 'db-bar shell-bar';
   bar.style.setProperty('--shell-accent', meta.accent);
 
   const back = document.createElement('a');
@@ -26,7 +27,7 @@ export function mountShellBar(meta: GameMeta, extraActions: HTMLElement[] = []):
   extraActions.forEach((el) => actions.appendChild(el));
 
   const soundBtn = document.createElement('button');
-  soundBtn.className = 'shell-btn';
+  soundBtn.className = 'db-btn shell-btn';
   soundBtn.type = 'button';
   const paint = () => {
     const on = getPrefs().sound;
@@ -38,6 +39,6 @@ export function mountShellBar(meta: GameMeta, extraActions: HTMLElement[] = []):
   paint();
   actions.appendChild(soundBtn);
 
-  bar.append(back, title, actions);
+  bar.append(createDbHome(), back, title, actions);
   return bar;
 }

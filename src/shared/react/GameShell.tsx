@@ -4,13 +4,22 @@ import { getPrefs, setPrefs } from '../prefs';
 import { TutorialContent, hasSeenTutorial, markTutorialSeen } from '../tutorial';
 import { TutorialOverlay } from './Tutorial';
 import { GameMark } from './GameMark';
+import { DB_HOME_HREF, DB_HOME_LABEL, DB_MARK_SVG } from '../brand';
+
+/** 공통 상단 바 왼쪽 브랜드 마크 — 누르면 DigitalBrain 첫 화면으로 간다 */
+export function DbHome() {
+  return (
+    <a className="db-home" href={DB_HOME_HREF} aria-label={DB_HOME_LABEL}
+      dangerouslySetInnerHTML={{ __html: DB_MARK_SVG }} />
+  );
+}
 
 /** 전역 효과음 토글 (모든 게임이 같은 설정을 공유한다) */
 export function SoundButton() {
   const [on, setOn] = useState(getPrefs().sound);
   return (
     <button
-      className="shell-btn"
+      className="db-btn shell-btn"
       aria-pressed={on}
       aria-label={on ? '효과음 끄기' : '효과음 켜기'}
       title={on ? '효과음 끄기' : '효과음 켜기'}
@@ -61,7 +70,8 @@ export function GameShell({ meta, tutorial, actions, children }: Props) {
 
   return (
     <div className="game-shell" style={{ ['--shell-accent' as string]: meta.accent }}>
-      <header className="shell-bar">
+      <header className="db-bar shell-bar">
+        <DbHome />
         <a className="shell-back" href={HUB_HREF}>← 게임 목록</a>
         <div className="shell-title">
           <h1><GameMark id={meta.id} size={22} className="shell-mark" />{meta.title}</h1>
@@ -70,7 +80,7 @@ export function GameShell({ meta, tutorial, actions, children }: Props) {
         <div className="shell-actions">
           {actions}
           {tutorial && (
-            <button className="shell-btn" onClick={() => setHelpOpen(true)}
+            <button className="db-btn shell-btn" onClick={() => setHelpOpen(true)}
               aria-label="게임 방법" title="게임 방법 (?)">?</button>
           )}
           <SoundButton />

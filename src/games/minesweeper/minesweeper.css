@@ -39,7 +39,7 @@
   font-size: 0.72rem;
   color: var(--g-muted);
 }
-.ms-stat strong { font-size: 1rem; color: #eef1f7; font-weight: 800; }
+.ms-stat strong { font-size: 1rem; color: var(--db-text); font-weight: 800; }
 .ms-stats .ms-right { margin-left: auto; font-size: 0.7rem; color: var(--g-muted); }
 
 /* ── 판 ── */
@@ -143,7 +143,7 @@
   max-width: 320px;
   padding: 24px 20px;
   border-radius: 22px;
-  background: #151a24;
+  background: var(--db-card);
   border: 1px solid var(--g-border);
   text-align: center;
   display: flex;
@@ -160,7 +160,7 @@
   color: #04121f;
   background: #5aa0f0;
 }
-.ms-btn.ghost { background: rgba(255, 255, 255, 0.08); color: #eef1f7; }
+.ms-btn.ghost { background: rgba(255, 255, 255, 0.08); color: var(--db-text); }
 
 @media (min-width: 720px) {
   .ms-root { align-items: center; padding: 12px; }

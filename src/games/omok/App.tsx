@@ -71,7 +71,7 @@ export default function App() {
         meta={meta}
         tutorial={omokTutorial}
         actions={status !== 'menu' ? (
-          <button className="shell-btn" onClick={goToMenu} aria-label="게임 메뉴">메뉴</button>
+          <button className="db-btn shell-btn" onClick={goToMenu} aria-label="게임 메뉴">메뉴</button>
         ) : undefined}
       >
         <GameApp />

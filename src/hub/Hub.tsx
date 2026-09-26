@@ -3,7 +3,7 @@ import { CATEGORIES, Category, GAMES, GameMeta, gameHref } from '../shared/regis
 import { getProgress } from '../shared/progress';
 import { getPrimaryBest } from '../shared/records';
 import { formatStats, getStats } from '../shared/stats';
-import { SoundButton } from '../shared/react/GameShell';
+import { DbHome, SoundButton } from '../shared/react/GameShell';
 import { GameMark } from '../shared/react/GameMark';
 import { ROOT_NS } from '../shared/storage';
 
@@ -107,7 +107,14 @@ export function Hub() {
 
   return (
     <div className="hub">
-      <header className="hub-header">
+      <header className="db-bar">
+        <DbHome />
+        <span className="db-title">딴짓</span>
+        <span className="db-sp"></span>
+        <SoundButton />
+      </header>
+
+      <section className="hub-header">
         <div className="hub-brand">
           <h1>딴짓<span>.</span></h1>
           <p>
@@ -115,10 +122,7 @@ export function Hub() {
             진행 상황과 기록은 이 기기에만 저장됩니다.
           </p>
         </div>
-        <div className="hub-header-actions">
-          <SoundButton />
-        </div>
-      </header>
+      </section>
 
       <nav className="hub-filter" aria-label="게임 분류">
         {(['전체', ...CATEGORIES] as const).map((c) => {

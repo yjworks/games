@@ -8,7 +8,7 @@ html, body { height: 100%; }
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  font-family: var(--db-font);
   background-color: #0a0602;
   color: #f5e7c8;
   -webkit-tap-highlight-color: transparent;

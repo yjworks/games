@@ -64,7 +64,7 @@ class App {
     appEl.innerHTML = "";
 
     // ── 헤더: 공통 셸 바 + 게임별 조작 ─────────────
-    const helpBtn = el("button", "shell-btn");
+    const helpBtn = el("button", "db-btn shell-btn");
     helpBtn.type = "button";
     helpBtn.textContent = "?";
     helpBtn.setAttribute("aria-label", "게임 방법");

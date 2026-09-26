@@ -142,7 +142,7 @@
   max-width: 320px;
   padding: 22px 20px;
   border-radius: 22px;
-  background: #151a24;
+  background: var(--db-card);
   border: 1px solid var(--g-border);
   text-align: center;
   display: flex;
@@ -171,7 +171,7 @@
   color: #241503;
   background: #f0a63c;
 }
-.kk-btn.ghost { background: rgba(255, 255, 255, 0.08); color: #eef1f7; }
+.kk-btn.ghost { background: rgba(255, 255, 255, 0.08); color: var(--db-text); }
 .kk-btn-row { display: flex; gap: 6px; }
 .kk-btn-row > * { flex: 1; }
 

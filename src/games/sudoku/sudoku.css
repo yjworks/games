@@ -11,14 +11,14 @@
   --accent:        #a78bfa;
 
   /* Backgrounds */
-  --bg:            #0b0d12;
+  --bg:            var(--db-bg);
   --surface:       rgba(255, 255, 255, 0.05);
   --surface-2:     rgba(255, 255, 255, 0.09);
   /* 뒤가 비치면 안 되는 곳(모달 등)에 쓰는 불투명 표면 */
-  --surface-solid: #151a24;
+  --surface-solid: var(--db-card);
 
   /* Text */
-  --text:          #eef1f7;
+  --text:          var(--db-text);
   --text-2:        #b9c1d1;
   --text-muted:    #7f8a9e;
 
@@ -27,7 +27,7 @@
   --board-box-gap: #3a4f99;
   --board-cell-gap:#222d4a;
   --cell-bg:       #131824;
-  --cell-given:    #eef1f7;
+  --cell-given:    var(--db-text);
   --cell-user:     #7b93f5;
   --cell-error:    #f87171;
   --cell-note:     #a5b4fc;
@@ -72,8 +72,7 @@ body {
     var(--bg);
   background-attachment: fixed;
   color: var(--text);
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI',
-               'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif;
+  font-family: var(--db-font);
   font-size: 16px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;

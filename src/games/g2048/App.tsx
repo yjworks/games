@@ -97,7 +97,7 @@ export default function App() {
     <GameShell
       meta={meta}
       tutorial={g2048Tutorial}
-      actions={<button className="shell-btn" onClick={restart} aria-label="새 게임">새 게임</button>}
+      actions={<button className="db-btn shell-btn" onClick={restart} aria-label="새 게임">새 게임</button>}
     >
       <div className="tw-root">
         <div className="tw-stats">

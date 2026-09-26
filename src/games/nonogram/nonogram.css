@@ -34,7 +34,7 @@
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
-.ng-stats strong { color: #eef1f7; font-size: 0.95rem; }
+.ng-stats strong { color: var(--db-text); font-size: 0.95rem; }
 .ng-stats .ng-right { margin-left: auto; }
 
 /* ── 판 ── */
@@ -122,7 +122,7 @@
   max-width: 320px;
   padding: 24px 20px;
   border-radius: 22px;
-  background: #151a24;
+  background: var(--db-card);
   border: 1px solid var(--g-border);
   text-align: center;
   display: flex;
@@ -139,7 +139,7 @@
   color: #150a2b;
   background: #a78bfa;
 }
-.ng-btn.ghost { background: rgba(255, 255, 255, 0.08); color: #eef1f7; }
+.ng-btn.ghost { background: rgba(255, 255, 255, 0.08); color: var(--db-text); }
 
 @media (min-width: 720px) {
   .ng-root { align-items: center; padding: 12px; }

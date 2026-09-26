@@ -278,7 +278,7 @@ export default function App() {
       meta={meta}
       tutorial={tetrisTutorial}
       actions={
-        <button className="shell-btn" onClick={() => game.togglePause()} aria-label="일시정지">
+        <button className="db-btn shell-btn" onClick={() => game.togglePause()} aria-label="일시정지">
           {status === 'paused' ? '▶' : '⏸'}
         </button>
       }

@@ -137,7 +137,7 @@ export default function App() {
     <GameShell
       meta={meta}
       tutorial={nonogramTutorial}
-      actions={<button className="shell-btn" onClick={newPuzzle} aria-label="새 문제">새 문제</button>}
+      actions={<button className="db-btn shell-btn" onClick={newPuzzle} aria-label="새 문제">새 문제</button>}
     >
       <div
         className="ng-root"
