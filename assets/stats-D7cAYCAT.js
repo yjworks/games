@@ -1,0 +1,1 @@
+import{e as a,R as o,w as e}from"./pwa-SlPImvTy.js";const i={wins:0,losses:0,draws:0},r=t=>`${o}:${t}:stats`;function w(t){return{...i,...a(r(t),{})}}function l(t,n){const s=w(t);return s[n]+=1,e(r(t),s),s}function c(t){return t.wins+t.losses+t.draws===0?null:t.draws>0?`${t.wins}승 ${t.draws}무 ${t.losses}패`:`${t.wins}승 ${t.losses}패`}export{l as b,c as f,w as g};

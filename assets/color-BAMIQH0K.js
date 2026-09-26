@@ -1,0 +1,1 @@
+function c(s,t){const n=parseInt(s.slice(1),16),a=[n>>16&255,n>>8&255,n&255].map(r=>Math.max(0,Math.min(255,Math.round(t<0?r*(1+t):r+(255-r)*t))));return`rgb(${a[0]}, ${a[1]}, ${a[2]})`}function e(s,t){const n=parseInt(s.slice(1),16);return`rgba(${n>>16&255}, ${n>>8&255}, ${n&255}, ${t})`}export{c as s,e as w};
