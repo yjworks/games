@@ -44,5 +44,15 @@ const landmarker = await HandLandmarker.createFromOptions(vision, {
 
 ## 폰트
 
-시스템 폰트만 씁니다(`Pretendard`가 설치돼 있으면 쓰고, 없으면 시스템 기본).
-웹폰트를 넣어야 한다면 `public/vendor/fonts/`에 두고 `@font-face`로 상대 경로 참조하세요.
+글꼴은 **Pretendard** 하나입니다(DigitalBrain 공통 글꼴, `--db-font`).
+
+| 항목 | 내용 |
+|---|---|
+| 위치 | `public/vendor/fonts/` — `pretendard.css`(@font-face 목록), `woff2-dynamic-subset/`(가변 글꼴 조각 92개), `LICENSE` |
+| 출처 | <https://github.com/orioncactus/pretendard> (Copyright (c) 2021 Kil Hyung-jin, Reserved Font Name Pretendard) |
+| 라이선스 | SIL Open Font License 1.1 — 전문은 `public/vendor/fonts/LICENSE`. 상업적 사용·재배포 가능, 글꼴 파일만 따로 팔 수는 없음 |
+| 불러오기 | 허브와 모든 게임 페이지(`index.html`, `games/*/index.html`)의 `<link rel="stylesheet" href="/vendor/fonts/pretendard.css">`. 빌드할 때 Vite가 `./`·`../../` 상대 경로로 바꿉니다 |
+| 오프라인 | `pretendard.css`는 `STATIC_PRECACHE`로 미리 캐시. 조각 파일은 쓰는 것만 처음 받을 때 `games-fonts-v1` 캐시에 저장(캐시 우선) |
+
+새 게임 페이지를 만들면 위 `<link>`를 꼭 넣으세요(없으면 시스템 글꼴로 보입니다).
+다른 웹폰트를 더해야 한다면 같은 방식으로 `public/vendor/fonts/`에 두고, 조각 파일은 미리 캐시하지 않습니다.

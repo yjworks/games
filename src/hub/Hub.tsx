@@ -49,7 +49,8 @@ function GameCard({ meta, index }: { meta: GameMeta; index: number }) {
           <h2>{meta.title}</h2>
           <span className="card-sub">{meta.subtitle}</span>
         </div>
-        <span className="card-key" aria-hidden>{index + 1}</span>
+        {/* 숫자키 안내는 마우스·키보드가 있는 기기에서만 보인다(base.css .kbd-only) */}
+        {index < 9 && <span className="card-key kbd-only" aria-hidden>{index + 1}</span>}
       </div>
 
       <p className="card-desc">{meta.desc}</p>
@@ -63,7 +64,14 @@ function GameCard({ meta, index }: { meta: GameMeta; index: number }) {
         {info.resume && <span className="card-badge">이어하기</span>}
         <span>{info.resume ?? '아직 기록 없음'}</span>
         {info.record && <span className="card-record">🏅 {info.record}</span>}
-        <span className="card-controls">{meta.controls}</span>
+        {meta.touchControls ? (
+          <>
+            <span className="card-controls kbd-only">{meta.controls}</span>
+            <span className="card-controls touch-only">{meta.touchControls}</span>
+          </>
+        ) : (
+          <span className="card-controls">{meta.controls}</span>
+        )}
       </div>
     </a>
   );
@@ -93,7 +101,7 @@ export function Hub() {
   }, [onKey]);
 
   const resetAll = () => {
-    if (!confirm('저장된 진행 상황과 기록을 모두 지웁니다. 계속할까요?')) return;
+    if (!confirm('딴짓에 저장된 기록(진행 상황·최고 기록)을 모두 지웁니다. 되돌릴 수 없습니다. 계속할까요?')) return;
     try {
       const keys: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
@@ -120,6 +128,7 @@ export function Hub() {
           <p>
             설치도 서버도 없이 브라우저에서 바로 도는 게임 {GAMES.length}개.<br />
             진행 상황과 기록은 이 기기에만 저장됩니다.
+            <span className="kbd-only"><br />카드의 숫자키를 누르면 바로 실행합니다.</span>
           </p>
         </div>
       </section>
@@ -146,7 +155,7 @@ export function Hub() {
       </main>
 
       <footer className="hub-footer">
-        <span>숫자키로 바로 실행 · 100% 오프라인 · 저장은 localStorage</span>
+        <span>기록은 이 기기에만 저장됩니다. (진행 상황·최고 기록)</span>
         <button className="hub-reset" onClick={resetAll}>기록 전체 삭제</button>
       </footer>
     </div>

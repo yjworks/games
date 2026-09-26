@@ -143,7 +143,10 @@ export default function App() {
           <button onClick={restart}>⟳ 새 게임</button>
         </div>
 
-        <p className="tw-hint">쓸어넘기거나 방향키로 미세요</p>
+        <p className="tw-hint">
+          <span className="touch-only">쓸어넘겨 미세요</span>
+          <span className="kbd-only">방향키로 미세요 · 화면을 끌어도 됩니다</span>
+        </p>
       </div>
     </GameShell>
   );

@@ -19,8 +19,10 @@ export interface GameMeta {
   emoji: string;
   /** 허브 카드에 쓰는 한 줄 설명 */
   desc: string;
-  /** 조작 요약 */
+  /** 조작 요약 — 마우스·키보드가 있는 기기에서 허브 카드에 보인다 */
   controls: string;
+  /** 터치 화면용 조작 요약. 없으면 controls 를 그대로 쓴다(키보드 안내는 터치 화면에서 숨긴다) */
+  touchControls?: string;
   /** 게임을 소개하는 짧은 서사 (2~3줄) */
   lore: string[];
   /** 허브 필터에 쓰는 큰 분류 */
@@ -38,6 +40,7 @@ export const GAMES: GameMeta[] = [
     emoji: '⚫',
     desc: '15×15 바둑판에서 다섯 개를 먼저 잇는 쪽이 승리. 3단계 AI와 2인 대국.',
     controls: '클릭 · 방향키 + Enter',
+    touchControls: '탭해서 착수',
     category: '보드',
     tags: ['보드', 'AI 대전', '2인'],
     accent: '#d9a43c',
@@ -54,6 +57,7 @@ export const GAMES: GameMeta[] = [
     emoji: '🀄',
     desc: '차림 선택과 점수제를 갖춘 한국 장기. 궁·차·포·마·상 전부 구현.',
     controls: '클릭 · 방향키 + Enter',
+    touchControls: '탭해서 기물 선택 · 이동',
     category: '보드',
     tags: ['보드', 'AI 대전', '2인'],
     accent: '#e05a4a',
@@ -70,6 +74,7 @@ export const GAMES: GameMeta[] = [
     emoji: '🔢',
     desc: '유일해가 보장된 퍼즐 생성기, 메모·되돌리기·힌트·기록까지.',
     controls: '숫자키 · 방향키',
+    touchControls: '칸 선택 · 숫자 패드',
     category: '퍼즐',
     tags: ['퍼즐', '싱글'],
     accent: '#4361ee',
@@ -86,6 +91,7 @@ export const GAMES: GameMeta[] = [
     emoji: '🧱',
     desc: 'SRS 회전과 월킥, 7-bag, 홀드, 고스트, T-스핀과 백투백 보너스까지.',
     controls: '방향키 · Space · Shift',
+    touchControls: '화면 버튼 · 밀어서 이동',
     category: '액션',
     tags: ['액션', '싱글', '점수'],
     accent: '#22c1a4',
@@ -102,6 +108,7 @@ export const GAMES: GameMeta[] = [
     emoji: '⚪',
     desc: '착수 가능 위치 표시와 종반 완전탐색을 갖춘 8×8 오델로.',
     controls: '클릭 · 방향키 + Enter',
+    touchControls: '탭해서 착수',
     category: '보드',
     tags: ['보드', 'AI 대전', '2인'],
     accent: '#7048e8',
@@ -118,6 +125,7 @@ export const GAMES: GameMeta[] = [
     emoji: '🔤',
     desc: '두 글자 낱말을 여덟 번 안에. 하루 한 문제와 무한 모드, 연속 일수 기록.',
     controls: '화면 자판 · 두벌식 키보드',
+    touchControls: '화면 자판',
     lore: [
       '낱말 하나를 두고 여덟 번의 기회.',
       '틀린 글자도 남긴다 — 어디에 없는지를.',
@@ -183,6 +191,7 @@ export const GAMES: GameMeta[] = [
     emoji: '🧮',
     desc: '같은 수를 붙여 2048까지. 되돌리기와 최고 타일 기록, 달성 후 계속하기.',
     controls: '쓸어넘기기 · 방향키',
+    touchControls: '쓸어넘기기',
     lore: [
       '같은 것끼리만 하나가 된다.',
       '한 칸을 비우려면 두 칸을 붙여야 한다.',
@@ -199,6 +208,7 @@ export const GAMES: GameMeta[] = [
     emoji: '🏓',
     desc: '패들 어디에 맞느냐로 각이 갈립니다. 떨어지는 아이템 세 가지와 판마다 달라지는 배치.',
     controls: '드래그 · 방향키',
+    touchControls: '드래그',
     tags: ['액션', '싱글', '점수'],
     category: '액션',
     lore: [

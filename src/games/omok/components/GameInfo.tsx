@@ -80,7 +80,7 @@ export function GameInfo() {
       </div>
 
       {status === 'playing' && (
-        <p className="mt-2 text-[11px] text-amber-700/80 hidden sm:block">
+        <p className="mt-2 text-[11px] text-amber-700/80 hidden sm:block kbd-only">
           방향키로 커서 이동 · Enter 착수 · U 무르기 · N 새 대국
         </p>
       )}

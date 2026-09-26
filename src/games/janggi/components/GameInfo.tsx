@@ -144,7 +144,7 @@ export function GameInfo() {
       </div>
 
       {status === 'playing' && (
-        <p className="text-[11px] text-amber-700/70 hidden sm:block">
+        <p className="text-[11px] text-amber-700/70 hidden sm:block kbd-only">
           방향키 이동 · Enter 선택/착수 · U 무르기 · N 새 대국 · F 판 뒤집기
         </p>
       )}

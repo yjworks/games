@@ -17,7 +17,8 @@
   subtitle: 'SNAKE',
   emoji: '🐍',
   desc: '한 줄 설명 — 허브 카드에 그대로 나옵니다.',
-  controls: '방향키 · 스와이프',
+  controls: '방향키 · 스와이프',   // 마우스·키보드 기기에서 보이는 조작 안내
+  touchControls: '스와이프',        // 터치 화면용(키 이름이 들어가면 따로 적는다)
   lore: [
     '서사 첫 줄',
     '서사 둘째 줄',
@@ -58,6 +59,8 @@ src/games/snake/
 
 `games/snake/index.html`을 다른 게임에서 복사해 제목·설명·아이콘만 바꿉니다.
 `<script type="module" src="/src/games/snake/main.tsx">` 경로를 잊지 마세요.
+`<link rel="canonical" href="https://dibrain.dev/games/games/snake/">`의 경로도 새 게임 것으로 바꿉니다.
+글꼴 `<link rel="stylesheet" href="/vendor/fonts/pretendard.css">`와 `apple-mobile-web-app-title`(딴짓)은 그대로 둡니다.
 
 ## 4. vite 입력에 추가
 

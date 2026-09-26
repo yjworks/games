@@ -12,6 +12,9 @@ const STATIC_PRECACHE = [
   './maskable-512.png',
   './apple-touch-icon.png',
   './favicon.ico',
+  /* Pretendard 글꼴의 @font-face 목록. 조각 파일(woff2 92개)은 미리 받지 않고
+     화면에 필요한 것만 처음 쓸 때 FONT_CACHE 에 저장한다(아래 fetch 처리). */
+  './vendor/fonts/pretendard.css',
 ];
 
 /**
@@ -29,6 +32,8 @@ function pwaPlugin(): Plugin {
 
       const sw = `/* 자동 생성 — vite.config.ts의 pwaPlugin이 만든 파일입니다. 직접 수정하지 마세요. */
 const CACHE = 'games-${version}';
+/* 글꼴 조각은 바뀌지 않으므로 CACHE 를 올려도 지우지 않는다 */
+const FONT_CACHE = 'games-fonts-v1';
 const PRECACHE = ${JSON.stringify(precache, null, 2)};
 
 self.addEventListener('install', (event) => {
@@ -40,10 +45,15 @@ self.addEventListener('install', (event) => {
   );
 });
 
+/* dibrain.dev 는 여러 앱이 같은 주소(origin)를 쓴다. 다른 앱의 캐시는 건드리지 않고 딴짓의 옛 캐시만 지운다 */
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(
+        keys
+          .filter((k) => k.startsWith('games-') && k !== CACHE && k !== FONT_CACHE)
+          .map((k) => caches.delete(k))
+      ))
       .then(() => self.clients.claim())
   );
 });
@@ -58,6 +68,19 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+
+  /* 글꼴 조각: 저장해 둔 것이 있으면 네트워크를 보지 않고 바로 쓴다 */
+  if (url.pathname.includes('/vendor/fonts/') && url.pathname.endsWith('.woff2')) {
+    event.respondWith((async () => {
+      const cache = await caches.open(FONT_CACHE);
+      const hit = await cache.match(req);
+      if (hit) return hit;
+      const res = await fetch(req);
+      if (res.ok) cache.put(req, res.clone());
+      return res;
+    })());
+    return;
+  }
 
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
