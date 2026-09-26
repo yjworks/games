@@ -676,7 +676,7 @@ select {
   bottom: 24px;
   transform: translateX(-50%);
   background: var(--text);
-  color: var(--surface);
+  color: var(--bg);   /* --surface 는 반투명이라 글자가 안 보였다 */
   padding: 10px 18px;
   border-radius: 999px;
   font-size: .82rem;
