@@ -109,13 +109,30 @@ self.addEventListener('fetch', (event) => {
   };
 }
 
+/** 방문 통계(Google Analytics). 빌드 결과의 모든 페이지 <head> 끝에 넣는다(개발 서버에는 넣지 않음).
+ *  방문한 페이지·유입 경로만 보내고 게임 기록은 보내지 않는다. content_group "app" + app_name "games" 로
+ *  허브·도구와 나눠 보고, 게임별로는 페이지 경로(/games/games/<id>/)로 본다. */
+const GA_ID = 'G-3MH93TXQTM';
+function analyticsPlugin(): Plugin {
+  return {
+    name: 'games-analytics',
+    apply: 'build',
+    transformIndexHtml(html) {
+      const tag = `<script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}',{content_group:'app',app_name:'games'});</script>
+`;
+      return html.replace('</head>', `${tag}</head>`);
+    },
+  };
+}
+
 /**
  * 멀티 페이지 구성 — 허브(index.html) + 게임별 페이지(games/<id>/index.html).
  * base를 상대 경로로 두어 저장소 이름이나 배포 경로가 바뀌어도 그대로 동작한다.
  */
 export default defineConfig(({ mode }) => ({
   base: mode === 'production' ? './' : '/',
-  plugins: [react(), pwaPlugin()],
+  plugins: [react(), pwaPlugin(), analyticsPlugin()],
   resolve: {
     alias: { '@shared': resolve(__dirname, 'src/shared') },
   },
