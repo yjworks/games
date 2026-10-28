@@ -11,6 +11,8 @@ export interface Tile {
   t: TileType;
   /** 성벽·성문·관문 내구 */
   hp: number;
+  /** 처음 내구(표시용) */
+  max?: number;
   /** 불타는 남은 날 */
   fire: number;
   /** 물에 잠긴 남은 날(수공) */

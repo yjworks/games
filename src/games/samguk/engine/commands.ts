@@ -38,7 +38,11 @@ function own(s: GameState, cityId: CityId, f: number): City | null {
   return c && c.owner === f ? c : null;
 }
 
+/** 마지막으로 명령을 수행한 장수(화면에서 보고하는 사람) */
+export const lastActor: { id: string | null } = { id: null };
+
 function done(_s: GameState, o: Officer, merit: number) {
+  lastActor.id = o.id;
   o.acted = true;
   o.merit += merit;
 }

@@ -1,3 +1,4 @@
+import { Portrait } from './art/Portrait';
 import { CITY_BY_ID } from '../data/cities';
 import { agriCap, commCap, RANK_TITLES } from '../engine/setup';
 import { factionName, freeIn, officersIn, worth, nameOf, def } from '../engine/officers';
@@ -50,6 +51,7 @@ export function CityPanel({ s, city, me, onCmd, onPerson, onToggleDelegate, onCl
   return (
     <section className="sg-city-panel" aria-label={`${cd.name} 정보`}>
       <header className="sg-cp-head">
+        {c.governor && <Portrait id={c.governor} size={60} year={s.year} color={owner?.color} ruler={owner?.ruler === c.governor} className="sg-cp-face" />}
         <div>
           <h3>{cd.name} <small>{cd.hanja} · {cd.zhou}</small></h3>
           <p className="sg-cp-owner">
@@ -57,6 +59,7 @@ export function CityPanel({ s, city, me, onCmd, onPerson, onToggleDelegate, onCl
               {owner.capital === city && <em className="sg-tag">수도</em>}</> : <span className="sg-muted">공백지 (수비대만 있음)</span>}
             {rel !== null && <span className="sg-muted"> · 우호 {rel}{allied(s, me, owner!.idx) ? ' · 동맹' : ''}</span>}
           </p>
+          {c.governor && <p className="sg-cp-gov">태수 <b>{nameOf(c.governor)}</b></p>}
         </div>
         <button className="sg-x" onClick={onClose} aria-label="닫기">✕</button>
       </header>

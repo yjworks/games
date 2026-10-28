@@ -1,3 +1,4 @@
+import { Portrait } from './art/Portrait';
 import { ReactNode, useEffect } from 'react';
 import { def, STAT_NAMES, statsOf, rankOf, RANKS, traitsOf } from '../engine/officers';
 import type { GameState } from '../engine/state';
@@ -65,6 +66,7 @@ export function OfficerLine({ s, id, hi, right, onClick, dim, sel }: {
   const Tag = onClick ? 'button' : 'div';
   return (
     <Tag className={`sg-oline ${dim ? 'dim' : ''} ${sel ? 'sel' : ''}`} onClick={onClick}>
+      <Portrait id={id} size={34} year={s.year} color={officerColor(s, id)} ruler={!!isRuler} className="sg-oface" />
       <span className="sg-oname">
         <strong>{d.name}</strong>
         {isRuler && <em className="sg-tag ruler">군주</em>}
@@ -75,6 +77,13 @@ export function OfficerLine({ s, id, hi, right, onClick, dim, sel }: {
       {right !== undefined && <span className="sg-oright">{right}</span>}
     </Tag>
   );
+}
+
+/** 장수가 속한(포로면 원래) 세력의 색 */
+export function officerColor(s: GameState | null, id: string): string {
+  const o = s?.officers[id];
+  if (!s || !o || o.faction < 0) return '#7a6e58';
+  return s.factions[o.faction]?.color ?? '#7a6e58';
 }
 
 export function Slider({ label, value, min, max, step = 100, onChange, unit }: {

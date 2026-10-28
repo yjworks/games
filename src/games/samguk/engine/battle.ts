@@ -206,6 +206,7 @@ export function createBattle(s: GameState, order: AttackOrder): BattleState {
     if (t.t === 'wall') t.hp = Math.round((300 + city.wall * 12) * mult);
     else if (t.t === 'gate') t.hp = Math.round((200 + city.wall * 8) * mult);
     else if (t.t === 'pass') t.hp = 450 + city.wall * 5;
+    if (t.hp) t.max = t.hp;
   }
 
   /* 공격 부대 — 출발 도시 쪽 가장자리에서 */

@@ -1,3 +1,4 @@
+import { Portrait } from './art/Portrait';
 import { useEffect, useMemo, useState } from 'react';
 import { CITY_BY_ID, NEIGHBORS } from '../data/cities';
 import { OFFICER_DEF } from '../data/officers';
@@ -62,6 +63,9 @@ export function Game() {
   return (
     <div className="sg-game">
       <div className="sg-status">
+        {viewer >= 0 && (
+          <Portrait id={s.factions[viewer].ruler} size={40} year={s.year} color={s.factions[viewer].color} ruler className="sg-status-face" />
+        )}
         <span className="sg-date"><b>{s.year}</b>년 <b>{s.month}</b>월 <small>{SEASON(s.month)}</small></span>
         {viewer >= 0 && (
           <span className="sg-me"><Dot color={s.factions[viewer].color} /> {factionName(s, viewer)} <small>{RANK_TITLES[s.factions[viewer].rank]}</small></span>

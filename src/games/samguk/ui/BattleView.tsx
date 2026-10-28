@@ -11,6 +11,10 @@ import { sfx } from '../../../shared/sound';
 import { useGame } from '../store';
 import { pct } from './common';
 import { fmt } from './labels';
+import { BattleDefs, TILE_FILL, TileArt, UnitBanner } from './art/BattleArt';
+import { Portrait } from './art/Portrait';
+import { surname } from './art/util';
+import { OFFICER_DEF } from '../data/officers';
 
 const R = 30;
 const HW = Math.sqrt(3) * R;
@@ -149,6 +153,7 @@ export function BattleView({ s }: { s: GameState }) {
       )}
       <div className="sg-bt-field" ref={fieldRef}>
         <svg viewBox={`0 0 ${W} ${H}`} className="sg-bt-svg" role="img" aria-label={`${city.name} 전장`}>
+          <BattleDefs />
           {bs.tiles.map((t, i) => {
             const q = i % bs.W, r = Math.floor(i / bs.W);
             const [cx, cy] = center(q, r);
@@ -159,10 +164,15 @@ export function BattleView({ s }: { s: GameState }) {
             const g = GLYPH[t.t];
             return (
               <g key={i} onClick={() => onTile(q, r)} className="sg-hex">
-                <path d={hexPath(cx, cy)} className={`sg-t-${t.t}`} />
-                {g && <text x={cx} y={cy + 6} className={g[1]}>{g[0]}</text>}
-                {(t.t === 'wall' || t.t === 'gate') && <text x={cx} y={cy + 4} className="sg-hp">{t.hp}</text>}
-                {t.t === 'pass' && <><text x={cx} y={cy - 3} className="sg-glyph pass">關</text><text x={cx} y={cy + 13} className="sg-hp light">{t.hp}</text></>}
+                <path d={hexPath(cx, cy)} fill={TILE_FILL[t.t]} className={`sg-hexbase sg-t-${t.t}`} />
+                <TileArt t={t.t} cx={cx} cy={cy} seed={i} />
+                {g && t.t !== 'forest' && t.t !== 'mountain' && t.t !== 'peak' && t.t !== 'village' && t.t !== 'dam' && t.t !== 'keep' && <text x={cx} y={cy + 6} className={g[1]}>{g[0]}</text>}
+                {(t.t === 'wall' || t.t === 'gate' || t.t === 'pass') && t.max && (t.hp < t.max || t.t !== 'wall') && (
+                  <g pointerEvents="none">
+                    <rect x={cx - 13} y={cy + 13} width="26" height="3.5" rx="1" fill="rgba(0,0,0,0.6)" />
+                    <rect x={cx - 13} y={cy + 13} width={26 * (t.hp / t.max)} height="3.5" rx="1" fill={t.hp / t.max > 0.5 ? '#e8d6a0' : '#ef7d6b'} />
+                  </g>
+                )}
                 {t.flood > 0 && <path d={hexPath(cx, cy, R * 0.86)} className="sg-flood" />}
                 {t.fire > 0 && <path d={hexPath(cx, cy, R * 0.82)} className="sg-fire" />}
                 {canMove && <path d={hexPath(cx, cy, R * 0.9)} className="sg-reach" />}
@@ -183,11 +193,11 @@ export function BattleView({ s }: { s: GameState }) {
             const duelOk = mineSel && mode === 'duel' && u.side !== mineSel.side && u.officer && dist([u.q, u.r], [mineSel.q, mineSel.r]) === 1;
             return (
               <g key={u.uid} className={`sg-unit ${u.acted && bs.side === u.side ? 'done' : ''} ${sel === u.uid ? 'sel' : ''}`} onClick={() => onTile(u.q, u.r)}>
-                <circle cx={cx} cy={cy} r={R * 0.62} fill={color} className={u.side === 0 ? 'atk' : 'def'} />
-                <text x={cx} y={cy + 4} className="sg-uname">{u.name.slice(0, 2)}</text>
-                <rect x={cx - R * 0.6} y={cy + R * 0.62} width={R * 1.2} height={4} className="sg-ubar-bg" />
-                <rect x={cx - R * 0.6} y={cy + R * 0.62} width={R * 1.2 * Math.max(0, u.troops / Math.max(1, u.maxTroops))} height={4} className="sg-ubar" />
-                {u.commander && <text x={cx + R * 0.5} y={cy - R * 0.38} className="sg-star">★</text>}
+                <circle cx={cx} cy={cy} r={R * 0.85} className="sg-unit-hit" />
+                {sel === u.uid && <ellipse cx={cx} cy={cy + 14} rx="20" ry="7" className="sg-unit-selring" />}
+                <UnitBanner cx={cx} cy={cy} color={color} side={u.side} commander={u.commander} troops={u.troops}
+                  ratio={u.troops / Math.max(1, u.maxTroops)} label={u.officer ? surname(OFFICER_DEF[u.officer]?.hanja ?? u.name) : '守'} />
+                {u.commander && <text x={cx + R * 0.55} y={cy - R * 0.5} className="sg-star">帥</text>}
                 {u.home && <text x={cx - R * 0.5} y={cy - R * 0.38} className="sg-rein">援</text>}
                 {u.guard && <text x={cx + R * 0.5} y={cy + R * 0.5} className="sg-rein">守</text>}
                 {u.confused > 0 && <text x={cx - R * 0.55} y={cy - R * 0.38} className="sg-conf">?</text>}
@@ -203,6 +213,7 @@ export function BattleView({ s }: { s: GameState }) {
         {unit ? (
           <div className="sg-bt-unit">
             <div className="sg-bt-uhead">
+              {unit.officer && <Portrait id={unit.officer} size={46} year={s.year} color={unit.faction >= 0 ? s.factions[unit.faction]?.color : undefined} className="sg-oface" />}
               <strong>{unit.name}</strong>{' '}
               <small>
                 {unit.side === 0 ? '공격' : '수비'}{unit.commander ? ' · 총대장' : ''}{unit.home ? ` · ${CITY_BY_ID[unit.home].name} 원군` : ''}
@@ -251,6 +262,7 @@ export function BattleView({ s }: { s: GameState }) {
         <div className="sg-overlay" onClick={() => { bs.duel = null; setDuelShow(0); bump(); }}>
           <div className="sg-sheet sg-duel" onClick={(e) => e.stopPropagation()}>
             <h2>일기토</h2>
+            <DuelFaces s={s} a={bs.duel.a} b={bs.duel.b} />
             <div className="sg-duel-lines">
               {bs.duel.lines.slice(0, duelShow).map((l, i) => <p key={i}>{l}</p>)}
             </div>
@@ -271,6 +283,20 @@ export function BattleView({ s }: { s: GameState }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** 일기토 맞대면 — 이름으로 장수를 찾아 초상을 마주 세운다 */
+function DuelFaces({ s, a, b }: { s: GameState; a: string; b: string }) {
+  const find = (name: string) => s.battle?.units.find((u) => u.name === name && u.officer)?.officer;
+  const ia = find(a), ib = find(b);
+  const col = (id?: string) => (id && s.officers[id]?.faction >= 0 ? s.factions[s.officers[id].faction]?.color : undefined);
+  return (
+    <div className="sg-duel-faces">
+      {ia && <Portrait id={ia} size={96} year={s.year} color={col(ia)} />}
+      <span className="sg-duel-vs">對</span>
+      {ib && <Portrait id={ib} size={96} year={s.year} color={col(ib)} flip />}
     </div>
   );
 }

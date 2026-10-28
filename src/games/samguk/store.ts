@@ -8,6 +8,8 @@ import { loadGame, saveGame } from './engine/save';
 import { DEFAULT_OPTIONS, newGame } from './engine/setup';
 import type { GameState, Options } from './engine/state';
 import { advance, currentHuman, endTurn, finishBattle } from './engine/turn';
+import { lastActor } from './engine/commands';
+import type { LogEntry } from './engine/state';
 
 export type Screen = 'title' | 'setup' | 'game';
 export type Panel = null | 'factions' | 'people' | 'report' | 'menu' | 'captives' | 'help';
@@ -18,7 +20,9 @@ interface UIState {
   rev: number;
   city: CityId | null;
   panel: Panel;
-  toast: { text: string; ok: boolean; at: number } | null;
+  toast: { text: string; ok: boolean; at: number; by?: string | null; color?: string } | null;
+  /** 이번 달 일어난 역사 사건(카드로 보여 준다) */
+  events: LogEntry[];
   /** 엔진을 직접 고친 뒤 다시 그리게 한다 */
   bump: () => void;
   go: (screen: Screen) => void;
@@ -50,6 +54,7 @@ export const useGame = create<UIState>((set, get) => ({
   city: null,
   panel: null,
   toast: null,
+  events: [],
   bump: () => set({ rev: get().rev + 1 }),
   go: (screen) => set({ screen }),
   start: (scenario, rulers, opts = DEFAULT_OPTIONS) => {
@@ -77,10 +82,15 @@ export const useGame = create<UIState>((set, get) => ({
   act: (fn, quiet) => {
     const s = get().game;
     if (!s) return;
+    lastActor.id = null;
     const r = fn(s);
+    const by = lastActor.id;
     if (s.attacks.length) advance(s);
     if (r && !quiet) {
-      get().say(r.msg, r.ok);
+      const f = currentHuman(s);
+      const speaker = by ?? (f >= 0 ? s.factions[f].advisor ?? s.factions[f].ruler : null);
+      const color = f >= 0 ? s.factions[f].color : undefined;
+      set({ toast: { text: r.msg, ok: r.ok, at: Date.now(), by: speaker, color } });
       if (r.ok) sfx.place(); else sfx.alert();
     }
     set({ rev: get().rev + 1 });
@@ -94,7 +104,8 @@ export const useGame = create<UIState>((set, get) => ({
     sfx.tap();
     const f = currentHuman(s);
     const keep = get().city;
-    set({ rev: get().rev + 1, panel: s.news.length ? 'report' : null, city: keep ?? (f >= 0 ? s.factions[f].capital : null) });
+    const events = s.news.filter((n) => n.kind === 'event' && n.y === s.year && n.m === s.month);
+    set({ rev: get().rev + 1, events, panel: !events.length && s.news.length ? 'report' : null, city: keep ?? (f >= 0 ? s.factions[f].capital : null) });
   },
   battleDone: () => {
     const s = get().game;

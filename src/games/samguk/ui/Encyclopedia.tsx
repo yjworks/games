@@ -1,3 +1,5 @@
+import { Portrait } from './art/Portrait';
+import { FACTION_COLORS } from '../data/scenarios';
 import { useMemo, useState } from 'react';
 import { CITY_BY_ID } from '../data/cities';
 import { ITEM_BY_ID } from '../data/items';
@@ -69,6 +71,7 @@ export function Encyclopedia({ onClose, s, initial }: { onClose: () => void; s?:
           <div className="sg-enc-list">
             {list.slice(0, 400).map((o) => (
               <button key={o.id} className="sg-oline" onClick={() => setSel(o.id)}>
+                <Portrait id={o.id} size={34} color={colorFor(s ?? null, o.id)} className="sg-oface" />
                 <span className="sg-oname">
                   <strong>{o.name}</strong><small>{o.hanja} · {o.born}{o.bornEst ? '?' : ''}–{o.died}{o.diedEst ? '?' : ''}</small>
                   {s && <em className="sg-tag">{STATUS_LABEL[s.officers[o.id]?.status ?? 'hidden']}</em>}
@@ -84,6 +87,16 @@ export function Encyclopedia({ onClose, s, initial }: { onClose: () => void; s?:
   );
 }
 
+/** 인물 색: 게임 중이면 지금 세력, 아니면 가장 오래 섬긴 계통 */
+function colorFor(s: GameState | null | undefined, id: string): string {
+  const o = s?.officers[id];
+  if (s && o && o.faction >= 0) return s.factions[o.faction]?.color ?? '#7a6e58';
+  const d = OFFICER_DEF[id];
+  let best: FactionKey = 'none', span = -1;
+  d.svc.forEach(([y, k], i) => { const sp = (d.svc[i + 1]?.[0] ?? d.died) - y; if (sp > span) { span = sp; best = k; } });
+  return FACTION_COLORS[best];
+}
+
 export function PersonCard({ id, s, onBack }: { id: string; s: GameState | null; onBack?: () => void }) {
   const d = OFFICER_DEF[id];
   const o = s?.officers[id];
@@ -92,7 +105,7 @@ export function PersonCard({ id, s, onBack }: { id: string; s: GameState | null;
     <div className="sg-person">
       {onBack && <button className="sg-link" onClick={onBack}>← 목록</button>}
       <div className="sg-person-head">
-        <div className="sg-seal" aria-hidden="true">{d.hanja.slice(-1)}</div>
+        <Portrait id={id} size={108} year={s?.year} color={colorFor(s, id)} ruler={!!(s && o && o.faction >= 0 && s.factions[o.faction]?.ruler === id)} className="sg-bigface" />
         <div>
           <h3>{d.name} <small>{d.hanja}{d.style ? ` · 자 ${d.style}` : ''}</small></h3>
           <p className="sg-muted">

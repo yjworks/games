@@ -10,6 +10,9 @@
   --sg-gold-2: #f3d79a;
   --sg-good: #7fc4a0;
   --sg-bad: #ef7d6b;
+  --sg-serif: "Noto Serif KR", "Nanum Myeongjo", "AppleMyungjo", "Batang", "Songti SC", "SimSun", serif;
+  --sg-lacquer: linear-gradient(180deg, #2a1c12 0%, #1d140d 100%);
+  --sg-goldline: #a07a35;
   position: relative;
   flex: 1;
   min-height: 0;
@@ -189,22 +192,30 @@ button.sg-oline:hover { background: rgba(255, 255, 255, 0.04); }
 .sg-main { position: relative; flex: 1; min-height: 0; display: flex; }
 
 .sg-map-wrap { position: relative; flex: 1; min-width: 0; }
-.sg-map { width: 100%; height: 100%; display: block; touch-action: none; user-select: none; background: #12232f; cursor: grab; }
-.sg-map .sg-land { fill: #2b2820; }
-.sg-map .sg-sea { fill: #142a38; }
-.sg-map .sg-river { fill: none; stroke: #3d6f8f; stroke-linecap: round; stroke-linejoin: round; opacity: 0.85; }
-.sg-map .sg-lake { fill: #2a5a78; }
-.sg-map .sg-range { fill: none; stroke: #4c4334; stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; opacity: 0.7; }
-.sg-map .sg-region { fill: #6e6553; font-weight: 700; text-anchor: middle; letter-spacing: 0.3em; pointer-events: none; }
-.sg-map .sg-road { stroke: #6d6350; stroke-width: 1.6; opacity: 0.8; }
-.sg-map .sg-road.water { stroke: #5b9ac4; stroke-dasharray: 5 4; }
-.sg-map .sg-road.border { stroke: #c9894a; stroke-width: 2.2; }
+.sg-map { width: 100%; height: 100%; display: block; touch-action: none; user-select: none; background: #2a1d13; cursor: grab; }
+.sg-map .sg-table { fill: #2a1d13; }
+.sg-map .sg-river { fill: none; stroke: #4f7f93; stroke-linecap: round; stroke-linejoin: round; }
+.sg-map .sg-river-bank { fill: none; stroke: #efe3c4; stroke-linecap: round; stroke-linejoin: round; opacity: 0.55; }
+.sg-map .sg-lake { fill: #7f9fa2; stroke: #4d3a24; stroke-width: 1; }
+.sg-map .sg-zhou { fill: #5a3d22; opacity: 0.2; font-family: var(--sg-serif); font-size: 34px; font-weight: 700; text-anchor: middle; letter-spacing: 0.5em; pointer-events: none; }
+.sg-map .sg-region { fill: #6d5436; opacity: 0.6; font-family: var(--sg-serif); font-size: 17px; font-weight: 700; text-anchor: middle; letter-spacing: 0.4em; pointer-events: none; }
+.sg-map .sg-seaname { fill: #3d5a60; opacity: 0.55; font-family: var(--sg-serif); font-size: 24px; font-weight: 700; text-anchor: middle; letter-spacing: 0.6em; pointer-events: none; }
+.sg-map .sg-cartouche { fill: #2b1d12; font-family: var(--sg-serif); font-size: 21px; font-weight: 800; text-anchor: middle; letter-spacing: 0.12em; }
+.sg-map .sg-seal { fill: #f3e2c0; font-family: var(--sg-serif); font-size: 14px; font-weight: 800; text-anchor: middle; }
+.sg-map .sg-compass { fill: #3a2614; font-family: var(--sg-serif); font-size: 13px; font-weight: 800; text-anchor: middle; }
+.sg-map .sg-road { stroke: #6b4a2a; stroke-width: 1.4; stroke-dasharray: 5 3; opacity: 0.75; }
+.sg-map .sg-road.water { stroke: #3f6f86; stroke-dasharray: 2 4; stroke-width: 1.8; }
+.sg-map .sg-road.border { stroke: #a8331f; stroke-width: 2.4; stroke-dasharray: none; opacity: 0.9; }
 .sg-map .sg-city { cursor: pointer; }
 .sg-map .sg-hit { fill: transparent; }
-.sg-map .sg-node { stroke: #0c0b09; stroke-width: 1.6; }
-.sg-map .sg-cname { fill: #efe7d4; text-anchor: middle; font-weight: 700; paint-order: stroke; stroke: #14120e; stroke-width: 3px; pointer-events: none; }
-.sg-map .sg-sel-ring { fill: none; stroke: var(--sg-gold-2); stroke-width: 2.5; }
-.sg-map .sg-mark-ring { fill: rgba(239, 125, 107, 0.15); stroke: var(--sg-bad); stroke-width: 1.6; stroke-dasharray: 4 3; }
+.sg-map .sg-cname {
+  fill: #20140b; text-anchor: middle; font-weight: 800; font-family: var(--sg-serif);
+  paint-order: stroke; stroke: #f1e4c3; stroke-width: 3.5px; pointer-events: none;
+}
+.sg-map .sg-sel-ring { fill: rgba(255, 223, 140, 0.25); stroke: #c9891f; stroke-width: 2.5; }
+.sg-map .sg-mark-ring { fill: rgba(176, 52, 42, 0.14); stroke: #b0342a; stroke-width: 1.6; stroke-dasharray: 4 3; }
+.sg-map .sg-mflag { transform-origin: 0 4px; animation: sgFlagWave 2.4s ease-in-out infinite alternate; }
+@keyframes sgFlagWave { from { transform: skewY(-4deg) scaleX(0.94); } to { transform: skewY(4deg) scaleX(1); } }
 .sg-zoom { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .sg-zbtn {
   width: 44px; height: 44px; border-radius: 12px;
@@ -404,24 +415,6 @@ button.sg-oline:hover { background: rgba(255, 255, 255, 0.04); }
 .sg-bt-svg { width: 100%; height: 100%; min-width: 780px; min-height: 470px; margin: auto; touch-action: manipulation; user-select: none; }
 .sg-hex { cursor: pointer; }
 .sg-hex path { stroke: rgba(0, 0, 0, 0.45); stroke-width: 1; }
-.sg-t-plain { fill: #3e4a2d; }
-.sg-t-forest { fill: #28401f; }
-.sg-t-hill { fill: #57502f; }
-.sg-t-mountain { fill: #5b524a; }
-.sg-t-water { fill: #24506d; }
-.sg-t-bridge { fill: #7a5d3b; }
-.sg-t-wall { fill: #8b8070; }
-.sg-t-gate { fill: #9a6a3a; }
-.sg-t-inner { fill: #4a4337; }
-.sg-t-keep { fill: #6b5a3c; }
-.sg-t-breach { fill: #5b5145; }
-.sg-t-road { fill: #6a5a3c; }
-.sg-t-peak { fill: #3b3530; }
-.sg-t-marsh { fill: #33463a; }
-.sg-t-ford { fill: #3b6a82; }
-.sg-t-village { fill: #5a4a30; }
-.sg-t-dam { fill: #6f6a52; }
-.sg-t-pass { fill: #7d4f2c; }
 .sg-glyph.peak { fill: rgba(255, 255, 255, 0.34); font-size: 13px; letter-spacing: -2px; }
 .sg-glyph.ford { fill: rgba(200, 235, 255, 0.5); }
 .sg-glyph.village { fill: #f0d7a1; font-size: 14px; font-weight: 800; }
@@ -453,13 +446,7 @@ button.sg-oline:hover { background: rgba(255, 255, 255, 0.04); }
 .sg-firetarget { fill: rgba(255, 140, 60, 0.18) !important; stroke: rgba(255, 140, 60, 0.8) !important; pointer-events: none; }
 .sg-pct { fill: #fff; font-size: 10px; font-weight: 800; text-anchor: middle; paint-order: stroke; stroke: #000; stroke-width: 2.5px; pointer-events: none; }
 .sg-unit { cursor: pointer; }
-.sg-unit circle.atk { stroke: #ffd6cc; stroke-width: 2; }
-.sg-unit circle.def { stroke: #cfe4ff; stroke-width: 2; }
-.sg-unit.sel circle { stroke: #ffe28a; stroke-width: 3.5; }
 .sg-unit.done { opacity: 0.55; }
-.sg-uname { fill: #fff; font-size: 12px; font-weight: 800; text-anchor: middle; paint-order: stroke; stroke: rgba(0, 0, 0, 0.7); stroke-width: 2.5px; pointer-events: none; }
-.sg-ubar-bg { fill: rgba(0, 0, 0, 0.6); }
-.sg-ubar { fill: #8be08f; }
 .sg-star { fill: #ffd76a; font-size: 12px; text-anchor: middle; pointer-events: none; }
 .sg-conf { fill: #ff9ad8; font-size: 13px; font-weight: 800; text-anchor: middle; pointer-events: none; }
 .sg-target-ring { fill: none; stroke: #ff6a55; stroke-width: 3; pointer-events: none; }
@@ -502,3 +489,171 @@ button.sg-oline:hover { background: rgba(255, 255, 255, 0.04); }
   .sg-btn:hover:not(:disabled), .sg-cmd:hover:not(:disabled), .sg-row-btn:hover:not(:disabled), .sg-fac:hover, .sg-sc:hover { filter: brightness(1.12); }
   .sg-frow:hover:not(.head) { background: rgba(255, 255, 255, 0.04); }
 }
+
+
+/* ══════════ 그림·장식(삼국지풍 개편) ══════════ */
+.sg-root { background: radial-gradient(1200px 700px at 50% 0%, #2b1d12 0%, #140e09 70%); }
+.sg-h, .sg-sub, .sg-sheet-head h2, .sg-cp-head h3, .sg-title-name, .sg-person-head h3, .sg-sc-name, .sg-event-body p {
+  font-family: var(--sg-serif);
+}
+.sg-h { color: var(--sg-gold-2); letter-spacing: 0.14em; border-bottom: 1px solid rgba(160, 122, 53, 0.35); padding-bottom: 5px; }
+
+/* 옻칠 패널 */
+.sg-sheet, .sg-city-panel, .sg-sc-desc, .sg-cmds, .sg-bt-panel, .sg-status, .sg-bottom {
+  background: var(--sg-lacquer);
+  border-color: var(--sg-goldline);
+}
+.sg-sheet { box-shadow: 0 0 0 1px #3d2a16, inset 0 0 0 3px #1a120b, inset 0 0 0 4px rgba(160, 122, 53, 0.55), 0 -10px 40px rgba(0, 0, 0, 0.6); }
+.sg-sheet-head { border-bottom: 1px solid rgba(160, 122, 53, 0.35); background: linear-gradient(90deg, rgba(160, 122, 53, 0.18), transparent 70%); }
+.sg-sheet-head h2 { color: var(--sg-gold-2); letter-spacing: 0.08em; }
+.sg-city-panel { box-shadow: inset 0 0 0 1px rgba(160, 122, 53, 0.5), 0 -14px 30px rgba(0, 0, 0, 0.5); }
+.sg-cmds { border: 1px solid rgba(160, 122, 53, 0.45); box-shadow: inset 0 0 0 3px rgba(0, 0, 0, 0.25); }
+.sg-cmd {
+  background: linear-gradient(180deg, #3a2716, #24170d);
+  border: 1px solid #6b4f26;
+  color: #f1e2bf;
+  font-family: var(--sg-serif);
+  box-shadow: inset 0 1px 0 rgba(255, 220, 150, 0.12);
+}
+.sg-cmd:hover:not(:disabled) { border-color: var(--sg-gold); }
+.sg-cmd-cat { font-family: var(--sg-serif); }
+.sg-btn { font-family: var(--sg-serif); background: linear-gradient(180deg, #3a2716, #24170d); border-color: #6b4f26; color: #f1e2bf; }
+.sg-btn.primary { background: linear-gradient(180deg, #e3b25a, #b8812e); border-color: #f3d79a; color: #1d1209; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 2px 8px rgba(0, 0, 0, 0.4); }
+.sg-cell { background: linear-gradient(180deg, #2c1f14, #21170f); border: 1px solid rgba(160, 122, 53, 0.25); }
+.sg-tag { background: rgba(176, 52, 42, 0.22); color: #f2c7b4; border: 1px solid rgba(176, 52, 42, 0.5); }
+.sg-tag.ruler { background: #b0342a; color: #fff3df; border-color: #e3b25a; }
+
+/* 초상 */
+.sg-portrait { display: block; flex-shrink: 0; border-radius: 4px; box-shadow: 0 0 0 1px #6b4f26, 0 0 0 2px #1a120b, 0 2px 6px rgba(0, 0, 0, 0.5); background: #2a1c12; }
+.sg-oface { width: 34px; height: 34px; }
+.sg-bigface { box-shadow: 0 0 0 2px #a07a35, 0 0 0 4px #1a120b, 0 6px 16px rgba(0, 0, 0, 0.6); }
+.sg-person-head { align-items: flex-end; }
+.sg-status-face { width: 40px; height: 40px; }
+.sg-cp-face { margin-right: 4px; }
+.sg-cp-gov { margin: 2px 0 0; font-size: 0.74rem; color: var(--sg-sub); }
+.sg-cp-gov b { color: var(--sg-gold-2); font-family: var(--sg-serif); }
+.sg-oline { gap: 9px; }
+
+/* 상단 상태 줄 */
+.sg-status { border-bottom: 1px solid var(--sg-goldline); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45); }
+.sg-date { font-family: var(--sg-serif); padding: 3px 10px; border-radius: 4px; background: linear-gradient(180deg, #efe1bd, #d6c094); color: #2b1d12; }
+.sg-date b { color: #7a2a1c; }
+.sg-date small { color: #5a4630; }
+.sg-me { font-family: var(--sg-serif); }
+
+/* 지도 둘레 — 탁자 위에 펼친 지도 */
+.sg-map-wrap { background: radial-gradient(900px 500px at 50% 40%, #3a2717, #1a110a); }
+.sg-zbtn { background: linear-gradient(180deg, #3a2716, #24170d); border-color: #6b4f26; color: #f1e2bf; }
+
+/* 표제 */
+.sg-title { position: relative; flex: 1; min-height: 0; overflow: hidden; display: block; padding: 0; background: #0c0809; }
+.sg-scene { position: absolute; inset: 0; width: 100%; height: 100%; }
+.sg-title-body {
+  position: relative; z-index: 1; height: 100%; overflow-y: auto;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  padding: 26px 18px calc(26px + env(safe-area-inset-bottom));
+  text-align: center;
+  background: linear-gradient(180deg, rgba(10, 6, 8, 0.55) 0%, rgba(10, 6, 8, 0) 35%, rgba(10, 6, 8, 0) 55%, rgba(10, 6, 8, 0.75) 100%);
+}
+.sg-title-logo { display: flex; flex-direction: column; align-items: center; gap: 6px; filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.6)); }
+.sg-title-art span {
+  font-family: var(--sg-serif);
+  background: linear-gradient(180deg, #b8382b, #7e1e16);
+  color: #fbe7c2;
+  border: 2px solid #e3b25a;
+  box-shadow: inset 0 0 0 2px #7e1e16, 0 4px 10px rgba(0, 0, 0, 0.5);
+  width: 58px; height: 58px; font-size: 2.1rem;
+}
+.sg-title-name { color: #fbe7c2; text-shadow: 0 2px 0 #3a1a10, 0 0 18px rgba(240, 180, 100, 0.45); font-size: 2.3rem; }
+.sg-title-sub { color: #f3d7a0; font-family: var(--sg-serif); letter-spacing: 0.18em; font-size: 0.78rem; opacity: 0.9; }
+.sg-title-menu { margin-top: auto; gap: 10px; width: min(360px, 100%); }
+.sg-plaque {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  min-height: 56px; padding: 8px 16px;
+  border-radius: 6px;
+  font-family: var(--sg-serif);
+  color: #f6e6c4;
+  background: linear-gradient(180deg, rgba(58, 36, 20, 0.92), rgba(28, 18, 10, 0.94));
+  border: 1px solid #a07a35;
+  box-shadow: inset 0 0 0 3px rgba(0, 0, 0, 0.35), inset 0 0 0 4px rgba(227, 178, 90, 0.35), 0 6px 16px rgba(0, 0, 0, 0.55);
+}
+.sg-plaque span { font-size: 1.08rem; font-weight: 800; letter-spacing: 0.3em; text-indent: 0.3em; }
+.sg-plaque small { font-size: 0.7rem; color: #d7bf8f; letter-spacing: 0.04em; font-family: var(--db-font); }
+.sg-plaque.primary { background: linear-gradient(180deg, rgba(176, 52, 42, 0.95), rgba(110, 26, 18, 0.95)); border-color: #e3b25a; }
+.sg-title-note { color: #d9c7a3; text-shadow: 0 1px 2px #000; }
+.sg-clouds { animation: sgDrift 40s linear infinite alternate; }
+@keyframes sgDrift { from { transform: translateX(-30px); } to { transform: translateX(40px); } }
+.sg-flag { transform-box: fill-box; transform-origin: left center; animation: sgFlagWave 1.8s ease-in-out infinite alternate; }
+.sg-march { animation: sgMarch 60s linear infinite; }
+@keyframes sgMarch { from { transform: translateX(-40px); } to { transform: translateX(40px); } }
+.sg-birds { animation: sgDrift 18s ease-in-out infinite alternate; }
+
+/* 시나리오 선택 */
+.sg-sc { background: linear-gradient(180deg, #2c1e12, #1d140c); border-color: #5a4122; }
+.sg-sc.sel { border-color: #e3b25a; background: linear-gradient(180deg, #4a2a18, #2a180e); box-shadow: inset 0 0 0 1px rgba(227, 178, 90, 0.4); }
+.sg-sc-card { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.sg-minimap { width: 100%; height: auto; display: block; border-radius: 4px; box-shadow: 0 0 0 1px #a07a35, 0 6px 18px rgba(0, 0, 0, 0.5); }
+.sg-sc-desc h4 { margin: 0 0 6px; font-family: var(--sg-serif); color: var(--sg-gold-2); font-size: 0.95rem; }
+.sg-sc-desc { margin-top: 0; border: 1px solid rgba(160, 122, 53, 0.4); }
+.sg-fac { border-left: 4px solid var(--fac, #888); background: linear-gradient(90deg, color-mix(in srgb, var(--fac, #888) 16%, #1d140c), #1d140c 60%); }
+.sg-fac.sel { border-color: #e3b25a; border-left-color: var(--fac, #888); box-shadow: inset 0 0 0 1px rgba(227, 178, 90, 0.5); }
+.sg-fac-main strong { font-family: var(--sg-serif); font-size: 0.95rem; }
+.sg-fac-main strong em { font-style: normal; font-size: 0.72rem; color: var(--sg-sub); margin-left: 3px; }
+
+/* 말풍선 보고 */
+.sg-speech {
+  position: absolute; left: 50%; bottom: calc(74px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  z-index: 90;
+  width: min(94%, 560px);
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 12px;
+  text-align: left;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f2e5c6, #ddc79a);
+  color: #2b1d12;
+  border: 1px solid #6b4f26;
+  box-shadow: inset 0 0 0 3px #f2e5c6, inset 0 0 0 4px rgba(107, 79, 38, 0.5), 0 10px 28px rgba(0, 0, 0, 0.55);
+  animation: g-pop-in 0.22s ease-out;
+}
+.sg-speech.bad { background: linear-gradient(180deg, #f1dccc, #d9b6a2); }
+.sg-speech-body { display: flex; flex-direction: column; gap: 3px; font-size: 0.86rem; line-height: 1.55; min-width: 0; }
+.sg-speech-body strong { font-family: var(--sg-serif); color: #7a2a1c; font-size: 0.9rem; }
+.sg-speech-face { width: 58px; height: 58px; }
+
+/* 사건 카드 */
+.sg-event {
+  width: min(94vw, 480px);
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f2e5c6, #dcc497);
+  border: 1px solid #6b4f26;
+  box-shadow: 0 0 0 4px #1a120b, 0 0 0 5px #a07a35, 0 18px 50px rgba(0, 0, 0, 0.7);
+  color: #2b1d12;
+  animation: g-pop-in 0.25s ease-out;
+}
+.sg-event-art { display: block; width: 100%; height: auto; }
+.sg-event-body { padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 8px; }
+.sg-event-date { font-family: var(--sg-serif); color: #7a2a1c; font-weight: 800; letter-spacing: 0.1em; font-size: 0.8rem; }
+.sg-event-body p { margin: 0; font-size: 0.95rem; line-height: 1.7; }
+.sg-event-body .sg-btn { align-self: flex-end; }
+
+/* 전장 */
+.sg-battle { background: radial-gradient(900px 600px at 50% 40%, #2e2014, #120c08); }
+.sg-hexbase { stroke: rgba(20, 14, 8, 0.55); stroke-width: 1; }
+.sg-hex:hover .sg-hexbase { stroke: rgba(255, 230, 170, 0.6); }
+.sg-unit-hit { fill: transparent; }
+.sg-unit-selring { fill: rgba(255, 226, 138, 0.3); stroke: #ffe28a; stroke-width: 2; }
+.sg-ubanner { transform-box: fill-box; transform-origin: left center; animation: sgFlagWave 2.2s ease-in-out infinite alternate; }
+.sg-ubanner-txt { fill: #fff8e8; font-family: var(--sg-serif); font-size: 14px; font-weight: 800; text-anchor: middle; paint-order: stroke; stroke: rgba(0, 0, 0, 0.55); stroke-width: 2px; pointer-events: none; }
+.sg-ubanner-txt.two { font-size: 9.5px; }
+.sg-unit.done { opacity: 0.6; filter: saturate(0.6); }
+.sg-star { fill: #ffe08a; font-family: var(--sg-serif); font-size: 10px; font-weight: 800; paint-order: stroke; stroke: #3a1a10; stroke-width: 2px; }
+.sg-bt-top { background: var(--sg-lacquer); border-bottom: 1px solid var(--sg-goldline); }
+.sg-bt-top strong { font-family: var(--sg-serif); color: var(--sg-gold-2); }
+.sg-bt-note { background: linear-gradient(90deg, rgba(242, 229, 198, 0.95), rgba(220, 196, 151, 0.9)); color: #2b1d12; border-bottom: 1px solid #6b4f26; font-family: var(--sg-serif); }
+.sg-bt-note small { color: #6b4f26; }
+.sg-bt-uhead { display: flex; align-items: center; gap: 8px; }
+.sg-bt-uhead strong { font-family: var(--sg-serif); color: var(--sg-gold-2); }
+.sg-duel-faces { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.sg-duel-vs { font-family: var(--sg-serif); font-size: 2rem; font-weight: 800; color: #e3b25a; text-shadow: 0 0 10px rgba(227, 120, 60, 0.6); }
+.sg-bt-label { font-family: var(--sg-serif); fill: #fff1cf; }

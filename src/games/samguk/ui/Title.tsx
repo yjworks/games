@@ -5,9 +5,12 @@ import { CITY_BY_ID } from '../data/cities';
 import { SLOTS, slotInfo } from '../engine/save';
 import type { Difficulty, Lifespan, Options } from '../engine/state';
 import { useGame } from '../store';
-import { Dot, StatCells } from './common';
+import { StatCells } from './common';
 import { Encyclopedia } from './Encyclopedia';
 import { jo } from '../engine/josa';
+import { TitleScene } from './art/TitleScene';
+import { Portrait } from './art/Portrait';
+import { MiniMap } from './MiniMap';
 
 export function Title() {
   const go = useGame((u) => u.go);
@@ -17,26 +20,31 @@ export function Title() {
   const [loading, setLoading] = useState(false);
   const auto = slotInfo(-1);
   return (
-    <div className="sg-title center-scroll">
-      <div className="sg-title-art" aria-hidden="true">
-        <span>天</span><span>下</span><span>三</span><span>分</span>
+    <div className="sg-title">
+      <TitleScene />
+      <div className="sg-title-body center-scroll">
+        <div className="sg-title-logo">
+          <div className="sg-title-art" aria-hidden="true">
+            <span>天</span><span>下</span><span>三</span><span>分</span>
+          </div>
+          <h2 className="sg-title-name">천하삼분</h2>
+          <p className="sg-title-sub">一百九十年 — 二百八十年 · 五十三城 · 七百英傑</p>
+        </div>
+        <div className="sg-title-menu">
+          {auto && (
+            <button className="sg-plaque primary" onClick={() => { if (!load(-1)) say('이어 할 기록이 없습니다.', false); }}>
+              <span>이어하기</span><small>{auto.label}</small>
+            </button>
+          )}
+          <button className={`sg-plaque ${auto ? '' : 'primary'}`} onClick={() => go('setup')}><span>새로 시작</span><small>시나리오 일곱 · 세력 선택</small></button>
+          <button className="sg-plaque" onClick={() => setLoading(true)}><span>불러오기</span><small>저장 칸 셋 · 자동 저장</small></button>
+          <button className="sg-plaque" onClick={() => setBook(true)}><span>인물 사전</span><small>정사에 실존한 711명</small></button>
+        </div>
+        <p className="sg-title-note">
+          인물·사건은 진수 『삼국지』와 배송지 주, 『후한서』·『진서』를 바탕으로 새로 썼습니다.
+          능력치는 이 게임의 독자 평가이며, 그림은 모두 코드로 그렸습니다.
+        </p>
       </div>
-      <h2 className="sg-title-name">천하삼분</h2>
-      <p className="sg-title-sub">190 — 280 · 53성 · 실존 인물 700여 명</p>
-      <div className="sg-title-menu">
-        {auto && (
-          <button className="sg-btn primary" onClick={() => { if (!load(-1)) say('이어 할 기록이 없습니다.', false); }}>
-            이어하기 <small>{auto.label}</small>
-          </button>
-        )}
-        <button className={`sg-btn ${auto ? '' : 'primary'}`} onClick={() => go('setup')}>새로 시작</button>
-        <button className="sg-btn" onClick={() => setLoading(true)}>불러오기</button>
-        <button className="sg-btn" onClick={() => setBook(true)}>인물 사전</button>
-      </div>
-      <p className="sg-title-note">
-        인물·사건은 진수 『삼국지』와 배송지 주, 『후한서』·『진서』를 바탕으로 새로 썼습니다.
-        능력치는 이 게임의 독자 평가입니다.
-      </p>
       {book && <Encyclopedia onClose={() => setBook(false)} />}
       {loading && <LoadSheet onClose={() => setLoading(false)} />}
     </div>
@@ -95,23 +103,29 @@ export function Setup() {
             </button>
           ))}
         </div>
-        <div className="sg-sc-desc">
-          {sc.desc.map((p, i) => <p key={i}>{p}</p>)}
-          {sc.liberty && <p className="sg-liberty">※ {sc.liberty}</p>}
+        <div className="sg-sc-card">
+          <MiniMap sc={sc} highlight={picked} />
+          <div className="sg-sc-desc">
+            <h4>{sc.year}년 · {sc.name}</h4>
+            {sc.desc.map((p, i) => <p key={i}>{p}</p>)}
+            {sc.liberty && <p className="sg-liberty">※ {sc.liberty}</p>}
+          </div>
         </div>
       </div>
       <div className="sg-setup-col">
-        <h3 className="sg-h">세력 선택 <small>여럿 고르면 번갈아 지휘(핫시트)</small></h3>
+        <h3 className="sg-h">군주 선택 <small>여럿 고르면 번갈아 지휘(핫시트)</small></h3>
         <div className="sg-fac-list">
           {factions.map((f) => {
             const d = OFFICER_DEF[f.ruler];
             const on = picked.includes(f.ruler);
+            const color = FACTION_COLORS[f.key];
             return (
-              <button key={f.ruler} className={`sg-fac ${on ? 'sel' : ''}`} onClick={() => toggle(f.ruler)} aria-pressed={on}>
-                <Dot color={FACTION_COLORS[f.key]} size={14} />
+              <button key={f.ruler} className={`sg-fac ${on ? 'sel' : ''}`} onClick={() => toggle(f.ruler)} aria-pressed={on}
+                style={{ ['--fac' as string]: color }}>
+                <Portrait id={f.ruler} size={52} year={sc.year} color={color} ruler />
                 <span className="sg-fac-main">
-                  <strong>{d.name}</strong>
-                  <small>{CITY_BY_ID[f.capital].name} · 도시 {f.cities.length}</small>
+                  <strong>{d.name} <em>{d.hanja}</em></strong>
+                  <small>{CITY_BY_ID[f.capital].name} · 도시 {f.cities.length} · {sc.year - d.born}세</small>
                 </span>
                 <StatCells s={null} id={f.ruler} />
               </button>
@@ -137,7 +151,7 @@ export function Setup() {
         <div className="sg-setup-go">
           <button className="sg-btn" onClick={() => go('title')}>뒤로</button>
           <button className="sg-btn primary" disabled={!picked.length} onClick={() => start(sid, picked, opts)}>
-            {picked.length ? `${jo(picked.map((r) => OFFICER_DEF[r].name).join('·'), '로')} 시작` : '세력을 고르세요'}
+            {picked.length ? `${jo(picked.map((r) => OFFICER_DEF[r].name).join('·'), '로')} 시작` : '군주를 고르세요'}
           </button>
         </div>
       </div>
