@@ -676,3 +676,4 @@ button.sg-oline:hover { background: rgba(255, 255, 255, 0.04); }
 .sg-kind-tag { font-family: var(--sg-serif); color: #1d1209; background: #e3b25a; border-radius: 4px; padding: 0 5px; font-weight: 800; margin-right: 4px; }
 .sg-kind-desc { margin: 2px 0 4px; font-size: 0.74rem; color: var(--sg-sub); line-height: 1.5; }
 .sg-ukind { fill: #3a2614; font-family: var(--sg-serif); font-size: 7.5px; font-weight: 800; text-anchor: middle; pointer-events: none; }
+.sg-music-btn s { opacity: 0.45; text-decoration: line-through; }

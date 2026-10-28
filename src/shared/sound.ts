@@ -18,6 +18,11 @@ function ensureCtx(): AudioContext | null {
   return ctx;
 }
 
+/** 게임이 직접 음을 합성할 때 쓰는 공용 AudioContext (없으면 null) */
+export function audioContext(): AudioContext | null {
+  return ensureCtx();
+}
+
 interface BlipOpts {
   freq: number;
   dur: number;

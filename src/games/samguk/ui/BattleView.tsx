@@ -8,7 +8,7 @@ import {
 import { kindOf } from '../engine/units';
 import { factionName } from '../engine/officers';
 import type { GameState } from '../engine/state';
-import { sfx } from '../../../shared/sound';
+import { battleCue, sg } from '../audio';
 import { useGame } from '../store';
 import { pct } from './common';
 import { fmt } from './labels';
@@ -85,21 +85,30 @@ export function BattleView({ s }: { s: GameState }) {
     return () => clearInterval(t);
   }, [bs.duel]);
 
+  /* 전투 기록이 늘면 새 줄마다 효과음을 고른다 — 상대 차례에 한꺼번에 늘어도 몇 개만 이어서 */
+  const heard = useRef(bs.log.length);
+  useEffect(() => {
+    const fresh = bs.log.slice(heard.current);
+    heard.current = bs.log.length;
+    const cues = fresh.map(battleCue).filter((c): c is () => void => !!c).slice(-5);
+    cues.forEach((c, i) => setTimeout(c, i * 230));
+  });
+
   const after = () => { setMode('normal'); bump(); };
 
   const onTile = (q: number, r: number) => {
     if (bs.over || humanSide === null) return;
     const u = unitAt(bs, q, r);
     if (mineSel && mode === 'fire') {
-      if (fireChance(bs, mineSel, q, r) > 0) { doFire(bs, mineSel, q, r); sfx.capture(); }
+      if (fireChance(bs, mineSel, q, r) > 0) doFire(bs, mineSel, q, r);
       after(); return;
     }
     if (mineSel && mode === 'confuse') {
-      if (u && u.side !== mineSel.side && confuseChance(bs, mineSel, u) > 0) { doConfuse(bs, mineSel, u); sfx.alert(); }
+      if (u && u.side !== mineSel.side && confuseChance(bs, mineSel, u) > 0) doConfuse(bs, mineSel, u);
       after(); return;
     }
     if (mineSel && mode === 'duel') {
-      if (u && u.side !== mineSel.side && dist([u.q, u.r], [mineSel.q, mineSel.r]) === 1 && u.officer) { doDuel(bs, mineSel, u); sfx.capture(); }
+      if (u && u.side !== mineSel.side && dist([u.q, u.r], [mineSel.q, mineSel.r]) === 1 && u.officer) { doDuel(bs, mineSel, u); sg.duel(); }
       after(); return;
     }
     if (mineSel) {
@@ -107,11 +116,10 @@ export function BattleView({ s }: { s: GameState }) {
       if (t) {
         if (t.kind === 'unit') attackUnit(bs, mineSel, unitAt(bs, q, r)!, t.ranged);
         else attackTile(bs, mineSel, q, r);
-        sfx.capture();
         after(); return;
       }
       if (reach.has(r * bs.W + q) && !(q === mineSel.q && r === mineSel.r)) {
-        moveUnit(bs, mineSel, q, r); sfx.move(); after(); return;
+        moveUnit(bs, mineSel, q, r); sg.march(mineSel.kind); after(); return;
       }
     }
     if (u) { setSel(u.uid); setMode('normal'); return; }
@@ -232,7 +240,7 @@ export function BattleView({ s }: { s: GameState }) {
                 <button className={`sg-cmd ${mode === 'confuse' ? 'on' : ''}`} onClick={() => setMode(mode === 'confuse' ? 'normal' : 'confuse')}>혼란</button>
                 <button className={`sg-cmd ${mode === 'duel' ? 'on' : ''}`} disabled={!mineSel.officer} onClick={() => setMode(mode === 'duel' ? 'normal' : 'duel')}>일기토</button>
                 {canFlood(bs, mineSel) && (
-                  <button className="sg-cmd flood" onClick={() => { doFlood(bs, mineSel); sfx.alert(); after(); }}>
+                  <button className="sg-cmd flood" onClick={() => { doFlood(bs, mineSel); after(); }}>
                     수공 {pct(floodChance(bs, mineSel))}
                   </button>
                 )}

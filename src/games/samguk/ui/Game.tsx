@@ -19,6 +19,7 @@ import { SEASON, fmt } from './labels';
 import { MapView } from './MapView';
 import { LoadSheet } from './Title';
 import { jo } from '../engine/josa';
+import { audioPrefs, setAudioPrefs } from '../audio';
 
 export function Game() {
   const s = useGame((u) => u.game)!;
@@ -190,6 +191,18 @@ function Menu({ s, onClose }: { s: GameState; onClose: () => void }) {
         <button aria-pressed={s.options.manualBattle} onClick={() => { s.options.manualBattle = true; bump(); }}>전투 직접 지휘</button>
         <button aria-pressed={!s.options.manualBattle} onClick={() => { s.options.manualBattle = false; bump(); }}>전투 위임</button>
       </div>
+      <h4 className="sg-sub">배경음악</h4>
+      <div className="sg-seg">
+        {([['끔', 0], ['작게', 0.3], ['보통', 0.6], ['크게', 0.95]] as const).map(([label, v]) => {
+          const ap = audioPrefs();
+          const cur = !ap.music ? 0 : ap.volume;
+          return (
+            <button key={label} aria-pressed={Math.abs(cur - v) < 0.05}
+              onClick={() => { setAudioPrefs(v === 0 ? { music: false } : { music: true, volume: v }); bump(); }}>{label}</button>
+          );
+        })}
+      </div>
+      <p className="sg-muted">효과음은 위쪽 🔊 단추로 켜고 끕니다(모든 게임 공통). 꺼 두면 음악도 나오지 않습니다.</p>
       <p className="sg-muted">난이도 {{ easy: '쉬움', normal: '보통', hard: '어려움' }[s.options.difficulty]} · 수명 {s.options.lifespan === 'history' ? '역사대로' : '가상'} · 매달 자동 저장</p>
       <div className="sg-form-go"><button className="sg-btn" onClick={quit}>표제로 나가기</button></div>
     </Sheet>
