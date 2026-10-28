@@ -401,7 +401,7 @@ button.sg-oline:hover { background: rgba(255, 255, 255, 0.04); }
 .sg-bt-side.def { color: #a6cfff; }
 .sg-bt-turn { margin-left: auto; color: var(--sg-gold-2); font-weight: 700; }
 .sg-bt-field { flex: 1; min-height: 0; display: flex; align-items: center; padding: 4px; overflow: auto; -webkit-overflow-scrolling: touch; }
-.sg-bt-svg { width: 100%; height: 100%; min-width: 640px; min-height: 400px; margin: auto; touch-action: manipulation; user-select: none; }
+.sg-bt-svg { width: 100%; height: 100%; min-width: 780px; min-height: 470px; margin: auto; touch-action: manipulation; user-select: none; }
 .sg-hex { cursor: pointer; }
 .sg-hex path { stroke: rgba(0, 0, 0, 0.45); stroke-width: 1; }
 .sg-t-plain { fill: #3e4a2d; }
@@ -415,6 +415,33 @@ button.sg-oline:hover { background: rgba(255, 255, 255, 0.04); }
 .sg-t-inner { fill: #4a4337; }
 .sg-t-keep { fill: #6b5a3c; }
 .sg-t-breach { fill: #5b5145; }
+.sg-t-road { fill: #6a5a3c; }
+.sg-t-peak { fill: #3b3530; }
+.sg-t-marsh { fill: #33463a; }
+.sg-t-ford { fill: #3b6a82; }
+.sg-t-village { fill: #5a4a30; }
+.sg-t-dam { fill: #6f6a52; }
+.sg-t-pass { fill: #7d4f2c; }
+.sg-glyph.peak { fill: rgba(255, 255, 255, 0.34); font-size: 13px; letter-spacing: -2px; }
+.sg-glyph.ford { fill: rgba(200, 235, 255, 0.5); }
+.sg-glyph.village { fill: #f0d7a1; font-size: 14px; font-weight: 800; }
+.sg-glyph.dam { fill: #b7e1ff; font-size: 14px; font-weight: 800; }
+.sg-glyph.pass { fill: #ffd9a8; font-size: 15px; font-weight: 800; }
+.sg-hp.light { fill: #ffe9cc; }
+.sg-flood { fill: rgba(70, 150, 230, 0.55) !important; stroke: rgba(150, 210, 255, 0.8) !important; pointer-events: none; animation: sgFlick 1.4s ease-in-out infinite alternate; }
+.sg-bt-label { fill: #fff4d8; font-size: 13px; font-weight: 800; text-anchor: middle; paint-order: stroke; stroke: rgba(10, 8, 5, 0.85); stroke-width: 3.5px; pointer-events: none; letter-spacing: 0.05em; }
+.sg-rein { fill: #9fe0ff; font-size: 10px; font-weight: 800; text-anchor: middle; paint-order: stroke; stroke: #000; stroke-width: 2px; pointer-events: none; }
+.sg-bt-rein { font-size: 0.7rem; padding: 2px 8px; border-radius: 99px; background: rgba(159, 224, 255, 0.12); color: #9fe0ff; }
+.sg-bt-rein.atk { background: rgba(255, 180, 166, 0.12); color: #ffb4a6; }
+.sg-bt-note {
+  display: block; width: 100%; text-align: left;
+  padding: 6px 12px; font-size: 0.76rem; line-height: 1.5; color: var(--sg-gold-2);
+  background: rgba(212, 162, 76, 0.08); border-bottom: 1px solid var(--sg-line);
+}
+.sg-bt-note small { color: var(--sg-sub); margin-left: 6px; }
+.sg-cmd.flood { color: #9fd4ff; border-color: rgba(120, 190, 255, 0.5); }
+.sg-map-note { margin: 4px 0 0; font-size: 0.72rem; color: var(--sg-sub); }
+.sg-map-note b { color: var(--sg-gold-2); font-weight: 700; }
 .sg-glyph { fill: rgba(255, 255, 255, 0.22); font-size: 16px; text-anchor: middle; pointer-events: none; }
 .sg-glyph.small { font-size: 14px; }
 .sg-glyph.keep { fill: #f3d79a; font-weight: 800; font-size: 17px; }
@@ -453,9 +480,10 @@ button.sg-oline:hover { background: rgba(255, 255, 255, 0.04); }
 .sg-bt-go { display: flex; gap: 8px; justify-content: flex-end; }
 @media (min-width: 900px) {
   .sg-battle { flex-direction: row; flex-wrap: wrap; }
-  .sg-bt-top { width: 100%; }
-  .sg-bt-field { flex: 1; height: calc(100% - 40px); }
-  .sg-bt-panel { width: 340px; border-top: none; border-left: 1px solid var(--sg-line); height: calc(100% - 40px); }
+  .sg-bt-top, .sg-bt-note { width: 100%; }
+  .sg-battle { align-content: flex-start; }
+  .sg-bt-field { flex: 1; min-height: 0; height: auto; align-self: stretch; }
+  .sg-bt-panel { width: 340px; border-top: none; border-left: 1px solid var(--sg-line); align-self: stretch; }
   .sg-bt-log { flex: 1; overflow-y: auto; }
   .sg-bt-log p { white-space: normal; }
 }

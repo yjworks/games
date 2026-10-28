@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CITY_BY_ID } from '../data/cities';
 import {
-  type Unit, TILE_NAMES, alive, attackTargets, attackTile, attackUnit, autoResolve, confuseChance, dist,
-  doConfuse, doDuel, doFire, doRetreat, doWait, endSide, fireChance, moveUnit, reachable, runUntilHuman,
-  tileAt, unitAt,
+  type Unit, TILE_NAMES, alive, attackTargets, attackTile, attackUnit, autoResolve, canFlood, confuseChance, dist,
+  doConfuse, doDuel, doFire, doFlood, doRetreat, doWait, endSide, fireChance, floodChance, moveUnit, reachable,
+  runUntilHuman, tileAt, unitAt,
 } from '../engine/battle';
 import { factionName } from '../engine/officers';
 import type { GameState } from '../engine/state';
@@ -24,6 +24,20 @@ const hexPath = (cx: number, cy: number, rr = R) => {
   return `M${pts.join('L')}Z`;
 };
 const WIND_ARROW = ['→', '↗', '↖', '←', '↙', '↘'];
+const SIZE_NAME = { large: '대성', medium: '성', small: '소성' } as const;
+
+/** 칸 위에 얹는 글자 */
+const GLYPH: Partial<Record<string, [string, string]>> = {
+  forest: ['♣', 'sg-glyph'],
+  mountain: ['▲', 'sg-glyph'],
+  peak: ['▲▲', 'sg-glyph peak'],
+  hill: ['⌒', 'sg-glyph small'],
+  marsh: ['≈', 'sg-glyph small'],
+  ford: ['≈', 'sg-glyph ford'],
+  village: ['家', 'sg-glyph village'],
+  dam: ['堤', 'sg-glyph dam'],
+  keep: ['本', 'sg-glyph keep'],
+};
 
 type Mode = 'normal' | 'fire' | 'confuse' | 'duel';
 
@@ -35,13 +49,28 @@ export function BattleView({ s }: { s: GameState }) {
   const [sel, setSel] = useState<number | null>(null);
   const [mode, setMode] = useState<Mode>('normal');
   const [duelShow, setDuelShow] = useState(0);
+  const [showNote, setShowNote] = useState(true);
 
   const humanSide = bs.human[bs.side] ? bs.side : null;
   const unit = sel !== null ? bs.units.find((u) => u.uid === sel && !u.gone) ?? null : null;
   const mineSel = unit && humanSide !== null && unit.side === humanSide ? unit : null;
 
-  const reach = useMemo(() => (mineSel && mode === 'normal' ? reachable(bs, mineSel) : new Map<number, number>()), [bs, mineSel, mode, bs.units.map((u) => `${u.q},${u.r},${u.moved}`).join()]);
+  const unitKey = bs.units.map((u) => `${u.q},${u.r},${u.moved},${u.gone}`).join();
+  const reach = useMemo(() => (mineSel && mode === 'normal' ? reachable(bs, mineSel) : new Map<number, number>()), [bs, mineSel, mode, unitKey]);
   const targets = mineSel && mode === 'normal' ? attackTargets(bs, mineSel) : [];
+
+  /* 좁은 화면에서는 전장이 가로로 넘친다 — 처음에 사람이 지휘하는 부대 쪽을 보여 준다 */
+  const fieldRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = fieldRef.current;
+    if (!el || el.scrollWidth <= el.clientWidth) return;
+    const side = bs.human[0] ? 0 : 1;
+    const mine = bs.units.filter((u) => !u.gone && u.side === side);
+    if (!mine.length) return;
+    const avg = mine.reduce((a, u) => a + center(u.q, u.r)[0], 0) / mine.length;
+    const total = bs.W * HW + HW / 2;
+    el.scrollLeft = Math.max(0, (avg / total) * el.scrollWidth - el.clientWidth / 2);
+  }, [bs]);
 
   /* 일기토 연출 */
   useEffect(() => {
@@ -97,18 +126,29 @@ export function BattleView({ s }: { s: GameState }) {
   const atk = alive(bs, 0), def = alive(bs, 1);
   const sum = (l: Unit[]) => l.reduce((a, u) => a + u.troops, 0);
   const sideName = (side: 0 | 1) => (side === 0 ? factionName(s, bs.attacker) : bs.defender >= 0 ? factionName(s, bs.defender) : '수비대');
+  const city = CITY_BY_ID[bs.to];
 
   return (
     <div className="sg-battle">
       <div className="sg-bt-top">
-        <strong>{CITY_BY_ID[bs.to].name} 공방전</strong>
-        <span>{bs.day}/{bs.maxDay}일 · {bs.weather} · 바람 {WIND_ARROW[bs.wind]}</span>
+        <strong>{city.name} {SIZE_NAME[bs.size]} 공방전</strong>
+        <span>{bs.day}/{bs.maxDay}일 · {bs.weather} · 바람 {WIND_ARROW[bs.wind]} · {bs.entry}쪽 진입</span>
         <span className="sg-bt-side atk">{sideName(0)} {fmt(sum(atk))} · 군량 {fmt(bs.food)}</span>
         <span className="sg-bt-side def">{sideName(1)} {fmt(sum(def))}</span>
+        {bs.reinforce.map((rf, i) => (
+          <span key={i} className={`sg-bt-rein ${rf.side === 0 ? 'atk' : 'def'}`}>
+            원군 {rf.units.length}부대 · {CITY_BY_ID[rf.from].name} · {rf.day}일째
+          </span>
+        ))}
         <span className="sg-bt-turn">{bs.over ? '전투 종료' : `${bs.side === 0 ? '공격' : '수비'} 측 차례`}</span>
       </div>
-      <div className="sg-bt-field">
-        <svg viewBox={`0 0 ${W} ${H}`} className="sg-bt-svg" role="img" aria-label="전장">
+      {showNote && (
+        <button className="sg-bt-note" onClick={() => setShowNote(false)}>
+          {bs.note} <small>닫기</small>
+        </button>
+      )}
+      <div className="sg-bt-field" ref={fieldRef}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="sg-bt-svg" role="img" aria-label={`${city.name} 전장`}>
           {bs.tiles.map((t, i) => {
             const q = i % bs.W, r = Math.floor(i / bs.W);
             const [cx, cy] = center(q, r);
@@ -116,14 +156,14 @@ export function BattleView({ s }: { s: GameState }) {
             const canMove = reach.has(k) && !(mineSel && mineSel.q === q && mineSel.r === r);
             const isTarget = targets.some((x) => x.q === q && x.r === r);
             const fireOk = mineSel && mode === 'fire' && fireChance(bs, mineSel, q, r) > 0;
+            const g = GLYPH[t.t];
             return (
               <g key={i} onClick={() => onTile(q, r)} className="sg-hex">
                 <path d={hexPath(cx, cy)} className={`sg-t-${t.t}`} />
-                {t.t === 'forest' && <text x={cx} y={cy + 6} className="sg-glyph">♣</text>}
-                {t.t === 'mountain' && <text x={cx} y={cy + 7} className="sg-glyph">▲</text>}
-                {t.t === 'hill' && <text x={cx} y={cy + 6} className="sg-glyph small">⌒</text>}
+                {g && <text x={cx} y={cy + 6} className={g[1]}>{g[0]}</text>}
                 {(t.t === 'wall' || t.t === 'gate') && <text x={cx} y={cy + 4} className="sg-hp">{t.hp}</text>}
-                {t.t === 'keep' && <text x={cx} y={cy + 6} className="sg-glyph keep">本</text>}
+                {t.t === 'pass' && <><text x={cx} y={cy - 3} className="sg-glyph pass">關</text><text x={cx} y={cy + 13} className="sg-hp light">{t.hp}</text></>}
+                {t.flood > 0 && <path d={hexPath(cx, cy, R * 0.86)} className="sg-flood" />}
                 {t.fire > 0 && <path d={hexPath(cx, cy, R * 0.82)} className="sg-fire" />}
                 {canMove && <path d={hexPath(cx, cy, R * 0.9)} className="sg-reach" />}
                 {isTarget && <path d={hexPath(cx, cy, R * 0.92)} className="sg-target" />}
@@ -131,6 +171,10 @@ export function BattleView({ s }: { s: GameState }) {
                 {fireOk && <text x={cx} y={cy - 12} className="sg-pct">{pct(fireChance(bs, mineSel!, q, r))}</text>}
               </g>
             );
+          })}
+          {bs.labels.map((l, i) => {
+            const [cx, cy] = center(l.q, l.r);
+            return <text key={`l${i}`} x={cx} y={cy - R * 0.55} className="sg-bt-label">{l.text}</text>;
           })}
           {bs.units.filter((u) => !u.gone).map((u) => {
             const [cx, cy] = center(u.q, u.r);
@@ -144,6 +188,8 @@ export function BattleView({ s }: { s: GameState }) {
                 <rect x={cx - R * 0.6} y={cy + R * 0.62} width={R * 1.2} height={4} className="sg-ubar-bg" />
                 <rect x={cx - R * 0.6} y={cy + R * 0.62} width={R * 1.2 * Math.max(0, u.troops / Math.max(1, u.maxTroops))} height={4} className="sg-ubar" />
                 {u.commander && <text x={cx + R * 0.5} y={cy - R * 0.38} className="sg-star">★</text>}
+                {u.home && <text x={cx - R * 0.5} y={cy - R * 0.38} className="sg-rein">援</text>}
+                {u.guard && <text x={cx + R * 0.5} y={cy + R * 0.5} className="sg-rein">守</text>}
                 {u.confused > 0 && <text x={cx - R * 0.55} y={cy - R * 0.38} className="sg-conf">?</text>}
                 {(confuseOk || duelOk) && <circle cx={cx} cy={cy} r={R * 0.8} className="sg-target-ring" />}
                 {confuseOk && <text x={cx} y={cy - R * 0.75} className="sg-pct">{pct(confuseChance(bs, mineSel!, u))}</text>}
@@ -157,10 +203,14 @@ export function BattleView({ s }: { s: GameState }) {
         {unit ? (
           <div className="sg-bt-unit">
             <div className="sg-bt-uhead">
-              <strong>{unit.name}</strong> <small>{unit.side === 0 ? '공격' : '수비'}{unit.commander ? ' · 총대장' : ''} · {TILE_NAMES[tileAt(bs, unit.q, unit.r).t]}</small>
+              <strong>{unit.name}</strong>{' '}
+              <small>
+                {unit.side === 0 ? '공격' : '수비'}{unit.commander ? ' · 총대장' : ''}{unit.home ? ` · ${CITY_BY_ID[unit.home].name} 원군` : ''}
+                {unit.guard ? ' · 관문 수비' : ''} · {TILE_NAMES[tileAt(bs, unit.q, unit.r).t]}
+              </small>
             </div>
             <div className="sg-bt-ustats">
-              병력 <b>{fmt(unit.troops)}</b>/{fmt(unit.maxTroops)} · 사기 <b>{unit.morale}</b> · 훈련 {unit.training}
+              병력 <b>{fmt(unit.troops)}</b>/{fmt(unit.maxTroops)} · 사기 <b>{unit.morale}</b> · 훈련 {unit.training} · 이동 {unit.move}
               {' '}· 통{unit.stats[0]} 무{unit.stats[1]} 지{unit.stats[2]}{unit.traits.length ? ` · ${unit.traits.join('·')}` : ''}
             </div>
             {mineSel && !bs.over && !mineSel.acted && (
@@ -168,21 +218,28 @@ export function BattleView({ s }: { s: GameState }) {
                 <button className={`sg-cmd ${mode === 'fire' ? 'on' : ''}`} disabled={bs.weather === '비'} onClick={() => setMode(mode === 'fire' ? 'normal' : 'fire')}>화계</button>
                 <button className={`sg-cmd ${mode === 'confuse' ? 'on' : ''}`} onClick={() => setMode(mode === 'confuse' ? 'normal' : 'confuse')}>혼란</button>
                 <button className={`sg-cmd ${mode === 'duel' ? 'on' : ''}`} disabled={!mineSel.officer} onClick={() => setMode(mode === 'duel' ? 'normal' : 'duel')}>일기토</button>
+                {canFlood(bs, mineSel) && (
+                  <button className="sg-cmd flood" onClick={() => { doFlood(bs, mineSel); sfx.alert(); after(); }}>
+                    수공 {pct(floodChance(bs, mineSel))}
+                  </button>
+                )}
                 <button className="sg-cmd" onClick={() => { doWait(bs, mineSel); after(); }}>대기</button>
                 <button className="sg-cmd" onClick={() => { doRetreat(bs, mineSel); setSel(null); after(); }}>퇴각</button>
               </div>
             )}
             {mineSel && mode === 'duel' && <p className="sg-muted">맞닿은 적 장수를 누르세요. 상대가 피할 수도 있습니다.</p>}
-            {mineSel && mode === 'normal' && !mineSel.acted && <p className="sg-muted">초록 칸으로 이동, 붉은 테두리를 눌러 공격합니다.</p>}
-            {unit && humanSide !== null && unit.side !== humanSide && mineSel === null && unit.officer && (
-              <p className="sg-muted">일기토 거절 가능성은 상대 무력·지력에 따라 다릅니다.</p>
+            {mineSel && mode === 'normal' && !mineSel.acted && (
+              <p className="sg-muted">
+                초록 칸으로 이동, 붉은 테두리를 눌러 공격합니다.
+                {mineSel.side === 0 && !bs.floodUsed && bs.tiles.some((t) => t.t === 'dam') && ' 堤(제방)에 서면 수공을 쓸 수 있습니다.'}
+              </p>
             )}
           </div>
         ) : (
           <p className="sg-muted">{humanSide !== null ? '움직일 부대를 누르세요.' : '상대가 움직이고 있습니다.'}</p>
         )}
         <div className="sg-bt-log">
-          {bs.log.slice(-4).map((l, i) => <p key={bs.log.length - 4 + i}>{l}</p>)}
+          {bs.log.slice(-5).map((l, i) => <p key={bs.log.length - 5 + i}>{l}</p>)}
         </div>
         <div className="sg-bt-go">
           <button className="sg-btn" onClick={auto} disabled={!!bs.over}>위임</button>

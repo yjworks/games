@@ -14,6 +14,7 @@ import { useGame } from '../store';
 import { Dot, OfficerLine, Sheet, Slider, StatHeader, pct } from './common';
 import type { CmdKey } from './CityPanel';
 import { fmt } from './labels';
+import { compassName, entryVector, mapSummary } from '../engine/battlemap';
 import { jo } from '../engine/josa';
 
 interface Props { s: GameState; city: CityId; me: number; cmd: CmdKey; onClose: () => void }
@@ -174,7 +175,8 @@ function AttackForm({ s, city, me, pool, run, onDone }: {
           return (
             <button key={n.to} className="sg-row-btn" onClick={() => setTo(n.to)}>
               <strong>{t.owner >= 0 && <Dot color={s.factions[t.owner].color} />} {CITY_BY_ID[n.to].name}</strong>
-              <span>{factionName(s, t.owner)} · 병력 {fmt(t.troops)} · 장수 {offs} · 성벽 {t.wall}{n.kind === 'w' ? ' · 수상전' : n.kind === 'r' ? ' · 도하' : ''}</span>
+              <span>{factionName(s, t.owner)} · 병력 {fmt(t.troops)} · 장수 {offs} · 성벽 {t.wall}{n.kind === 'w' ? ' · 수로' : n.kind === 'r' ? ' · 도하' : ''}</span>
+              <span>전장: {mapSummary(n.to).size}{mapSummary(n.to).tags.length ? ` · ${mapSummary(n.to).tags.join(' · ')}` : ''} · {compassName(entryVector(city, n.to))}쪽으로 진입</span>
             </button>
           );
         })}
@@ -187,6 +189,7 @@ function AttackForm({ s, city, me, pool, run, onDone }: {
     <div className="sg-form">
       <p><strong>{CITY_BY_ID[to].name}</strong> ({factionName(s, t.owner)}) — 병력 {fmt(t.troops)}, 성벽 {t.wall}
         <button className="sg-link" onClick={() => setTo(null)}>바꾸기</button></p>
+      <p className="sg-map-note"><b>{mapSummary(to).size}</b> {mapSummary(to).note}</p>
       <div className="sg-olist-head"><span>출진 장수 {team.length}/10 (첫 번째가 총대장)</span><StatHeader /><span className="sg-oright">병력</span></div>
       <div className="sg-olist">
         {sorted.map((o) => {

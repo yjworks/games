@@ -1,16 +1,17 @@
-import { CITY_BY_ID, roadKind } from '../data/cities';
+import { CITY_BY_ID, NEIGHBORS, roadKind } from '../data/cities';
 import type { CityId, Stats, TraitId } from '../data/types';
-import { autoAllot } from './commands';
+import {
+  type MapLabel, type Tile, type TileType, buildMap, centerXY, compassName, entryTiles, entryVector, hexDist,
+} from './battlemap';
+import { allied, autoAllot } from './commands';
+import { jo } from './josa';
 import { INT, LEAD, WAR, nameOf, statsOf, traitsOf, troopCap, worth } from './officers';
 import { chance, clamp, rint, rnd, rrange, type RngHolder } from './rng';
 import type { AttackOrder, GameState } from './state';
-import { jo } from './josa';
+
+export type { Tile, TileType } from './battlemap';
 
 /* ───────────── 자료형 ───────────── */
-
-export type TileType = 'plain' | 'forest' | 'hill' | 'mountain' | 'water' | 'bridge' | 'wall' | 'gate' | 'inner' | 'keep' | 'breach';
-
-export interface Tile { t: TileType; hp: number; fire: number }
 
 export type Fate = 'routed' | 'retreated' | 'captured' | 'killed' | 'destroyed';
 
@@ -34,9 +35,22 @@ export interface Unit {
   confused: number;
   commander: boolean;
   gone: Fate | null;
+  /** 원군이면 돌아갈 도시 */
+  home?: CityId;
+  /** 지키는 자리(관문 수비) — 적이 붙기 전에는 이 둘레를 떠나지 않는다 */
+  guard?: [number, number];
 }
 
-export type Weather = '맑음' | '흐림' | '비' | '강풍';
+/** 아직 도착하지 않은 원군 */
+export interface Reinforcement {
+  side: 0 | 1;
+  faction: number;
+  from: CityId;
+  day: number;
+  units: Unit[];
+}
+
+export type Weather = '맑음' | '흐림' | '비' | '강풍' | '안개';
 
 export interface BattleState extends RngHolder {
   attacker: number;
@@ -57,6 +71,15 @@ export interface BattleState extends RngHolder {
   food: number;
   defFood: number;
   keep: [number, number];
+  /** 성벽까지의 거리와 성 규모 */
+  radius: number;
+  size: 'large' | 'medium' | 'small';
+  labels: MapLabel[];
+  note: string;
+  /** 공격군이 들어온 방향(동·서남 …) */
+  entry: string;
+  reinforce: Reinforcement[];
+  floodUsed: boolean;
   log: string[];
   /** 마지막 일기토 기록(연출용) */
   duel: DuelResult | null;
@@ -98,43 +121,41 @@ function neighborDir(bs: BattleState, q: number, r: number, dir: number): [numbe
   return nq >= 0 && nq < bs.W && nr >= 0 && nr < bs.H ? [nq, nr] : null;
 }
 
-function toCube(q: number, r: number): [number, number, number] {
-  const x = q - (r - (r & 1)) / 2;
-  const z = r;
-  return [x, -x - z, z];
-}
+export const dist = (a: [number, number], b: [number, number]) => hexDist(a, b);
 
-export function dist(a: [number, number], b: [number, number]): number {
-  const [ax, ay, az] = toCube(a[0], a[1]);
-  const [bx, by, bz] = toCube(b[0], b[1]);
-  return Math.max(Math.abs(ax - bx), Math.abs(ay - by), Math.abs(az - bz));
-}
-
-export const tileAt = (bs: BattleState, q: number, r: number) => bs.tiles[r * bs.W + q];
+export const tileAt = (bs: { W: number; tiles: Tile[] }, q: number, r: number) => bs.tiles[r * bs.W + q];
 export const unitAt = (bs: BattleState, q: number, r: number) =>
   bs.units.find((u) => !u.gone && u.q === q && u.r === r) ?? null;
 
 export const TILE_NAMES: Record<TileType, string> = {
-  plain: '평지', forest: '숲', hill: '구릉', mountain: '산', water: '물', bridge: '다리',
-  wall: '성벽', gate: '성문', inner: '성내', keep: '본진', breach: '무너진 성벽',
+  plain: '평지', road: '길', forest: '숲', hill: '구릉', mountain: '산', peak: '험산', marsh: '늪', water: '물', ford: '여울',
+  bridge: '다리', village: '촌락', dam: '제방', wall: '성벽', gate: '성문', pass: '관문', inner: '성내', keep: '본진',
+  breach: '무너진 성벽',
 };
 
 const DEF_MOD: Record<TileType, number> = {
-  plain: 1, forest: 1.15, hill: 1.2, mountain: 1.3, water: 0.85, bridge: 0.9,
-  wall: 1, gate: 1, inner: 1.2, keep: 1.3, breach: 1.05,
+  plain: 1, road: 0.95, forest: 1.15, hill: 1.2, mountain: 1.3, peak: 1.3, marsh: 0.9, water: 0.85, ford: 0.85, bridge: 0.9,
+  village: 1.15, dam: 1.1, wall: 1, gate: 1, pass: 1, inner: 1.2, keep: 1.3, breach: 1.05,
 };
+
+const HIGH: TileType[] = ['hill', 'mountain'];
+const LOW: TileType[] = ['plain', 'road', 'marsh', 'ford', 'bridge', 'village', 'water'];
+const BURNABLE: TileType[] = ['plain', 'road', 'forest', 'hill', 'village', 'inner', 'keep'];
+const FLOODABLE: TileType[] = ['plain', 'road', 'forest', 'marsh', 'ford', 'village', 'inner', 'keep', 'breach', 'bridge'];
+const isBarrier = (t: TileType) => t === 'wall' || t === 'gate' || t === 'pass';
 
 export function moveCost(bs: BattleState, u: Unit, q: number, r: number): number {
   const t = tileAt(bs, q, r);
   if (t.fire > 0) return Infinity;
+  const wet = t.flood > 0 ? 2 : 0;
   switch (t.t) {
-    case 'plain': case 'inner': case 'keep': case 'bridge': return 1;
-    case 'breach': return 2;
-    case 'forest': case 'hill': return 2;
+    case 'road': case 'bridge': return 0.5 + wet;
+    case 'plain': case 'inner': case 'keep': case 'village': case 'dam': return 1 + wet;
+    case 'breach': case 'forest': case 'hill': case 'marsh': case 'ford': return 2 + wet;
     case 'mountain': return 3;
     case 'water': return bs.naval ? (u.traits.includes('수군') ? 1 : 2) : u.traits.includes('수군') ? 2 : 3;
-    case 'gate': return u.side === 1 && t.hp > 0 ? 1 : Infinity;
-    case 'wall': return Infinity;
+    case 'gate': case 'pass': return u.side === 1 && t.hp > 0 ? 1 : Infinity;
+    case 'wall': case 'peak': return Infinity;
   }
 }
 
@@ -142,9 +163,9 @@ export function moveCost(bs: BattleState, u: Unit, q: number, r: number): number
 
 export function createBattle(s: GameState, order: AttackOrder): BattleState {
   const city = s.cities[order.to];
-  const cd = CITY_BY_ID[order.to];
   const naval = roadKind(order.from, order.to) === 'w';
-  const W = 15, H = 11;
+  const map = buildMap(order.to);
+  const v = entryVector(order.from, order.to);
   const bs: BattleState = {
     rng: Math.floor(rnd(s) * 2 ** 31) | 0,
     attacker: order.faction,
@@ -152,8 +173,9 @@ export function createBattle(s: GameState, order: AttackOrder): BattleState {
     from: order.from,
     to: order.to,
     naval,
-    W, H,
-    tiles: [],
+    W: map.W,
+    H: map.H,
+    tiles: map.tiles,
     units: [],
     day: 1,
     maxDay: MAX_DAY,
@@ -162,7 +184,14 @@ export function createBattle(s: GameState, order: AttackOrder): BattleState {
     wind: 0,
     food: order.food,
     defFood: city.food,
-    keep: [11, 5],
+    keep: map.keep,
+    radius: map.radius,
+    size: map.size,
+    labels: map.labels,
+    note: map.note,
+    entry: compassName(v),
+    reinforce: [],
+    floodUsed: false,
     log: [],
     duel: null,
     human: [s.factions[order.faction]?.human ?? false, city.owner >= 0 ? s.factions[city.owner]?.human ?? false : false],
@@ -171,68 +200,21 @@ export function createBattle(s: GameState, order: AttackOrder): BattleState {
   bs.weather = pickWeather(bs, s.month);
   bs.wind = rint(bs, 0, 5);
 
-  /* 지형 */
-  for (let r = 0; r < H; r++) {
-    for (let q = 0; q < W; q++) {
-      const x = rnd(bs);
-      let t: TileType = 'plain';
-      switch (cd.land) {
-        case 'plain': t = x < 0.14 ? 'forest' : x < 0.19 ? 'hill' : 'plain'; break;
-        case 'hill': t = x < 0.18 ? 'forest' : x < 0.4 ? 'hill' : x < 0.45 ? 'mountain' : 'plain'; break;
-        case 'mountain': t = x < 0.22 ? 'forest' : x < 0.36 ? 'hill' : x < 0.62 ? 'mountain' : 'plain'; break;
-        case 'river': t = x < 0.12 ? 'forest' : x < 0.17 ? 'hill' : 'plain'; break;
-        case 'marsh': t = x < 0.24 ? 'water' : x < 0.36 ? 'forest' : 'plain'; break;
-      }
-      bs.tiles.push({ t, hp: 0, fire: 0 });
-    }
-  }
-  /* 강: 세로로 흐르는 물줄기와 다리 두 개 */
-  if (cd.land === 'river' || naval) {
-    let col = rint(bs, 5, 6);
-    const bridges = naval ? [] : [rint(bs, 1, 3), rint(bs, 6, 9)];
-    for (let r = 0; r < H; r++) {
-      const width = naval ? 4 : 1;
-      for (let k = 0; k < width; k++) {
-        const q = col + k - (naval ? 1 : 0);
-        if (q >= 0 && q < W) tileAt(bs, q, r).t = bridges.includes(r) ? 'bridge' : 'water';
-      }
-      if (rnd(bs) < 0.3) col = clamp(col + (rnd(bs) < 0.5 ? -1 : 1), 4, 7);
-    }
-  }
-  /* 성: 본진 둘레 1칸은 성내, 2칸은 성벽(서쪽에 성문 둘) */
-  const [kq, kr] = bs.keep;
-  const wallHp = 300 + city.wall * 12;
-  const gateHp = 200 + city.wall * 8;
-  for (let r = 0; r < H; r++) {
-    for (let q = 0; q < W; q++) {
-      const d = dist([q, r], [kq, kr]);
-      const tile = tileAt(bs, q, r);
-      if (d === 0) { tile.t = 'keep'; }
-      else if (d === 1) { tile.t = 'inner'; }
-      else if (d === 2) { tile.t = 'wall'; tile.hp = wallHp; }
-      else if (d === 3 && (tile.t === 'water' || tile.t === 'mountain')) tile.t = 'plain';
-    }
-  }
-  for (const [gq, gr] of [[kq - 2, kr - 1], [kq - 2, kr + 1], [kq, kr - 2], [kq, kr + 2]] as [number, number][]) {
-    if (gq >= 0 && gr >= 0 && gq < W && gr < H && tileAt(bs, gq, gr).t === 'wall') {
-      tileAt(bs, gq, gr).t = 'gate';
-      tileAt(bs, gq, gr).hp = gateHp;
-    }
-  }
-  /* 공격 측 출발 칸은 평지로 */
-  for (let r = 0; r < H; r++) for (let q = 0; q < 2; q++) {
-    const t = tileAt(bs, q, r);
-    if (t.t !== 'water' || !naval) t.t = q === 0 && t.t === 'water' ? 'plain' : t.t === 'mountain' ? 'plain' : t.t;
+  /* 성벽·성문·관문 내구: 성 규모와 도시 성벽 수치 */
+  const mult = map.size === 'large' ? 1.6 : map.size === 'small' ? 0.75 : 1.1;
+  for (const t of bs.tiles) {
+    if (t.t === 'wall') t.hp = Math.round((300 + city.wall * 12) * mult);
+    else if (t.t === 'gate') t.hp = Math.round((200 + city.wall * 8) * mult);
+    else if (t.t === 'pass') t.hp = 450 + city.wall * 5;
   }
 
-  /* 공격 부대 */
+  /* 공격 부대 — 출발 도시 쪽 가장자리에서 */
   let uid = 1;
-  const atkSlots: [number, number][] = [];
-  for (let q = 0; q < 3; q++) for (let r = 0; r < H; r++) atkSlots.push([q, r]);
-  atkSlots.sort((a, b) => a[0] - b[0] || Math.abs(a[1] - 5) - Math.abs(b[1] - 5));
+  const taken = new Set<number>();
+  const slots = entryTiles(bs, v, order.officers.length, naval, taken);
   order.officers.forEach((id, i) => {
-    const [q, r] = atkSlots[i];
-    if (tileAt(bs, q, r).t === 'water' && !naval) tileAt(bs, q, r).t = 'plain';
+    const [q, r] = slots[i] ?? slots[slots.length - 1];
+    taken.add(r * bs.W + q);
     bs.units.push(makeUnit(s, uid++, id, 0, order.faction, q, r, order.troops[i], s.cities[order.from].training, s.cities[order.from].morale, i === 0));
   });
 
@@ -248,13 +230,51 @@ export function createBattle(s: GameState, order: AttackOrder): BattleState {
   const ids = defenders.map((o) => o.id);
   const allot = autoAllot(s, ids, city.troops);
   let rest = city.troops - allot.reduce((a, b) => a + b, 0);
-  const defSlots: [number, number][] = [[kq, kr], ...neighbors(bs, kq, kr)];
+  /* 본진·성내는 공격군 쪽부터 채우고, 넘치면 성 밖 바로 둘레 */
+  const [kq, kr] = bs.keep;
+  const [cx, cy] = centerXY(kq, kr);
+  const proj = (q: number, r: number) => { const [x, y] = centerXY(q, r); return (x - cx) * v[0] + (y - cy) * v[1]; };
+  const inner: [number, number][] = [];
   const outer: [number, number][] = [];
-  for (let r = 0; r < H; r++) for (let q = 0; q < W; q++) if (dist([q, r], [kq, kr]) === 3) outer.push([q, r]);
-  outer.sort((a, b) => b[0] - a[0]);
+  for (let r = 0; r < bs.H; r++) for (let q = 0; q < bs.W; q++) {
+    const d = dist([q, r], [kq, kr]);
+    const t = tileAt(bs, q, r).t;
+    if (d < bs.radius) inner.push([q, r]);
+    else if (d === bs.radius + 1 && !['water', 'mountain', 'peak'].includes(t)) outer.push([q, r]);
+  }
+  inner.sort((a, b) => dist(a, [kq, kr]) - dist(b, [kq, kr]) || proj(b[0], b[1]) - proj(a[0], a[1]));
+  outer.sort((a, b) => proj(a[0], a[1]) - proj(b[0], b[1]));
+  const defSlots = [...inner, ...outer];
   let slot = 0;
-  const nextSlot = (): [number, number] => (slot < defSlots.length ? defSlots[slot++] : outer[(slot++ - defSlots.length) % outer.length]);
+  const nextSlot = (): [number, number] => defSlots[Math.min(slot++, defSlots.length - 1)];
+
+  /* 공격군 쪽에 관문이 있으면 무력이 높은 장수가 관을 지킨다 */
+  const passes: [number, number][] = [];
+  for (let r = 0; r < bs.H; r++) for (let q = 0; q < bs.W; q++) if (tileAt(bs, q, r).t === 'pass') passes.push([q, r]);
+  const towardAttacker = passes
+    .filter(([q, r]) => proj(q, r) > bs.radius * 0.866 && hexDist([q, r], [kq, kr]) >= bs.radius + 1)
+    .sort((a, b) => proj(b[0], b[1]) - proj(a[0], a[1]));
+  const guardIds = new Set<string>();
+  if (towardAttacker.length && ids.length >= 3) {
+    const [pq, pr] = towardAttacker[0];
+    const behind = neighbors(bs, pq, pr)
+      .filter(([q, r]) => proj(q, r) < proj(pq, pr) && !['mountain', 'peak', 'water', 'wall', 'gate', 'pass'].includes(tileAt(bs, q, r).t))
+      .slice(0, 2);
+    const fighters = [...ids].filter((id) => id !== lead?.id).sort((a, b) => statsOf(s, b)[WAR] + statsOf(s, b)[LEAD] - statsOf(s, a)[WAR] - statsOf(s, a)[LEAD]);
+    behind.forEach(([q, r], i) => {
+      const id = fighters[i];
+      if (!id) return;
+      const k = ids.indexOf(id);
+      const u = makeUnit(s, uid++, id, 1, city.owner, q, r, allot[k] || Math.min(rest, troopCap(s, id)), city.training, city.morale, false);
+      if (!allot[k]) rest -= u.troops;
+      if (u.troops < 100) return;
+      u.guard = [pq, pr];
+      bs.units.push(u);
+      guardIds.add(id);
+    });
+  }
   ids.forEach((id, i) => {
+    if (guardIds.has(id)) return;
     if (allot[i] <= 0 && rest <= 0) return;
     let n = allot[i];
     if (n <= 0) { n = Math.min(rest, troopCap(s, id)); rest -= n; }
@@ -268,6 +288,10 @@ export function createBattle(s: GameState, order: AttackOrder): BattleState {
     bs.units.push(makeUnit(s, uid++, null, 1, city.owner, q, r, n, city.training, city.morale, !lead && g === 0));
   }
 
+  /* 원군: 수비 측은 이웃 아군·동맹 도시에서, 공격 측은 이웃 동맹 도시에서 */
+  if (city.owner >= 0) uid = planReinforcement(s, bs, 1, uid);
+  uid = planReinforcement(s, bs, 0, uid);
+
   /* 내응: 약속한 장수는 그 자리에서 돌아선다 */
   for (const u of bs.units) {
     if (!u.officer) continue;
@@ -277,11 +301,49 @@ export function createBattle(s: GameState, order: AttackOrder): BattleState {
       u.side = u.side === 0 ? 1 : 0;
       u.faction = enemy;
       u.commander = false;
+      u.guard = undefined;
       bs.log.push(`${jo(u.name, '이가')} 약속대로 창끝을 돌렸다!`);
     }
   }
-  bs.log.push(`${CITY_BY_ID[order.to].name} 공방전 — ${bs.weather}${naval ? ' · 수상전' : ''}`);
+  const sizeName = { large: '대성', medium: '성', small: '소성' }[bs.size];
+  bs.log.push(`${CITY_BY_ID[order.to].name} ${sizeName} 공방전 — 공격군은 ${bs.entry}쪽에서 진입 · ${bs.weather}${naval ? ' · 수로' : ''}`);
   return bs;
+}
+
+/** 이웃 도시에서 원군을 보낼지 정한다. 다음 부대 번호를 돌려준다 */
+function planReinforcement(s: GameState, bs: BattleState, side: 0 | 1, uid0: number): number {
+  const main = side === 0 ? bs.attacker : bs.defender;
+  let uid = uid0;
+  if (main < 0) return uid;
+  const cands = NEIGHBORS[bs.to]
+    .map((n) => s.cities[n.to])
+    .filter((c) => c.id !== bs.from && c.owner >= 0
+      && (side === 1 ? c.owner === main || allied(s, c.owner, main) : allied(s, c.owner, main) && c.owner !== bs.defender))
+    .filter((c) => c.troops >= 4000)
+    .sort((a, b) => b.troops - a.troops);
+  const c = cands[0];
+  if (!c) return uid;
+  const staff = Object.values(s.officers)
+    .filter((o) => o.status === 'serving' && o.faction === c.owner && o.city === c.id && s.factions[c.owner].ruler !== o.id)
+    .sort((a, b) => statsOf(s, b.id)[LEAD] + statsOf(s, b.id)[WAR] - statsOf(s, a.id)[LEAD] - statsOf(s, a.id)[WAR]);
+  if (staff.length < 2) return uid;
+  const team = staff.slice(0, Math.min(3, staff.length - 1)).map((o) => o.id);
+  const pool = Math.floor((c.troops * 0.35) / 100) * 100;
+  const troops = autoAllot(s, team, pool);
+  const total = troops.reduce((a, b) => a + b, 0);
+  if (total < 1000) return uid;
+  c.troops -= total;
+  const day = 2 + (roadKind(c.id, bs.to) === 'w' ? 1 : 0) + rint(bs, 0, 1);
+  const units = team.map((id, i) => {
+    const u = makeUnit(s, uid++, id, side, c.owner, -1, -1, troops[i], c.training, c.morale, false);
+    u.home = c.id;
+    u.gone = 'retreated'; // 도착 전에는 전장에 없다
+    return u;
+  }).filter((u) => u.troops >= 100);
+  bs.reinforce.push({ side, faction: c.owner, from: c.id, day, units });
+  const who = c.owner === main ? '' : `동맹 ${nameOf(s.factions[c.owner].ruler)}군의 `;
+  bs.log.push(`${CITY_BY_ID[c.id].name}에서 ${who}원군 ${units.length}부대(${total.toLocaleString()}명)가 ${day}일째 도착할 예정이다.`);
+  return uid;
 }
 
 function makeUnit(s: GameState, uid: number, officer: string | null, side: 0 | 1, faction: number, q: number, r: number,
@@ -301,10 +363,37 @@ function makeUnit(s: GameState, uid: number, officer: string | null, side: 0 | 1
 function pickWeather(bs: RngHolder, month: number): Weather {
   const x = rnd(bs);
   const wet = month >= 5 && month <= 8;
+  const mist = month === 3 || month === 4 || month === 10 || month === 11;
   if (x < (wet ? 0.25 : 0.1)) return '비';
+  if (mist && x < 0.2) return '안개';
   if (x < (wet ? 0.45 : 0.35)) return '흐림';
   if (x < (wet ? 0.55 : 0.5)) return '강풍';
   return '맑음';
+}
+
+/** 아직 도착하지 않은 원군 부대(전투가 끝나면 그대로 돌아간다) */
+export function pendingUnits(bs: BattleState): Unit[] {
+  return bs.reinforce.flatMap((r) => r.units);
+}
+
+function arrive(bs: BattleState, side: 0 | 1) {
+  for (const rf of [...bs.reinforce]) {
+    if (rf.side !== side || rf.day > bs.day) continue;
+    const taken = new Set(bs.units.filter((u) => !u.gone).map((u) => u.r * bs.W + u.q));
+    const v = entryVector(rf.from, bs.to);
+    const slots = entryTiles(bs, v, rf.units.length, roadKind(rf.from, bs.to) === 'w', taken);
+    const came: Unit[] = [];
+    rf.units.forEach((u, i) => {
+      const p = slots[i];
+      if (!p) return;
+      u.q = p[0]; u.r = p[1]; u.gone = null;
+      bs.units.push(u);
+      came.push(u);
+    });
+    rf.units = rf.units.filter((u) => !came.includes(u));
+    if (!rf.units.length) bs.reinforce = bs.reinforce.filter((x) => x !== rf);
+    if (came.length) bs.log.push(`${bs.day}일째 — ${CITY_BY_ID[rf.from].name}의 원군 ${jo(came.map((u) => u.name).join('·'), '이가')} 도착했다!`);
+  }
 }
 
 /* ───────────── 이동 ───────────── */
@@ -367,26 +456,30 @@ function defPower(bs: BattleState, u: Unit) {
   let m = DEF_MOD[t.t];
   if (t.t === 'water' && u.traits.includes('수군')) m = 1.15;
   if ((t.t === 'inner' || t.t === 'keep') && u.traits.includes('수비')) m *= 1.2;
+  if (t.flood > 0) m *= 0.85;
   return (u.stats[LEAD] * 0.6 + u.stats[INT] * 0.15 + u.stats[WAR] * 0.25) * (0.6 + u.training / 250) * m;
 }
 
 function attackMult(bs: BattleState, a: Unit, d: Unit, ranged: boolean) {
   let m = 1;
   const ta = tileAt(bs, a.q, a.r).t;
-  if (!ranged && a.traits.includes('기병') && (ta === 'plain' || ta === 'breach')) m *= 1.2;
+  const td = tileAt(bs, d.q, d.r).t;
+  if (!ranged && a.traits.includes('기병') && (ta === 'plain' || ta === 'road' || ta === 'breach')) m *= 1.2;
   if (!ranged && a.traits.includes('돌격')) m *= 1.15;
   if (ta === 'water' && a.traits.includes('수군')) m *= 1.3;
   if (ranged) m *= a.traits.includes('궁병') ? 0.85 : 0.6;
-  if (!ranged && d.traits.includes('매복')) {
-    const td = tileAt(bs, d.q, d.r).t;
-    if (td === 'forest' || td === 'mountain') m *= 0.85;
-  }
+  /* 높은 곳에서 낮은 곳을 치면 유리하다 */
+  if (HIGH.includes(ta) && LOW.includes(td)) m *= 1.15;
+  if (!ranged && d.traits.includes('매복') && (td === 'forest' || td === 'mountain')) m *= 0.85;
   return m;
 }
 
-function canShoot(bs: BattleState, u: Unit) {
-  const t = tileAt(bs, u.q, u.r).t;
-  return u.traits.includes('궁병') || (u.side === 1 && (t === 'inner' || t === 'keep'));
+/** 사격 사거리(0이면 못 쏜다). 궁병은 2칸, 성안 수비군은 성루에서 성벽 밖까지(대성 3칸) */
+export function shootRange(bs: BattleState, u: Unit, at?: TileType): number {
+  if (bs.weather === '안개') return 0;
+  const t = at ?? tileAt(bs, u.q, u.r).t;
+  const tower = u.side === 1 && (t === 'inner' || t === 'keep') ? bs.radius : 0;
+  return Math.max(u.traits.includes('궁병') ? 2 : 0, tower);
 }
 
 export interface Target { kind: 'unit' | 'tile'; q: number; r: number; ranged: boolean }
@@ -394,17 +487,17 @@ export interface Target { kind: 'unit' | 'tile'; q: number; r: number; ranged: b
 export function attackTargets(bs: BattleState, u: Unit): Target[] {
   if (u.acted || u.gone || u.confused > 0) return [];
   const out: Target[] = [];
-  const shoot = canShoot(bs, u);
+  const range = shootRange(bs, u);
   for (const e of bs.units) {
     if (e.gone || e.side === u.side) continue;
     const d = dist([u.q, u.r], [e.q, e.r]);
     if (d === 1) out.push({ kind: 'unit', q: e.q, r: e.r, ranged: false });
-    else if (d === 2 && shoot) out.push({ kind: 'unit', q: e.q, r: e.r, ranged: true });
+    else if (d >= 2 && d <= range) out.push({ kind: 'unit', q: e.q, r: e.r, ranged: true });
   }
   if (u.side === 0) {
     for (const [nq, nr] of neighbors(bs, u.q, u.r)) {
       const t = tileAt(bs, nq, nr);
-      if ((t.t === 'wall' || t.t === 'gate') && t.hp > 0) out.push({ kind: 'tile', q: nq, r: nr, ranged: false });
+      if (isBarrier(t.t) && t.hp > 0) out.push({ kind: 'tile', q: nq, r: nr, ranged: false });
     }
   }
   return out;
@@ -436,14 +529,23 @@ export function attackUnit(bs: BattleState, a: Unit, target: Unit, ranged: boole
 export function attackTile(bs: BattleState, a: Unit, q: number, r: number): string {
   if (bs.over || a.acted) return '';
   const t = tileAt(bs, q, r);
-  if ((t.t !== 'wall' && t.t !== 'gate') || t.hp <= 0) return '';
+  if (!isBarrier(t.t) || t.hp <= 0) return '';
   const dmg = Math.round(a.troops * 0.03 * (atkPower(a) / 60) * rrange(bs, 0.85, 1.15) + 25);
+  const name = TILE_NAMES[t.t];
   t.hp = Math.max(0, t.hp - dmg);
-  let text = `${a.name} → ${TILE_NAMES[t.t]}: −${dmg}`;
-  if (t.hp === 0) { text += ` — ${jo(TILE_NAMES[t.t], "이가")} 무너졌다!`; t.t = 'breach'; }
+  let text = `${a.name} → ${name}: −${dmg}`;
+  if (t.hp === 0) { breakBarrier(bs, q, r); text += ` — ${jo(name, '이가')} 무너졌다!`; }
   a.acted = true; a.moved = true;
   bs.log.push(text);
   return text;
+}
+
+function breakBarrier(bs: BattleState, q: number, r: number) {
+  const t = tileAt(bs, q, r);
+  t.hp = 0;
+  t.t = t.t === 'pass' ? 'road' : 'breach';
+  /* 관문을 지키던 부대는 지킬 곳을 잃는다 */
+  for (const u of bs.units) if (u.guard && u.guard[0] === q && u.guard[1] === r) u.guard = undefined;
 }
 
 function hurt(bs: BattleState, u: Unit, dmg: number) {
@@ -453,18 +555,20 @@ function hurt(bs: BattleState, u: Unit, dmg: number) {
   else if (u.morale <= 0) { u.gone = 'routed'; bs.log.push(`${u.name} 부대가 사기를 잃고 달아났다.`); }
 }
 
-/* ───────────── 계략 ───────────── */
+/* ───────────── 계략: 화계·혼란 ───────────── */
 
 export function fireChance(bs: BattleState, u: Unit, q: number, r: number): number {
   const t = tileAt(bs, q, r);
-  if (dist([u.q, u.r], [q, r]) > 2 || t.fire > 0) return 0;
-  if (t.t === 'water' || t.t === 'wall' || t.t === 'gate' || t.t === 'bridge' || t.t === 'mountain') return 0;
+  if (dist([u.q, u.r], [q, r]) > 2 || t.fire > 0 || t.flood > 0) return 0;
+  if (!BURNABLE.includes(t.t)) return 0;
   if (bs.weather === '비') return 0;
   let p = (u.stats[INT] - 25) / 100 + (u.traits.includes('화계') ? 0.25 : 0);
   if (t.t === 'forest') p += 0.15;
+  if (t.t === 'village') p += 0.05;
   if (t.t === 'inner' || t.t === 'keep') p -= 0.1;
   if (bs.weather === '강풍') p += 0.12;
   if (bs.weather === '흐림') p -= 0.05;
+  if (bs.weather === '안개') p -= 0.1;
   const e = unitAt(bs, q, r);
   if (e) p -= e.stats[INT] * 0.003 + (e.traits.includes('신산') ? 0.15 : 0);
   return clamp(p, 0, 0.92);
@@ -508,6 +612,57 @@ export function doConfuse(bs: BattleState, u: Unit, e: Unit): string {
   if (!chance(bs, confuseChance(bs, u, e))) { const t = `${jo(e.name, '은는')} 혼란에 빠지지 않았다.`; bs.log.push(t); return t; }
   e.confused = 2;
   const t = `${u.name}의 계략! ${e.name} 부대가 혼란에 빠졌다.`;
+  bs.log.push(t);
+  return t;
+}
+
+/* ───────────── 계략: 수공 ───────────── */
+
+/** 둑을 터뜨리면 잠기는 칸: 강물에서 3칸 안의 낮은 땅 */
+export function floodZone(bs: BattleState): Set<number> {
+  const zone = new Set<number>();
+  const depth = new Map<number, number>();
+  const q0: number[] = [];
+  bs.tiles.forEach((t, i) => { if (t.t === 'water') { depth.set(i, 0); q0.push(i); } });
+  while (q0.length) {
+    const i = q0.shift()!;
+    const d = depth.get(i)!;
+    if (d >= 3) continue;
+    const q = i % bs.W, r = Math.floor(i / bs.W);
+    for (const [nq, nr] of neighbors(bs, q, r)) {
+      const k = nr * bs.W + nq;
+      if (depth.has(k)) continue;
+      const t = bs.tiles[k].t;
+      /* 물은 성벽을 넘어 성안으로 스민다(성벽 칸 자체는 잠기지 않는다) */
+      if (isBarrier(t)) { depth.set(k, d + 1); q0.push(k); continue; }
+      if (!FLOODABLE.includes(t)) continue;
+      depth.set(k, d + 1);
+      zone.add(k);
+      q0.push(k);
+    }
+  }
+  return zone;
+}
+
+export function canFlood(bs: BattleState, u: Unit): boolean {
+  return !bs.floodUsed && !u.acted && !u.gone && u.side === 0 && tileAt(bs, u.q, u.r).t === 'dam';
+}
+
+export function floodChance(bs: BattleState, u: Unit): number {
+  if (!canFlood(bs, u)) return 0;
+  const p = (u.stats[INT] - 15) / 100 + (bs.weather === '비' ? 0.2 : 0) + (u.traits.includes('신산') ? 0.1 : 0);
+  return clamp(p, 0.1, 0.9);
+}
+
+export function doFlood(bs: BattleState, u: Unit): string {
+  if (!canFlood(bs, u)) return '';
+  const p = floodChance(bs, u);
+  u.acted = true; u.moved = true;
+  if (!chance(bs, p)) { const t = `${jo(u.name, '이가')} 둑을 트려 했으나 물길이 열리지 않았다.`; bs.log.push(t); return t; }
+  bs.floodUsed = true;
+  const days = bs.weather === '비' ? 6 : 4;
+  for (const k of floodZone(bs)) bs.tiles[k].flood = days;
+  const t = `${u.name}의 수공! 둑이 터져 물이 성으로 밀려든다.`;
   bs.log.push(t);
   return t;
 }
@@ -630,6 +785,7 @@ export function endSide(bs: BattleState) {
 }
 
 function startSide(bs: BattleState, side: 0 | 1) {
+  arrive(bs, side);
   for (const u of alive(bs, side)) {
     u.moved = false;
     u.acted = false;
@@ -651,16 +807,49 @@ function endDay(bs: BattleState) {
       const n = neighborDir(bs, q, r, dir);
       if (!n) continue;
       const nt = tileAt(bs, n[0], n[1]);
-      if (nt.fire > 0 || ['water', 'wall', 'gate', 'bridge', 'mountain', 'breach'].includes(nt.t)) continue;
-      let p = nt.t === 'forest' ? 0.35 : nt.t === 'plain' || nt.t === 'hill' ? 0.15 : 0.08;
+      if (nt.fire > 0 || nt.flood > 0 || !BURNABLE.includes(nt.t)) continue;
+      let p = nt.t === 'forest' ? 0.35 : nt.t === 'village' ? 0.25 : nt.t === 'plain' || nt.t === 'hill' || nt.t === 'road' ? 0.15 : 0.08;
       if (dir === bs.wind) p += bs.weather === '강풍' ? 0.4 : 0.2;
       if (chance(bs, p)) ignite(bs, n[0], n[1]);
     }
   }
+  /* 물: 잠긴 칸의 부대 피해, 젖은 성벽이 무너진다 */
+  let flooded = false;
+  for (let r = 0; r < bs.H; r++) for (let q = 0; q < bs.W; q++) {
+    const t = tileAt(bs, q, r);
+    if (t.flood <= 0) continue;
+    flooded = true;
+    const u = unitAt(bs, q, r);
+    if (u) {
+      u.morale = Math.max(0, u.morale - 6);
+      hurt(bs, u, Math.round(u.troops * 0.08 + 30));
+    }
+    for (const [nq, nr] of neighbors(bs, q, r)) {
+      const w = tileAt(bs, nq, nr);
+      if (isBarrier(w.t) && w.hp > 0) {
+        const name = TILE_NAMES[w.t];
+        w.hp = Math.max(0, w.hp - Math.round(w.hp * 0.12 + 15));
+        if (w.hp === 0) { breakBarrier(bs, nq, nr); bs.log.push(`물에 젖은 ${jo(name, '이가')} 무너졌다.`); }
+      }
+    }
+    t.flood = bs.weather === '비' ? t.flood : t.flood - 1;
+  }
+  if (flooded) bs.log.push(`${bs.day}일째 — 물이 차오른 곳의 부대가 허우적거린다.`);
   /* 군량 */
   const atkTroops = alive(bs, 0).reduce((a, u) => a + u.troops, 0);
   const defTroops = alive(bs, 1).reduce((a, u) => a + u.troops, 0);
   bs.food -= Math.ceil(atkTroops * 0.004);
+  /* 촌락: 머문 부대는 병력·사기를 조금 회복하고, 공격군은 군량을 얻는다 */
+  for (const u of bs.units) {
+    if (u.gone) continue;
+    const t = tileAt(bs, u.q, u.r);
+    if (t.t === 'village' && t.fire <= 0 && t.flood <= 0) {
+      u.troops = Math.min(u.maxTroops, u.troops + Math.round(u.maxTroops * 0.02));
+      u.morale = Math.min(100, u.morale + 4);
+      if (u.side === 0) bs.food += 150;
+    }
+    if (u.traits.includes('의술')) u.troops = Math.min(u.maxTroops, u.troops + Math.round(u.maxTroops * 0.03));
+  }
   if (bs.food < 0) {
     bs.food = 0;
     bs.log.push('공격군의 군량이 바닥났다! 병사들이 동요한다.');
@@ -672,11 +861,6 @@ function endDay(bs: BattleState) {
       bs.defFood = 0;
       for (const u of alive(bs, 1)) { u.morale = Math.max(0, u.morale - 10); if (u.morale <= 0) u.gone = 'routed'; }
     }
-  }
-  /* 사기 회복(의술) */
-  for (const u of bs.units) {
-    if (u.gone) continue;
-    if (u.traits.includes('의술')) u.troops = Math.min(u.maxTroops, u.troops + Math.round(u.maxTroops * 0.03));
   }
   checkEnd(bs);
   if (bs.over) return;
@@ -692,7 +876,7 @@ function endDay(bs: BattleState) {
 
 /* ───────────── 전투 AI ───────────── */
 
-/** 성벽을 넘는 비용까지 셈한 본진까지의 거리 지도 */
+/** 성벽·관문을 넘는 비용까지 셈한 본진까지의 거리 지도 */
 function keepDistance(bs: BattleState): number[] {
   const d = new Array(bs.W * bs.H).fill(Infinity);
   const [kq, kr] = bs.keep;
@@ -704,7 +888,12 @@ function keepDistance(bs: BattleState): number[] {
     const base = d[r * bs.W + q];
     for (const [nq, nr] of neighbors(bs, q, r)) {
       const t = tileAt(bs, nq, nr);
-      const c = t.t === 'wall' ? 7 + t.hp / 200 : t.t === 'gate' ? 4 + t.hp / 200 : t.t === 'mountain' ? 3 : t.t === 'water' ? (bs.naval ? 1 : 3) : t.t === 'forest' || t.t === 'hill' || t.t === 'breach' ? 2 : 1;
+      if (t.t === 'peak') continue;
+      const c = t.t === 'wall' ? 7 + t.hp / 200
+        : t.t === 'gate' || t.t === 'pass' ? 4 + t.hp / 200
+          : t.t === 'mountain' ? 3 : t.t === 'water' ? (bs.naval ? 1 : 3)
+            : t.t === 'road' || t.t === 'bridge' ? 0.6
+              : ['forest', 'hill', 'breach', 'marsh', 'ford'].includes(t.t) ? 2 : 1;
       const k = nr * bs.W + nq;
       if (base + c < d[k]) { d[k] = base + c; q0.push([nq, nr]); }
     }
@@ -718,7 +907,7 @@ function expected(bs: BattleState, a: Unit, d: Unit, ranged: boolean) {
 }
 
 /** 한 부대의 행동을 AI가 정한다 */
-export function aiUnit(bs: BattleState, u: Unit, keepCache?: number[]) {
+export function aiUnit(bs: BattleState, u: Unit, keepCache?: number[], zoneCache?: Set<number>) {
   if (bs.over || u.gone || u.acted) return;
   if (u.confused > 0) { doWait(bs, u); return; }
   const enemies = alive(bs, u.side === 0 ? 1 : 0);
@@ -726,6 +915,16 @@ export function aiUnit(bs: BattleState, u: Unit, keepCache?: number[]) {
 
   /* 크게 꺾인 부대는 물러난다(총대장 제외) */
   if (!u.commander && u.troops < u.maxTroops * 0.15 && u.morale < 35 && chance(bs, 0.5)) { doRetreat(bs, u); return; }
+
+  /* 수공: 제방에 서 있고 적이 물길 둘레에 모여 있으면 둑을 튼다 */
+  const zone = u.side === 0 && !bs.floodUsed && u.stats[INT] >= 55 ? zoneCache ?? null : null;
+  const floodWorth = () => {
+    if (!zone) return false;
+    const hit = enemies.filter((e) => zone.has(e.r * bs.W + e.q)).length;
+    const mine = alive(bs, u.side).filter((x) => zone.has(x.r * bs.W + x.q)).length;
+    return hit >= 2 && hit > mine;
+  };
+  if (canFlood(bs, u) && floodChance(bs, u) >= 0.35 && floodWorth()) { doFlood(bs, u); return; }
 
   /* 무력이 압도하면 일기토 */
   if (u.officer && u.stats[WAR] >= 85) {
@@ -748,25 +947,31 @@ export function aiUnit(bs: BattleState, u: Unit, keepCache?: number[]) {
 
   const reach = reachable(bs, u);
   const keepD = u.side === 0 ? keepCache ?? keepDistance(bs) : null;
+  const wantDam = !!zone && floodWorth();
 
   /* 움직일 칸 고르기: 공격할 수 있는 적이 있는 칸 중 가장 이득인 곳 */
   let bestMove: { k: number; score: number; target?: Unit; tile?: [number, number]; ranged?: boolean } | null = null;
   const [kq, kr] = bs.keep;
+  const insideCastle = (tt: TileType) => tt === 'inner' || tt === 'keep';
+  /* 본진을 지키는 부대는 자리를 뜨지 않고, 본진이 비면 가장 가까운 수비 부대가 들어간다 */
+  const onKeep = u.side === 1 && u.q === kq && u.r === kr;
+  const keepEmpty = !unitAt(bs, kq, kr);
   for (const [k] of reach) {
     const q = k % bs.W, r = Math.floor(k / bs.W);
     const t = tileAt(bs, q, r);
-    /* 수비군은 성 밖으로 나가지 않는다(성이 있고 성 안에 있을 때) */
-    const inside = (tt: TileType) => tt === 'inner' || tt === 'keep';
-    if (u.side === 1 && inside(tileAt(bs, u.q, u.r).t) && !inside(t.t)) continue;
+    /* 수비군은 성 밖으로 나가지 않는다(성 안에 있을 때). 관문 수비는 관 둘레를 지킨다 */
+    if (u.side === 1 && insideCastle(tileAt(bs, u.q, u.r).t) && !insideCastle(t.t)) continue;
+    if (u.guard && dist([q, r], u.guard) > 1) continue;
+    if (onKeep && (q !== kq || r !== kr)) continue;
     if (u.side === 0 && q === kq && r === kr) { bestMove = { k, score: 1e9 }; break; }
     let score = 0;
     let target: Unit | undefined;
     let ranged = false;
+    const range = shootRange(bs, u, t.t);
     for (const e of enemies) {
       const d = dist([q, r], [e.q, e.r]);
-      const shoot = u.traits.includes('궁병') || (u.side === 1 && inside(t.t));
-      if (d === 1 || (d === 2 && shoot)) {
-        const rg = d === 2;
+      if (d === 1 || (d >= 2 && d <= range)) {
+        const rg = d >= 2;
         let v = Math.min(e.troops, expected(bs, u, e, rg)) * (e.commander ? 1.6 : 1);
         if (!rg) v -= expected(bs, e, u, false) * 0.4;
         if (v > score) { score = v; target = e; ranged = rg; }
@@ -776,32 +981,39 @@ export function aiUnit(bs: BattleState, u: Unit, keepCache?: number[]) {
     if (!target && u.side === 0) {
       for (const [nq, nr] of neighbors(bs, q, r)) {
         const nt = tileAt(bs, nq, nr);
-        if ((nt.t === 'gate' || nt.t === 'wall') && nt.hp > 0) {
-          const v = 150 + (nt.t === 'gate' ? 80 : 0) - nt.hp / 20;
+        if (isBarrier(nt.t) && nt.hp > 0) {
+          const v = 150 + (nt.t === 'gate' || nt.t === 'pass' ? 80 : 0) - nt.hp / 20;
           if (v > score) { score = v; tile = [nq, nr]; }
         }
       }
     }
     if (keepD) score += 400 - keepD[k] * 12;
     else score += 80 - Math.min(...enemies.map((e) => dist([q, r], [e.q, e.r]))) * 6 + DEF_MOD[t.t] * 30;
+    if (wantDam && t.t === 'dam') score += 400; // 수공 자리를 노린다
+    if (u.side === 1 && keepEmpty && q === kq && r === kr) score += 600;
+    /* 총대장은 적의 칼끝과 성벽 화살이 닿는 곳을 피한다 */
+    if (u.commander && u.side === 0 && alive(bs, 0).length > 2) {
+      const threats = enemies.filter((e) => e.confused === 0 && dist([q, r], [e.q, e.r]) <= 2).length;
+      score -= threats * 90 + (tile ? 100 : 0);
+    }
     if (t.fire > 0) score -= 1000;
+    if (t.flood > 0) score -= 120;
     if (!bestMove || score > bestMove.score) bestMove = { k, score, target, tile, ranged };
   }
   if (bestMove) {
     const q = bestMove.k % bs.W, r = Math.floor(bestMove.k / bs.W);
     if (q !== u.q || r !== u.r) moveUnit(bs, u, q, r);
     if (bs.over) return;
+    if (canFlood(bs, u) && floodChance(bs, u) >= 0.35 && floodWorth()) { doFlood(bs, u); return; }
     if (bestMove.target && !bestMove.target.gone) { attackUnit(bs, u, bestMove.target, !!bestMove.ranged); return; }
     if (bestMove.tile) { attackTile(bs, u, bestMove.tile[0], bestMove.tile[1]); return; }
   }
   /* 이동 뒤에라도 칠 수 있으면 친다 */
-  const ts = attackTargets(bs, u).filter((t) => t.kind === 'unit');
-  if (ts.length) {
-    const t = ts[0];
-    const e = unitAt(bs, t.q, t.r)!;
-    attackUnit(bs, u, e, t.ranged);
-    return;
-  }
+  const ts = attackTargets(bs, u);
+  const unitT = ts.find((t) => t.kind === 'unit');
+  if (unitT) { attackUnit(bs, u, unitAt(bs, unitT.q, unitT.r)!, unitT.ranged); return; }
+  const wallT = ts.find((t) => t.kind === 'tile');
+  if (wallT) { attackTile(bs, u, wallT.q, wallT.r); return; }
   doWait(bs, u);
 }
 
@@ -814,10 +1026,10 @@ function expectedBest(bs: BattleState, u: Unit, enemies: Unit[]) {
 /** 한 진영의 남은 부대를 모두 AI로 움직이고 차례를 넘긴다 */
 export function aiSide(bs: BattleState) {
   const side = bs.side;
-  /* 본진에서 가까운(공격 측) / 적에게 가까운 부대부터 */
   const units = alive(bs, side).filter((u) => !u.acted);
   const keepD = side === 0 ? keepDistance(bs) : undefined;
-  for (const u of units) { if (bs.over) return; aiUnit(bs, u, keepD); }
+  const zone = side === 0 && !bs.floodUsed && bs.tiles.some((t) => t.t === 'dam') ? floodZone(bs) : undefined;
+  for (const u of units) { if (bs.over) return; aiUnit(bs, u, keepD, zone); }
   if (!bs.over) endSide(bs);
 }
 
@@ -832,4 +1044,5 @@ export function autoResolve(bs: BattleState) {
   let guard = 0;
   while (!bs.over && guard++ < 200) aiSide(bs);
   if (!bs.over) bs.over = { winner: 1, reason: '승부가 나지 않았다.' };
+  bs.duel = null;
 }

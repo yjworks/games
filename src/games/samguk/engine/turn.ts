@@ -2,7 +2,7 @@ import { CITY_BY_ID, NEIGHBORS } from '../data/cities';
 import { OFFICER_DEF } from '../data/officers';
 import type { CityId } from '../data/types';
 import { aiCaptives, aiCities, aiTurn } from './ai';
-import { type BattleState, autoResolve, createBattle, runUntilHuman } from './battle';
+import { type BattleState, autoResolve, createBattle, pendingUnits, runUntilHuman } from './battle';
 import { joinFaction, log, nearestOwnCity, releaseOfficer } from './commands';
 import { deathText, runEvents } from './events';
 import { CHA, bonded, def, factionName, historicalKey, nameOf, stat } from './officers';
@@ -141,11 +141,23 @@ export function applyBattle(s: GameState, bs: BattleState): BattleReport {
     if (wasRuler) checkFaction(s, f);
   };
 
+  /* 원군은 제 도시로 돌아간다(그 사이 잃었으면 가장 가까운 아군 도시) */
+  const reinHome = (u: { home?: CityId; faction: number }): CityId | null => {
+    if (!u.home || u.faction < 0 || !s.factions[u.faction]?.alive) return null;
+    return s.cities[u.home].owner === u.faction ? u.home : nearestOwnCity(s, u.home, u.faction);
+  };
+  for (const u of pendingUnits(bs)) {
+    const h = reinHome(u);
+    if (h) s.cities[h].troops += u.troops;
+  }
+
   let atkTroops = 0, defTroops = 0;
   for (const u of bs.units) {
-    const f = sideF(u.side);
+    const f = u.faction;
     const back = u.gone === null || u.gone === 'retreated' || u.gone === 'routed' ? u.troops : 0;
-    if (u.side === 0) atkTroops += back; else defTroops += back;
+    const rh = reinHome(u);
+    if (u.home) { if (rh) s.cities[rh].troops += back; }
+    else if (u.side === 0) atkTroops += back; else defTroops += back;
     if (!u.officer) continue;
     const o = s.officers[u.officer];
     if (o.status === 'dead') continue;
@@ -167,7 +179,7 @@ export function applyBattle(s: GameState, bs: BattleState): BattleReport {
     }
     if (lost && u.side === 1 && u.gone === null && chance(s, 0.3)) { capture(o, enemyF, enemyAt); continue; }
     o.merit += lost ? 10 : u.commander ? 90 : 45;
-    const home = homeOf(u.side);
+    const home = u.home ? rh : homeOf(u.side);
     if (home && s.cities[home].owner === o.faction) { o.city = home; o.status = 'serving'; }
     else flee(o, o.faction);
   }

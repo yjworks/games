@@ -6,6 +6,7 @@ import type { CityId } from '../data/types';
 import { Bar, Dot, OfficerLine, StatHeader } from './common';
 import { fmt, popText } from './labels';
 import { allied } from '../engine/commands';
+import { mapSummary } from '../engine/battlemap';
 
 export type CmdKey =
   | 'agri' | 'comm' | 'flood' | 'wall' | 'relief'
@@ -43,6 +44,7 @@ export function CityPanel({ s, city, me, onCmd, onPerson, onToggleDelegate, onCl
   const free = freeIn(s, city).filter((o) => o.found);
   const captives = Object.values(s.officers).filter((o) => o.status === 'captive' && o.city === city);
   const ready = officers.filter((o) => !o.acted).length;
+  const map = mapSummary(city);
   const rel = owner && me >= 0 && owner.idx !== me ? s.factions[me].rel[owner.idx] ?? 50 : null;
 
   return (
@@ -59,6 +61,7 @@ export function CityPanel({ s, city, me, onCmd, onPerson, onToggleDelegate, onCl
         <button className="sg-x" onClick={onClose} aria-label="닫기">✕</button>
       </header>
       <p className="sg-cp-note">{cd.note}</p>
+      <p className="sg-map-note">전장 <b>{map.size}</b>{map.tags.length ? ` · ${map.tags.join(' · ')}` : ''} — {map.note}</p>
       <div className="sg-cp-grid">
         <Cell k="인구" v={popText(c.pop)} />
         <Cell k="민심" v={c.loyalty} bar={c.loyalty} />
