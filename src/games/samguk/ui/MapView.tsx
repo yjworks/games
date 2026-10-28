@@ -1,20 +1,19 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CITIES, MAP_H, MAP_W, ROADS, project } from '../data/cities';
-import { ISLANDS, LAKES, RANGES, REGION_LABELS, RIVERS, SEA, type LonLat } from '../data/geo';
+import { LAKES, REGION_LABELS, RIVERS, type LonLat } from '../data/geo';
+import { OFFICER_DEF } from '../data/officers';
 import type { CityId } from '../data/types';
 import type { GameState } from '../engine/state';
-import { darken, paperTexture, seeded } from './art/util';
+import { darken, lighten, mix, paperTexture, surname } from './art/util';
+import { CELLS, EDGES, LABEL_POS, PT } from './mapgeo';
+import { seasonOf } from './labels';
+
+/** 지도 바탕 그림(Natural Earth 고도·음영으로 만든 것 — scripts/samguk-terrain.py) */
+export const TERRAIN_URL = '../../samguk/terrain.webp';
+const LAND_URL = '../../samguk/land.png';
 
 const path = (pts: LonLat[], close = false) =>
   pts.map(([lo, la], i) => { const [x, y] = project(lo, la); return `${i ? 'L' : 'M'}${x} ${y}`; }).join(' ') + (close ? ' Z' : '');
-
-/** 바다는 지도 오른쪽·아래 끝까지 닫는다 */
-const SEA_PTS = SEA.map(([lo, la]) => project(lo, la));
-const SEA_PATH = `M${SEA_PTS.map(([x, y]) => `${x} ${y}`).join(' L')} L${MAP_W + 60} ${MAP_H + 60} L${MAP_W + 60} -60 L${SEA_PTS[0][0]} -60 Z`;
-/** 뭍 = 큰 사각형에서 바다를 뺀 것(evenodd) */
-const LAND_CLIP = `M-60 -60 L${MAP_W + 60} -60 L${MAP_W + 60} ${MAP_H + 60} L-60 ${MAP_H + 60} Z ${SEA_PATH}`;
-
-const PT = Object.fromEntries(CITIES.map((c) => [c.id, project(c.lon, c.lat)])) as Record<CityId, [number, number]>;
 
 /** 주(州) 이름 자리 — 소속 도시의 무게중심 */
 const ZHOU_HANJA: Record<string, string> = {
@@ -28,111 +27,16 @@ const ZHOU_LABELS = (() => {
     const v = g.get(c.zhou) ?? [0, 0, 0];
     g.set(c.zhou, [v[0] + x, v[1] + y, v[2] + 1]);
   }
-  return [...g.entries()].map(([z, [x, y, n]]) => ({ z, h: ZHOU_HANJA[z] ?? z, x: x / n, y: y / n + 26 }));
+  return [...g.entries()].map(([z, [x, y, n]]) => ({ z, h: ZHOU_HANJA[z] ?? z, x: x / n, y: y / n + 34 }));
 })();
 
-/** 산 무리: 산줄기를 따라 + 산지 도시 둘레 */
-const MOUNTAINS = (() => {
-  const out: { x: number; y: number; s: number }[] = [];
-  const rnd = seeded(42);
-  for (const rg of RANGES) {
-    const pts = rg.pts.map(([lo, la]) => project(lo, la));
-    for (let i = 0; i + 1 < pts.length; i++) {
-      const [x1, y1] = pts[i], [x2, y2] = pts[i + 1];
-      const len = Math.hypot(x2 - x1, y2 - y1);
-      for (let t = 0; t < len; t += 15) {
-        const k = t / len;
-        out.push({ x: x1 + (x2 - x1) * k + (rnd() - 0.5) * 12, y: y1 + (y2 - y1) * k + (rnd() - 0.5) * 10, s: 0.8 + rnd() * 0.7 });
-      }
-    }
-  }
-  for (const c of CITIES) {
-    if (c.land !== 'mountain' && c.land !== 'hill') continue;
-    const [cx, cy] = PT[c.id];
-    const n = c.land === 'mountain' ? 7 : 3;
-    for (let i = 0; i < n; i++) {
-      const a = rnd() * Math.PI * 2, r = 26 + rnd() * 30;
-      out.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r * 0.8, s: 0.6 + rnd() * 0.5 });
-    }
-  }
-  /* 성채 둘레는 비워 둔다 */
-  const clear = (m: { x: number; y: number }) => CITIES.every((c) => { const [x, y] = PT[c.id]; return (m.x - x) ** 2 + (m.y - y) ** 2 > 22 * 22; });
-  return out.filter(clear).sort((a, b) => a.y - b.y);
-})();
-
-const TREES = (() => {
-  const out: { x: number; y: number }[] = [];
-  const rnd = seeded(77);
-  for (const c of CITIES) {
-    if (c.lat > 31.5 && c.land !== 'hill') continue;
-    const [cx, cy] = PT[c.id];
-    for (let i = 0; i < 5; i++) {
-      const a = rnd() * Math.PI * 2, r = 20 + rnd() * 34;
-      out.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r * 0.8 });
-    }
-  }
-  return out.filter((t) => CITIES.every((c) => { const [x, y] = PT[c.id]; return (t.x - x) ** 2 + (t.y - y) ** 2 > 16 * 16; }));
-})();
-
-/** 북쪽 초원·서쪽 사막 점묘 */
-const STEPPE = (() => {
-  const out: [number, number][] = [];
-  const rnd = seeded(9);
-  for (let i = 0; i < 900; i++) {
-    const lo = 97.5 + rnd() * 28, la = 36 + rnd() * 7;
-    if (la < 39.8 && lo > 104) continue;
-    if (lo > 118 && la < 40.5) continue;
-    out.push(project(lo, la));
-  }
-  return out;
-})();
-
-/** 세력권 그림 — 가장 가까운 도시의 주인 색으로 칠하고 경계를 긋는다 */
-function territoryImage(s: GameState): string {
-  if (typeof document === 'undefined') return '';
-  const cell = 5;
-  const cw = Math.ceil(MAP_W / cell), ch = Math.ceil(MAP_H / cell);
-  const owner = new Int16Array(cw * ch).fill(-2);
-  const cities = CITIES.map((c) => ({ x: PT[c.id][0], y: PT[c.id][1], o: s.cities[c.id].owner }));
-  for (let j = 0; j < ch; j++) {
-    for (let i = 0; i < cw; i++) {
-      const x = i * cell + cell / 2, y = j * cell + cell / 2;
-      let best = Infinity, o = -2;
-      for (const c of cities) {
-        const d = (c.x - x) ** 2 + (c.y - y) ** 2;
-        if (d < best) { best = d; o = c.o; }
-      }
-      if (best < 95 * 95) owner[j * cw + i] = o;
-    }
-  }
-  const cv = document.createElement('canvas');
-  cv.width = MAP_W; cv.height = MAP_H;
-  const ctx = cv.getContext('2d')!;
-  const base = document.createElement('canvas');
-  base.width = MAP_W; base.height = MAP_H;
-  const b = base.getContext('2d')!;
-  for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++) {
-    const o = owner[j * cw + i];
-    if (o < 0) continue;
-    b.fillStyle = s.factions[o]?.color ?? '#888';
-    b.fillRect(i * cell, j * cell, cell + 0.5, cell + 0.5);
-  }
-  ctx.globalAlpha = 0.42;
-  ctx.filter = 'blur(4px)';
-  ctx.drawImage(base, 0, 0);
-  ctx.filter = 'none';
-  ctx.globalAlpha = 1;
-  /* 경계선 */
-  ctx.fillStyle = 'rgba(60, 36, 20, 0.55)';
-  for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++) {
-    const o = owner[j * cw + i];
-    if (o === -2) continue;
-    const r = i + 1 < cw ? owner[j * cw + i + 1] : o;
-    const d = j + 1 < ch ? owner[(j + 1) * cw + i] : o;
-    if (r !== o && r !== -2 && (o >= 0 || r >= 0)) ctx.fillRect((i + 1) * cell - 0.8, j * cell, 1.6, cell);
-    if (d !== o && d !== -2 && (o >= 0 || d >= 0)) ctx.fillRect(i * cell, (j + 1) * cell - 0.8, cell, 1.6);
-  }
-  return cv.toDataURL('image/png');
+/** 철마다 지도 빛깔을 조금 바꾼다 */
+function seasonTint(month: number): { color: string; op: number; mode: 'screen' | 'multiply' | 'soft-light' } | null {
+  const se = seasonOf(month);
+  if (se === 'winter') return { color: '#dfe7ec', op: 0.3, mode: 'screen' };
+  if (se === 'autumn') return { color: '#d29a52', op: 0.16, mode: 'multiply' };
+  if (se === 'spring') return { color: '#a9cf7a', op: 0.12, mode: 'soft-light' };
+  return null;
 }
 
 interface View { x: number; y: number; w: number }
@@ -230,14 +134,14 @@ export function MapView({ s, selected, onSelect, marks, viewer }: Props) {
   };
   const onUp = (e: React.PointerEvent) => { pointers.current.delete(e.pointerId); if (pointers.current.size < 2) drag.current.pinch = undefined; };
 
-  /* 도시 주인이 바뀔 때만 세력권을 다시 그린다 */
-  const ownerKey = CITIES.map((c) => s.cities[c.id].owner).join(',') + s.factions.map((f) => f.color).join('');
-  const territory = useMemo(() => territoryImage(s), [ownerKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const paper = useMemo(() => paperTexture('map-paper', 320, 320, '#d8c398', '#9c7a4a', 11), []);
+  const ownerKey = CITIES.map((c) => s.cities[c.id].owner).join(',') + s.factions.map((f) => f.color).join('');
 
   const k = view.w / MAP_W;
-  const labelSize = Math.max(9, 14 * Math.sqrt(k));
-  const icon = Math.max(0.55, Math.sqrt(k));
+  /* 좁은 화면에서는 성과 이름표를 조금 키운다 */
+  const fit = Math.min(1.5, Math.max(1, 760 / size.w));
+  const icon = Math.min(1.25, Math.max(0.55, Math.sqrt(k)) * fit);
+  const tint = seasonTint(s.month);
 
   return (
     <div className="sg-map-wrap">
@@ -255,7 +159,11 @@ export function MapView({ s, selected, onSelect, marks, viewer }: Props) {
         aria-label="천하 지도"
       >
         <MapDefs paper={paper} />
-        <MapBase territory={territory} />
+        <MapBase />
+        <Territory s={s} ownerKey={ownerKey} />
+        {tint && <rect x={0} y={0} width={MAP_W} height={MAP_H} fill={tint.color} opacity={tint.op} style={{ mixBlendMode: tint.mode }} pointerEvents="none" />}
+        <MapWater />
+        <Clouds />
         {ROADS.map(([a, b, kind]) => {
           const [x1, y1] = PT[a];
           const [x2, y2] = PT[b];
@@ -263,6 +171,8 @@ export function MapView({ s, selected, onSelect, marks, viewer }: Props) {
           const border = oa !== ob && (oa === viewer || ob === viewer) && viewer >= 0;
           return <line key={`${a}-${b}`} x1={x1} y1={y1} x2={x2} y2={y2} className={`sg-road ${kind === 'w' ? 'water' : ''} ${border ? 'border' : ''}`} />;
         })}
+        <MapLabels />
+        <Marches s={s} />
         {CITIES.map((cd) => {
           const c = s.cities[cd.id];
           const [x, y] = PT[cd.id];
@@ -271,28 +181,40 @@ export function MapView({ s, selected, onSelect, marks, viewer }: Props) {
           const isCap = !!fac && fac.capital === cd.id;
           const sel = selected === cd.id;
           const mark = marks?.has(cd.id);
+          const lp = LABEL_POS[cd.id];
+          const w = cd.name.length * 13 + 10;
+          const px = lp.anchor === 'middle' ? -w / 2 : lp.anchor === 'start' ? lp.dx - 4 : lp.dx - w + 4;
+          const sur = fac ? surname(OFFICER_DEF[fac.ruler]?.hanja ?? '') : '';
           return (
             <g key={cd.id} className={`sg-city ${sel ? 'sel' : ''} ${mark ? 'mark' : ''}`}
               onClick={() => { if (!drag.current.moved) onSelect(cd.id); }}
               transform={`translate(${x} ${y}) scale(${icon})`}>
               <circle r="22" className="sg-hit" />
-              {mark && <circle r="18" className="sg-mark-ring" />}
-              {sel && <circle r="17" className="sg-sel-ring" />}
-              {isCap ? <use href="#mv-capital" x={-16} y={-22} width={32} height={30} />
-                : cd.pop >= 60 ? <use href="#mv-castle-l" x={-13} y={-13} width={26} height={20} />
-                  : <use href="#mv-castle" x={-10} y={-10} width={20} height={16} />}
+              <ellipse cy="8" rx={isCap ? 19 : 15} ry="5" fill="#1a1008" opacity="0.35" />
+              {mark && <circle r="21" className="sg-mark-ring" />}
+              {sel && <circle r="20" className="sg-sel-ring" />}
+              {isCap ? <use href="#mv-capital" x={-19} y={-25} width={38} height={34} />
+                : cd.pop >= 60 ? <use href="#mv-castle-l" x={-15} y={-17} width={30} height={26} />
+                  : <use href="#mv-castle" x={-12} y={-12} width={24} height={20} />}
               {fac && (
-                <g transform={isCap ? 'translate(9 -26)' : 'translate(7 -18)'}>
-                  <line x1="0" y1="0" x2="0" y2="16" stroke="#2b1d12" strokeWidth="1.2" />
-                  <path d="M0 0 C6 -2 10 2 16 0 L16 8 C10 10 6 6 0 8 Z" fill={color} stroke={darken(color, 0.5)} strokeWidth="0.6" className="sg-mflag" />
+                <g transform={isCap ? 'translate(12 -30)' : 'translate(9 -22)'}>
+                  <line x1="0" y1="-1" x2="0" y2="21" stroke="#2b1d12" strokeWidth="1.4" />
+                  <circle cy="-1.5" r="1.3" fill="#d9b44a" />
+                  <path d="M0 0 C6 -2 11 2 18 0 L18 11 C11 13 6 9 0 11 Z" fill={color} stroke={darken(color, 0.55)} strokeWidth="0.7" className="sg-mflag" />
+                  <text x="8.6" y="8.9" className="sg-mflag-txt" fill={lighten(color, 0.85)}>{sur}</text>
                 </g>
               )}
-              <text y={isCap ? 22 : 18} className="sg-cname" fontSize={labelSize / icon}>{cd.name}</text>
+              <g transform={`translate(0 ${lp.dy})`}>
+                <rect x={px} y={-12} width={w} height={16} rx="2" className={`sg-cplate ${fac?.idx === viewer ? 'mine' : ''}`}
+                  style={{ ['--fac' as string]: fac ? color : '#8a8172' }} />
+                <text x={lp.anchor === 'middle' ? 0 : lp.dx} y={1} textAnchor={lp.anchor} className="sg-cname">{cd.name}</text>
+              </g>
             </g>
           );
         })}
         <MapFrame />
       </svg>
+      <SeasonFx month={s.month} />
       <div className="sg-zoom">
         <button className="sg-zbtn" onClick={() => zoom(1 / 1.3)} aria-label="확대">＋</button>
         <button className="sg-zbtn" onClick={() => zoom(1.3)} aria-label="축소">－</button>
@@ -302,6 +224,109 @@ export function MapView({ s, selected, onSelect, marks, viewer }: Props) {
   );
 }
 
+/* ───────── 이달의 진군 — 붓으로 그은 화살표, 끝에 승패 도장 ───────── */
+
+function Marches({ s }: { s: GameState }) {
+  const list = (s.marches ?? []).filter((m) => m.y === s.year && m.m === s.month);
+  if (!list.length) return null;
+  return (
+    <g pointerEvents="none" className="sg-marches">
+      {list.map((m, i) => {
+        const [x1, y1] = PT[m.from], [x2, y2] = PT[m.to];
+        const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len, ny = dx / len;
+        const bend = Math.min(40, len * 0.22) * (i % 2 ? -1 : 1);
+        const mx = (x1 + x2) / 2 + nx * bend, my = (y1 + y2) / 2 + ny * bend;
+        /* 끝은 성 앞에서 멈춘다 */
+        const ex = x2 - (x2 - mx) / Math.hypot(x2 - mx, y2 - my) * 16, ey = y2 - (y2 - my) / Math.hypot(x2 - mx, y2 - my) * 16;
+        const sx = x1 + (mx - x1) / Math.hypot(mx - x1, my - y1) * 12, sy = y1 + (my - y1) / Math.hypot(mx - x1, my - y1) * 12;
+        /* 붓 — 굵게 시작해 가늘어지는 획 */
+        const pts: string[] = [], back: string[] = [];
+        for (let k = 0; k <= 16; k++) {
+          const t = k / 16;
+          const px = (1 - t) * (1 - t) * sx + 2 * (1 - t) * t * mx + t * t * ex;
+          const py = (1 - t) * (1 - t) * sy + 2 * (1 - t) * t * my + t * t * ey;
+          const tx = 2 * (1 - t) * (mx - sx) + 2 * t * (ex - mx), ty = 2 * (1 - t) * (my - sy) + 2 * t * (ey - my);
+          const tl = Math.hypot(tx, ty) || 1;
+          const w = 5.5 * (1 - t * 0.7) + (k % 3 === 1 ? 0.6 : 0);
+          pts.push(`${(px - (ty / tl) * w).toFixed(1)},${(py + (tx / tl) * w).toFixed(1)}`);
+          back.unshift(`${(px + (ty / tl) * w).toFixed(1)},${(py - (tx / tl) * w).toFixed(1)}`);
+        }
+        const ang = Math.atan2(ey - my, ex - mx);
+        const head = [[0, 0], [-15, -9], [-11, 0], [-15, 9]].map(([hx, hy]) =>
+          `${(ex + Math.cos(ang) * (hx + 6) - Math.sin(ang) * hy).toFixed(1)},${(ey + Math.sin(ang) * (hx + 6) + Math.cos(ang) * hy).toFixed(1)}`).join(' ');
+        const col = s.factions[m.f]?.color ?? '#a33';
+        const won = s.cities[m.to].owner === m.f;
+        return (
+          <g key={i} className="sg-marchar" style={{ animationDelay: `${i * 0.25}s` }}>
+            <polygon points={[...pts, ...back].join(' ')} fill={darken(col, 0.55)} transform="translate(1.5 2)" opacity="0.5" />
+            <polygon points={[...pts, ...back].join(' ')} fill={col} stroke={darken(col, 0.5)} strokeWidth="0.8" />
+            <polygon points={head} fill={col} stroke={darken(col, 0.5)} strokeWidth="0.8" />
+            <g transform={`translate(${x2 + 15} ${y2 - 30})`}>
+              <rect x="-9" y="-9" width="18" height="18" fill={won ? '#b0342a' : '#3a3a42'} stroke="#f1e4c3" strokeWidth="1" transform="rotate(-8)" />
+              <text y="5" className="sg-march-seal" transform="rotate(-8)">{won ? '破' : '退'}</text>
+            </g>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+/** 철마다 지도 위로 흩날리는 것 — 겨울 눈, 봄 꽃잎, 가을 낙엽 */
+const SeasonFx = memo(function SeasonFx({ month }: { month: number }) {
+  const se = seasonOf(month);
+  const kind = se === 'winter' ? 'snow' : se === 'spring' ? 'petal' : se === 'autumn' ? 'leaf' : null;
+  if (!kind) return null;
+  return (
+    <div className={`sg-seasonfx ${kind}`} aria-hidden="true">
+      {Array.from({ length: kind === 'snow' ? 34 : 16 }, (_, i) => (
+        <i key={i} style={{
+          left: `${(i * 37) % 100}%`,
+          animationDuration: `${(kind === 'snow' ? 9 : 13) + ((i * 7) % 9)}s`,
+          animationDelay: `${-((i * 13) % 17)}s`,
+          transform: `scale(${0.6 + ((i * 5) % 7) / 10})`,
+        }} />
+      ))}
+    </div>
+  );
+});
+
+/* ───────── 세력권 — 주인 색으로 옅게 물들이고(곱하기) 세력 사이에 먹선을 긋는다 ───────── */
+
+const Territory = memo(function Territory({ s }: { s: GameState; ownerKey: string }) {
+  const owner = (id: CityId) => s.cities[id].owner;
+  const col = (o: number) => s.factions[o]?.color ?? '#888';
+  return (
+    <g pointerEvents="none">
+      <g mask="url(#mv-landmask)" style={{ mixBlendMode: 'multiply' }}>
+        {CELLS.map((c) => {
+          const o = owner(c.id);
+          if (o < 0) return null;
+          return <path key={c.id} d={c.d} fill={mix(col(o), '#ffffff', 0.18)} opacity="0.72" />;
+        })}
+      </g>
+      <g mask="url(#mv-landmask)">
+        {EDGES.map((e, i) => {
+          const oa = owner(e.a);
+          const ob = e.b ? owner(e.b) : -2;
+          if (oa === ob) return null;
+          if (e.b === null) {
+            return oa >= 0 ? <path key={i} d={e.d} className="sg-tborder outer" stroke={darken(col(oa), 0.35)} /> : null;
+          }
+          if (oa < 0 && ob < 0) return null;
+          return (
+            <g key={i}>
+              <path d={e.d} className="sg-tborder glow" />
+              <path d={e.d} className="sg-tborder" />
+            </g>
+          );
+        })}
+      </g>
+    </g>
+  );
+}, (a, b) => a.ownerKey === b.ownerKey);
+
 /* ───────── 지도 바탕(바뀌지 않는 부분은 따로 기억) ───────── */
 
 const MapDefs = memo(function MapDefs({ paper }: { paper: string }) {
@@ -310,63 +335,91 @@ const MapDefs = memo(function MapDefs({ paper }: { paper: string }) {
       <pattern id="mv-paper" width="320" height="320" patternUnits="userSpaceOnUse">
         {paper ? <image href={paper} width="320" height="320" /> : <rect width="320" height="320" fill="#d8c398" />}
       </pattern>
-      <pattern id="mv-waves" width="36" height="18" patternUnits="userSpaceOnUse">
-        <path d="M0 12 q9 -8 18 0 t18 0" stroke="#5f7f86" strokeWidth="1" fill="none" opacity="0.45" />
-      </pattern>
-      <clipPath id="mv-land"><path d={LAND_CLIP} clipRule="evenodd" /></clipPath>
-      <linearGradient id="mv-sea" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stopColor="#9fb3ac" />
-        <stop offset="1" stopColor="#7f9a98" />
+      <mask id="mv-landmask" maskUnits="userSpaceOnUse" x={0} y={0} width={MAP_W} height={MAP_H}>
+        <image href={LAND_URL} x={0} y={0} width={MAP_W} height={MAP_H} preserveAspectRatio="none" />
+      </mask>
+      <radialGradient id="mv-cloud">
+        <stop offset="0" stopColor="#1a1008" stopOpacity="0.16" />
+        <stop offset="1" stopColor="#1a1008" stopOpacity="0" />
+      </radialGradient>
+      <linearGradient id="mv-roof" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#4a5a5e" />
+        <stop offset="1" stopColor="#24302f" />
       </linearGradient>
-      <symbol id="mv-mtn" viewBox="-14 -12 28 16" overflow="visible">
-        <path d="M-13 3 L-4 -9 L0 -4 L5 -11 L13 3 Z" fill="#b59a6c" />
-        <path d="M-13 3 L-4 -9 L0 -4 L5 -11 L13 3" fill="none" stroke="#4a3520" strokeWidth="1.3" strokeLinejoin="round" />
-        <path d="M5 -11 L3 -2 M-4 -9 L-5 -1" stroke="#4a3520" strokeWidth="0.8" opacity="0.7" />
+      <linearGradient id="mv-roof-red" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#a8382a" />
+        <stop offset="1" stopColor="#5e1a12" />
+      </linearGradient>
+      <linearGradient id="mv-wall" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#f0e4c6" />
+        <stop offset="1" stopColor="#b9a47c" />
+      </linearGradient>
+      {/* 작은 성: 네모난 토성과 문루 하나 */}
+      <symbol id="mv-castle" viewBox="-12 -12 24 20" overflow="visible">
+        <path d="M-11 7 L-11 -2 L11 -2 L11 7 Z" fill="url(#mv-wall)" stroke="#2f2112" strokeWidth="1.1" strokeLinejoin="round" />
+        {[-10, -6, -2, 2, 6].map((x) => <rect key={x} x={x} y="-4.4" width="2.4" height="2.6" fill="#e6d7b4" stroke="#2f2112" strokeWidth="0.6" />)}
+        <rect x="-4.5" y="-8" width="9" height="6" fill="#d9c69c" stroke="#2f2112" strokeWidth="0.8" />
+        <path d="M-7.5 -7.5 Q0 -12.5 7.5 -7.5 L5.5 -6.4 Q0 -9.4 -5.5 -6.4 Z" fill="url(#mv-roof)" stroke="#1d1810" strokeWidth="0.6" />
+        <path d="M-2.2 7 L-2.2 2.4 Q0 0.6 2.2 2.4 L2.2 7 Z" fill="#2a1a0e" />
       </symbol>
-      <symbol id="mv-tree" viewBox="-5 -9 10 11" overflow="visible">
-        <path d="M0 -8 C4 -7 5 -2 0 -1 C-5 -2 -4 -7 0 -8 Z" fill="#6f7a45" stroke="#3d4322" strokeWidth="0.7" />
-        <line x1="0" y1="-1" x2="0" y2="2" stroke="#3d4322" strokeWidth="0.8" />
+      {/* 큰 성: 모서리 각루와 이층 문루 */}
+      <symbol id="mv-castle-l" viewBox="-15 -17 30 26" overflow="visible">
+        <path d="M-14 8 L-14 -3 L14 -3 L14 8 Z" fill="url(#mv-wall)" stroke="#2f2112" strokeWidth="1.2" strokeLinejoin="round" />
+        {[-13, -9, -5, 3, 7, 11].map((x) => <rect key={x} x={x} y="-5.2" width="2.6" height="2.8" fill="#e6d7b4" stroke="#2f2112" strokeWidth="0.6" />)}
+        {[-14, 14].map((x) => (
+          <g key={x}>
+            <rect x={x - 3} y="-7" width="6" height="8" fill="#e2d2ac" stroke="#2f2112" strokeWidth="0.8" />
+            <path d={`M${x - 4.4} -6.6 L${x} -10 L${x + 4.4} -6.6 Z`} fill="url(#mv-roof)" stroke="#1d1810" strokeWidth="0.6" />
+          </g>
+        ))}
+        <rect x="-6" y="-8" width="12" height="6" fill="#d9c69c" stroke="#2f2112" strokeWidth="0.8" />
+        <path d="M-9.5 -7.5 Q0 -13.5 9.5 -7.5 L7 -6.2 Q0 -10 -7 -6.2 Z" fill="url(#mv-roof-red)" stroke="#2a0e08" strokeWidth="0.6" />
+        <rect x="-3.6" y="-12.5" width="7.2" height="4" fill="#e6d7b4" stroke="#2f2112" strokeWidth="0.6" />
+        <path d="M-6.6 -12.2 Q0 -17 6.6 -12.2 L4.8 -11.2 Q0 -14 -4.8 -11.2 Z" fill="url(#mv-roof-red)" stroke="#2a0e08" strokeWidth="0.6" />
+        <path d="M-2.8 8 L-2.8 2.6 Q0 0.4 2.8 2.6 L2.8 8 Z" fill="#2a1a0e" />
       </symbol>
-      <symbol id="mv-castle" viewBox="-10 -10 20 16" overflow="visible">
-        <path d="M-9 6 L-9 -4 L-6 -4 L-6 -6 L-3 -6 L-3 -4 L3 -4 L3 -6 L6 -6 L6 -4 L9 -4 L9 6 Z" fill="#e9dcc0" stroke="#3a2a1a" strokeWidth="1.2" strokeLinejoin="round" />
-        <path d="M-2.5 6 L-2.5 1 Q0 -1.5 2.5 1 L2.5 6 Z" fill="#3a2a1a" />
-      </symbol>
-      <symbol id="mv-castle-l" viewBox="-13 -13 26 20" overflow="visible">
-        <path d="M-12 7 L-12 -3 L-9 -3 L-9 -5 L-6 -5 L-6 -3 L6 -3 L6 -5 L9 -5 L9 -3 L12 -3 L12 7 Z" fill="#efe2c4" stroke="#3a2a1a" strokeWidth="1.2" strokeLinejoin="round" />
-        <path d="M-6 -3 L-6 -8 L6 -8 L6 -3" fill="#e2d2ae" stroke="#3a2a1a" strokeWidth="1" />
-        <path d="M-9 -8 Q0 -14 9 -8 Z" fill="#6b2e22" stroke="#3a2a1a" strokeWidth="0.8" />
-        <path d="M-3 7 L-3 1 Q0 -2 3 1 L3 7 Z" fill="#3a2a1a" />
-      </symbol>
-      <symbol id="mv-capital" viewBox="-16 -22 32 30" overflow="visible">
-        <path d="M-15 8 L-15 -2 L-12 -2 L-12 -4 L-9 -4 L-9 -2 L9 -2 L9 -4 L12 -4 L12 -2 L15 -2 L15 8 Z" fill="#f3e6c6" stroke="#3a2a1a" strokeWidth="1.3" strokeLinejoin="round" />
-        <path d="M-8 -2 L-8 -9 L8 -9 L8 -2" fill="#e9d8b0" stroke="#3a2a1a" strokeWidth="1" />
-        <path d="M-13 -9 Q0 -17 13 -9 L10 -8 Q0 -13 -10 -8 Z" fill="#8a2a1e" stroke="#3a2a1a" strokeWidth="0.8" />
-        <path d="M-4 -12 L-4 -16 L4 -16 L4 -12" fill="#e9d8b0" stroke="#3a2a1a" strokeWidth="0.8" />
-        <path d="M-8 -16 Q0 -22 8 -16 Z" fill="#8a2a1e" stroke="#3a2a1a" strokeWidth="0.8" />
-        <path d="M-3.5 8 L-3.5 2 Q0 -1.5 3.5 2 L3.5 8 Z" fill="#3a2a1a" />
+      {/* 도읍: 겹성과 궁궐 */}
+      <symbol id="mv-capital" viewBox="-19 -25 38 34" overflow="visible">
+        <path d="M-18 9 L-18 -3 L18 -3 L18 9 Z" fill="url(#mv-wall)" stroke="#2f2112" strokeWidth="1.3" strokeLinejoin="round" />
+        {[-17, -13, -9, 7, 11, 15].map((x) => <rect key={x} x={x} y="-5.4" width="2.8" height="3" fill="#ecdcb8" stroke="#2f2112" strokeWidth="0.6" />)}
+        {[-18, 18].map((x) => (
+          <g key={x}>
+            <rect x={x - 3.4} y="-8" width="6.8" height="9" fill="#e6d6b0" stroke="#2f2112" strokeWidth="0.8" />
+            <path d={`M${x - 5} -7.6 Q${x} -12 ${x + 5} -7.6 Z`} fill="url(#mv-roof-red)" stroke="#2a0e08" strokeWidth="0.6" />
+          </g>
+        ))}
+        <rect x="-10" y="-10" width="20" height="8" fill="#e9d8b0" stroke="#2f2112" strokeWidth="0.9" />
+        {[-7, -2.5, 2, 6.5].map((x) => <rect key={x} x={x} y="-8.6" width="1.6" height="5" fill="#7a2a1c" />)}
+        <path d="M-14 -9.5 Q0 -17 14 -9.5 L11 -8 Q0 -13 -11 -8 Z" fill="#c9a13e" stroke="#4a3210" strokeWidth="0.7" />
+        <rect x="-6" y="-16" width="12" height="6" fill="#efe0bb" stroke="#2f2112" strokeWidth="0.8" />
+        <path d="M-9.5 -15.5 Q0 -22 9.5 -15.5 L7 -14.2 Q0 -18.4 -7 -14.2 Z" fill="#c9a13e" stroke="#4a3210" strokeWidth="0.7" />
+        <path d="M-5 -20 Q0 -25 5 -20 Z" fill="#c9a13e" stroke="#4a3210" strokeWidth="0.6" />
+        <line x1="0" y1="-24" x2="0" y2="-26.5" stroke="#4a3210" strokeWidth="0.8" />
+        <path d="M-3.4 9 L-3.4 2.6 Q0 0 3.4 2.6 L3.4 9 Z" fill="#2a1a0e" />
       </symbol>
     </defs>
   );
 });
 
-const MapBase = memo(function MapBase({ territory }: { territory: string }) {
+const MapBase = memo(function MapBase() {
   return (
-    <g>
+    <g pointerEvents="none">
       <rect x={-400} y={-400} width={MAP_W + 800} height={MAP_H + 800} className="sg-table" />
-      <rect x={0} y={0} width={MAP_W} height={MAP_H} fill="url(#mv-paper)" />
-      <path d={SEA_PATH} fill="url(#mv-sea)" />
-      <path d={SEA_PATH} fill="url(#mv-waves)" />
-      <path d={path(SEA.slice(0, -1))} fill="none" stroke="#4d3a24" strokeWidth="1.6" opacity="0.8" />
-      <path d={path(SEA.slice(0, -1))} fill="none" stroke="#4d3a24" strokeWidth="5" opacity="0.08" />
-      {ISLANDS.map((isl, i) => <path key={i} d={path(isl, true)} fill="url(#mv-paper)" stroke="#4d3a24" strokeWidth="1.2" />)}
-      {territory && <image href={territory} x={0} y={0} width={MAP_W} height={MAP_H} clipPath="url(#mv-land)" />}
-      <g clipPath="url(#mv-land)">
-        {STEPPE.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="0.9" fill="#8a6a3c" opacity="0.5" />)}
-      </g>
+      <image href={TERRAIN_URL} x={0} y={0} width={MAP_W} height={MAP_H} preserveAspectRatio="none" />
+      <rect x={0} y={0} width={MAP_W} height={MAP_H} fill="url(#mv-paper)" opacity="0.42" style={{ mixBlendMode: 'multiply' }} />
+    </g>
+  );
+});
+
+/** 강·호수 — 후한대 물길(황하·회수 옛길)을 손으로 그린 것 */
+const MapWater = memo(function MapWater() {
+  return (
+    <g pointerEvents="none">
       {RIVERS.map((rv) => (
         <g key={rv.name}>
-          <path d={path(rv.pts)} className="sg-river-bank" strokeWidth={rv.width + 3} />
-          <path d={path(rv.pts)} className="sg-river" strokeWidth={rv.width} />
+          <path d={path(rv.pts)} className="sg-river-bank" strokeWidth={rv.width * 0.75 + 2.2} />
+          <path d={path(rv.pts)} className="sg-river" strokeWidth={rv.width * 0.75} />
+          <path d={path(rv.pts)} className="sg-river-hi" strokeWidth={Math.max(0.5, rv.width * 0.22)} />
         </g>
       ))}
       {LAKES.map((lk) => {
@@ -375,16 +428,30 @@ const MapBase = memo(function MapBase({ territory }: { territory: string }) {
         const [, y2] = project(lk.at[0], lk.at[1] - lk.ry);
         return <ellipse key={lk.name} cx={x} cy={y} rx={x2 - x} ry={y2 - y} className="sg-lake" />;
       })}
-      {TREES.map((t, i) => <use key={`t${i}`} href="#mv-tree" x={t.x - 5} y={t.y - 9} width="10" height="11" />)}
-      {MOUNTAINS.map((m, i) => <use key={`m${i}`} href="#mv-mtn" x={m.x - 14 * m.s} y={m.y - 12 * m.s} width={28 * m.s} height={16 * m.s} />)}
-      {ZHOU_LABELS.map((z) => (
-        <text key={z.z} x={z.x} y={z.y} className="sg-zhou">{z.h}</text>
+    </g>
+  );
+});
+
+/** 천천히 흘러가는 구름 그늘 */
+const Clouds = memo(function Clouds() {
+  return (
+    <g className="sg-cloudshadow" pointerEvents="none">
+      {[[180, 160, 170], [620, 300, 210], [420, 620, 190], [860, 560, 150], [300, 420, 120]].map(([x, y, r], i) => (
+        <ellipse key={i} cx={x} cy={y} rx={r} ry={r * 0.45} fill="url(#mv-cloud)" />
       ))}
+    </g>
+  );
+});
+
+const MapLabels = memo(function MapLabels() {
+  return (
+    <g pointerEvents="none">
+      {ZHOU_LABELS.map((z) => <text key={z.z} x={z.x} y={z.y} className="sg-zhou">{z.h}</text>)}
       {REGION_LABELS.map((l) => {
         const [x, y] = project(l.at[0], l.at[1]);
         return <text key={l.name} x={x} y={y} className="sg-region">{l.name}</text>;
       })}
-      {[['渤海', 120.2, 38.8], ['東海', 123.2, 33.5], ['南海', 116.5, 21.2]].map(([n, lo, la]) => {
+      {[['渤海', 120.4, 38.6], ['東海', 123.4, 31.5], ['南海', 116.5, 21.2]].map(([n, lo, la]) => {
         const [x, y] = project(lo as number, la as number);
         return <text key={n as string} x={x} y={y} className="sg-seaname">{n}</text>;
       })}
@@ -396,32 +463,32 @@ const MapFrame = memo(function MapFrame() {
   const [cx, cy] = [MAP_W - 70, MAP_H - 80];
   return (
     <g pointerEvents="none">
-      <rect x={4} y={4} width={MAP_W - 8} height={MAP_H - 8} fill="none" stroke="#3a2614" strokeWidth="3" />
-      <rect x={12} y={12} width={MAP_W - 24} height={MAP_H - 24} fill="none" stroke="#3a2614" strokeWidth="1" />
-      {[[12, 12], [MAP_W - 12, 12], [12, MAP_H - 12], [MAP_W - 12, MAP_H - 12]].map(([x, y], i) => (
+      <rect x={3} y={3} width={MAP_W - 6} height={MAP_H - 6} fill="none" stroke="#2a1a0c" strokeWidth="6" />
+      <rect x={9} y={9} width={MAP_W - 18} height={MAP_H - 18} fill="none" stroke="#c9a13e" strokeWidth="1.4" opacity="0.8" />
+      <rect x={13} y={13} width={MAP_W - 26} height={MAP_H - 26} fill="none" stroke="#2a1a0c" strokeWidth="0.8" opacity="0.7" />
+      {[[13, 13], [MAP_W - 13, 13], [13, MAP_H - 13], [MAP_W - 13, MAP_H - 13]].map(([x, y], i) => (
         <g key={i} transform={`translate(${x} ${y})`}>
-          <rect x={-8} y={-8} width={16} height={16} fill="#7a2a1c" stroke="#3a2614" strokeWidth="1.2" transform="rotate(45)" />
-          <circle r="3" fill="#d8c398" />
+          <rect x={-9} y={-9} width={18} height={18} fill="#7a2a1c" stroke="#c9a13e" strokeWidth="1.2" transform="rotate(45)" />
+          <circle r="3.2" fill="#e9d6a6" />
         </g>
       ))}
       {/* 제목 띠 */}
       <g transform="translate(36 30)">
-        <rect width="132" height="46" rx="3" fill="#efe1bd" stroke="#3a2614" strokeWidth="1.6" />
-        <rect x="4" y="4" width="124" height="38" rx="2" fill="none" stroke="#3a2614" strokeWidth="0.7" />
-        <text x="54" y="31" className="sg-cartouche">天下全圖</text>
-        <rect x="104" y="12" width="20" height="22" fill="#b0342a" />
-        <text x="114" y="28" className="sg-seal">漢</text>
+        <rect width="140" height="48" rx="3" fill="#efe1bd" stroke="#2a1a0c" strokeWidth="1.8" />
+        <rect x="4" y="4" width="132" height="40" rx="2" fill="none" stroke="#7a2a1c" strokeWidth="0.8" />
+        <text x="58" y="32" className="sg-cartouche">天下全圖</text>
+        <rect x="110" y="12" width="21" height="24" fill="#b0342a" />
+        <text x="120.5" y="29" className="sg-seal">漢</text>
       </g>
       {/* 나침반 */}
-      <g transform={`translate(${cx} ${cy})`} opacity="0.85">
-        <circle r="30" fill="#efe1bd" stroke="#3a2614" strokeWidth="1.2" />
-        <circle r="24" fill="none" stroke="#3a2614" strokeWidth="0.6" />
-        <path d="M0 -26 L5 0 L0 26 L-5 0 Z" fill="#3a2614" />
-        <path d="M0 -26 L5 0 L-5 0 Z" fill="#b0342a" />
-        <path d="M-26 0 L0 4 L26 0 L0 -4 Z" fill="#7a6040" opacity="0.6" />
-        <text y="-34" className="sg-compass">北</text>
+      <g transform={`translate(${cx} ${cy})`} opacity="0.9">
+        <circle r="31" fill="#efe1bd" stroke="#2a1a0c" strokeWidth="1.4" />
+        <circle r="25" fill="none" stroke="#7a2a1c" strokeWidth="0.7" />
+        <path d="M0 -27 L5 0 L0 27 L-5 0 Z" fill="#2a1a0c" />
+        <path d="M0 -27 L5 0 L-5 0 Z" fill="#b0342a" />
+        <path d="M-27 0 L0 4 L27 0 L0 -4 Z" fill="#7a6040" opacity="0.6" />
+        <text y="-36" className="sg-compass">北</text>
       </g>
     </g>
   );
 });
-

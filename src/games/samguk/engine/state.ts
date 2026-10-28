@@ -129,6 +129,8 @@ export interface GameState {
   turn: number;
   /** 컴퓨터·플레이어가 낸 공격 대기열 */
   attacks: AttackOrder[];
+  /** 최근 출진 기록(지도에 진군 화살표로 그린다). 옛 저장에는 없을 수 있다 */
+  marches?: { y: number; m: number; f: number; from: CityId; to: CityId }[];
   /** 지휘를 기다리는 전투 */
   battle: BattleState | null;
   /** 이번 달 보고 — 플레이어가 확인하면 비운다 */

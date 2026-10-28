@@ -10,6 +10,9 @@ export const KEY_LABEL: Record<FactionKey, string> = {
 };
 
 export const SEASON = (m: number) => (m <= 3 ? '봄' : m <= 6 ? '여름' : m <= 9 ? '가을' : '겨울');
+/** 그림용 철(음력: 1~3 봄, 4~6 여름, 7~9 가을, 10~12 겨울) */
+export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
+export const seasonOf = (m: number): Season => (m <= 3 ? 'spring' : m <= 6 ? 'summer' : m <= 9 ? 'autumn' : 'winter');
 
 export const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 

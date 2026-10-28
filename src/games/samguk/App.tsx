@@ -77,6 +77,23 @@ function MusicButton() {
   );
 }
 
+/** 전체 화면 — 브라우저 테두리와 사이트 상단 바를 가린다 */
+function FullscreenButton() {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const f = () => setOn(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', f);
+    return () => document.removeEventListener('fullscreenchange', f);
+  }, []);
+  if (typeof document === 'undefined' || !document.documentElement.requestFullscreen) return null;
+  return (
+    <button className="db-btn shell-btn" aria-pressed={on} aria-label={on ? '전체 화면 끝내기' : '전체 화면'} title={on ? '전체 화면 끝내기' : '전체 화면'}
+      onClick={() => { if (on) void document.exitFullscreen(); else void document.documentElement.requestFullscreen().catch(() => {}); }}>
+      {on ? '⤡' : '⛶'}
+    </button>
+  );
+}
+
 /** 역사 사건 카드 */
 function EventCards() {
   const events = useGame((u) => u.events);
@@ -106,7 +123,7 @@ function EventCard({ e, more, next }: { e: { y: number; m: number; text: string 
 export default function App() {
   const screen = useGame((u) => u.screen);
   return (
-    <GameShell meta={meta} tutorial={samgukTutorial} actions={<MusicButton />}>
+    <GameShell meta={meta} tutorial={samgukTutorial} actions={<><MusicButton /><FullscreenButton /></>}>
       <div className="sg-root">
         {screen === 'title' && <Title />}
         {screen === 'setup' && <Setup />}
