@@ -14,6 +14,7 @@ import { useGame } from '../store';
 import { Dot, OfficerLine, Sheet, Slider, StatHeader, pct } from './common';
 import type { CmdKey } from './CityPanel';
 import { fmt } from './labels';
+import { KINDS, KIND_LIST, autoKind, horseLand, kindAllowed, kindCost, waterSide, type UnitKind } from '../engine/units';
 import { compassName, entryVector, mapSummary } from '../engine/battlemap';
 import { jo } from '../engine/josa';
 
@@ -161,9 +162,14 @@ function AttackForm({ s, city, me, pool, run, onDone }: {
   const [team, setTeam] = useState<string[]>([]);
   const [total, setTotal] = useState(Math.floor(c.troops * 0.8 / 100) * 100);
   const sorted = useMemo(() => [...pool].sort((a, b) => stat(s, b.id, LEAD) + stat(s, b.id, WAR) - stat(s, a.id, LEAD) - stat(s, a.id, WAR)), [pool, s]);
-  const cap = team.reduce((a, id) => a + troopCap(s, id), 0);
-  const allot = autoAllot(s, team, Math.min(total, c.troops));
+  const [kinds, setKinds] = useState<Record<string, UnitKind>>({});
+  const naval = !!to && NEIGHBORS[city].find((n) => n.to === to)?.kind === 'w';
+  const kindFor = (id: string): UnitKind => kinds[id] ?? autoKind(s, city, id, naval);
+  const cap = team.reduce((a, id) => a + (kindFor(id) === '공성' ? Math.min(3000, troopCap(s, id)) : troopCap(s, id)), 0);
+  const allot = autoAllot(s, team, Math.min(total, c.troops)).map((n, i) => (kindFor(team[i]) === '공성' ? Math.min(n, KINDS.공성.cap!) : n));
   const sum = allot.reduce((a, b) => a + b, 0);
+  const teamKinds = team.map(kindFor);
+  const kindGold = teamKinds.reduce((a, k, i) => a + kindCost(city, k, allot[i] ?? 0), 0);
   const [food, setFood] = useState(Math.min(c.food, 8000));
   if (!targets.length) return <p className="sg-muted">공격할 수 있는 이웃 도시가 없습니다.</p>;
   if (!to) {
@@ -201,12 +207,39 @@ function AttackForm({ s, city, me, pool, run, onDone }: {
           );
         })}
       </div>
+      {team.length > 0 && (
+        <div className="sg-kinds">
+          <div className="sg-olist-head"><span>병종 편성 — 누르면 바뀝니다 {horseLand(city) ? '· 말 산지' : ''}{waterSide(city) ? ' · 물가' : ''}</span></div>
+          {team.map((id, i) => {
+            const cur = kindFor(id);
+            return (
+              <div key={id} className="sg-kind-row">
+                <strong>{nameOf(id)}</strong>
+                <div className="sg-kind-chips">
+                  {KIND_LIST.map((k) => {
+                    const al = kindAllowed(s, city, id, k);
+                    const bad = !al.ok || (k === '공성' && naval);
+                    return (
+                      <button key={k} className={`sg-kind-chip ${cur === k ? 'on' : ''}`} disabled={bad} aria-pressed={cur === k}
+                        title={bad ? (al.why ?? '수로로는 실어 갈 수 없습니다') : KINDS[k].desc}
+                        onClick={() => setKinds({ ...kinds, [id]: k })}>
+                        <b>{KINDS[k].hanja}</b>{k}
+                      </button>
+                    );
+                  })}
+                </div>
+                <small className="sg-muted">{KINDS[cur].desc} {kindCost(city, cur, allot[i] ?? 0) ? `금 ${kindCost(city, cur, allot[i] ?? 0)}` : ''}</small>
+              </div>
+            );
+          })}
+        </div>
+      )}
       <Slider label="병력" value={total} min={0} max={Math.min(c.troops, cap || c.troops)} onChange={setTotal} />
       <Slider label="군량" value={food} min={0} max={c.food} onChange={setFood} />
-      <p className="sg-muted">하루 군량 약 {fmt(Math.ceil(sum * 0.004))} · 최소 {fmt(need)} · 30일 {fmt(Math.ceil(sum * 0.004 * 30))}</p>
+      <p className="sg-muted">하루 군량 약 {fmt(Math.ceil(sum * 0.004))} · 최소 {fmt(need)} · 30일 {fmt(Math.ceil(sum * 0.004 * 30))} · 병종 편성 금 {fmt(kindGold)}{kindGold > c.gold ? ' (모자람)' : ''}</p>
       <div className="sg-form-go">
-        <button className="sg-btn primary" disabled={!team.length || sum < 100 || food < need}
-          onClick={() => { const r = run((g) => attack(g, city, to, team, allot, food)); if (r?.ok) onDone(); }}>
+        <button className="sg-btn primary" disabled={!team.length || sum < 100 || food < need || kindGold > c.gold}
+          onClick={() => { const r = run((g) => attack(g, city, to, team, allot, food, teamKinds)); if (r?.ok) onDone(); }}>
           출진 ({fmt(sum)}명)
         </button>
       </div>

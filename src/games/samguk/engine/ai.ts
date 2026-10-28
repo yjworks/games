@@ -7,6 +7,7 @@ import {
 } from './commands';
 import { CHA, INT, LEAD, POL, WAR, captivesOf, def, officersIn, stat, troopCap, worth } from './officers';
 import { chance, rnd } from './rng';
+import { autoKind, kindCost, type UnitKind } from './units';
 import { agriCap, commCap } from './setup';
 import type { City, GameState, Officer } from './state';
 
@@ -165,7 +166,19 @@ function aiMilitary(s: GameState, f: number) {
     const total = troops.reduce((a, b) => a + b, 0);
     const food = Math.min(c.food - 500, Math.ceil(total * 0.004 * 35));
     if (food < total * 0.05) continue;
-    const res = attack(s, c.id, pick.t.id, team.map((o) => o.id), troops, food);
+    const naval = NEIGHBORS[c.id].find((n) => n.to === pick!.t.id)?.kind === 'w';
+    const kinds = team.map((o) => autoKind(s, c.id, o.id, naval));
+    /* 성벽이 두꺼운 성을 칠 때는 공성병기 한 대 */
+    if (!naval && team.length >= 4 && pick.t.wall >= 40 && c.gold >= 600) {
+      const weakest = team.reduce((w, o, i) => (stat(s, o.id, WAR) < stat(s, team[w].id, WAR) ? i : w), 0);
+      if (weakest > 0) { kinds[weakest] = '공성'; troops[weakest] = Math.min(troops[weakest], 3000); }
+    }
+    /* 비용이 모자라면 비싼 병종부터 보병으로 */
+    const costOf = () => kinds.reduce((a, k, i) => a + kindCost(c.id, k, troops[i]), 0);
+    for (const k of ['공성', '기병', '노병', '수군', '창병', '궁병'] as UnitKind[]) {
+      while (costOf() > c.gold - 100 && kinds.includes(k)) kinds[kinds.indexOf(k)] = '보병';
+    }
+    const res = attack(s, c.id, pick.t.id, team.map((o) => o.id), troops, food, kinds);
     if (res.ok) { attacks++; targeted.add(pick.t.id); }
   }
 

@@ -657,3 +657,22 @@ button.sg-oline:hover { background: rgba(255, 255, 255, 0.04); }
 .sg-duel-faces { display: flex; align-items: center; justify-content: center; gap: 16px; }
 .sg-duel-vs { font-family: var(--sg-serif); font-size: 2rem; font-weight: 800; color: #e3b25a; text-shadow: 0 0 10px rgba(227, 120, 60, 0.6); }
 .sg-bt-label { font-family: var(--sg-serif); fill: #fff1cf; }
+
+/* 병종 */
+.sg-kinds { display: flex; flex-direction: column; gap: 8px; padding: 8px; border: 1px solid rgba(160, 122, 53, 0.35); border-radius: 8px; background: rgba(0, 0, 0, 0.18); }
+.sg-kind-row { display: flex; flex-direction: column; gap: 4px; }
+.sg-kind-row > strong { font-family: var(--sg-serif); color: var(--sg-gold-2); font-size: 0.86rem; }
+.sg-kind-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.sg-kind-chip {
+  min-height: 36px; padding: 0 9px; border-radius: 6px;
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.74rem; font-weight: 700; color: #e9dcc0;
+  background: linear-gradient(180deg, #3a2716, #24170d); border: 1px solid #6b4f26;
+}
+.sg-kind-chip b { font-family: var(--sg-serif); color: #f3d79a; font-size: 0.86rem; }
+.sg-kind-chip.on { background: linear-gradient(180deg, #e3b25a, #b8812e); color: #1d1209; border-color: #f3d79a; }
+.sg-kind-chip.on b { color: #5a1a10; }
+.sg-kind-chip:disabled { opacity: 0.3; }
+.sg-kind-tag { font-family: var(--sg-serif); color: #1d1209; background: #e3b25a; border-radius: 4px; padding: 0 5px; font-weight: 800; margin-right: 4px; }
+.sg-kind-desc { margin: 2px 0 4px; font-size: 0.74rem; color: var(--sg-sub); line-height: 1.5; }
+.sg-ukind { fill: #3a2614; font-family: var(--sg-serif); font-size: 7.5px; font-weight: 800; text-anchor: middle; pointer-events: none; }

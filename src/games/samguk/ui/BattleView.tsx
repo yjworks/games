@@ -3,8 +3,9 @@ import { CITY_BY_ID } from '../data/cities';
 import {
   type Unit, TILE_NAMES, alive, attackTargets, attackTile, attackUnit, autoResolve, canFlood, confuseChance, dist,
   doConfuse, doDuel, doFire, doFlood, doRetreat, doWait, endSide, fireChance, floodChance, moveUnit, reachable,
-  runUntilHuman, tileAt, unitAt,
+  runUntilHuman, shootRange, tileAt, unitAt,
 } from '../engine/battle';
+import { kindOf } from '../engine/units';
 import { factionName } from '../engine/officers';
 import type { GameState } from '../engine/state';
 import { sfx } from '../../../shared/sound';
@@ -195,7 +196,7 @@ export function BattleView({ s }: { s: GameState }) {
               <g key={u.uid} className={`sg-unit ${u.acted && bs.side === u.side ? 'done' : ''} ${sel === u.uid ? 'sel' : ''}`} onClick={() => onTile(u.q, u.r)}>
                 <circle cx={cx} cy={cy} r={R * 0.85} className="sg-unit-hit" />
                 {sel === u.uid && <ellipse cx={cx} cy={cy + 14} rx="20" ry="7" className="sg-unit-selring" />}
-                <UnitBanner cx={cx} cy={cy} color={color} side={u.side} commander={u.commander} troops={u.troops}
+                <UnitBanner cx={cx} cy={cy} color={color} side={u.side} commander={u.commander} troops={u.troops} kind={u.kind}
                   ratio={u.troops / Math.max(1, u.maxTroops)} label={u.officer ? surname(OFFICER_DEF[u.officer]?.hanja ?? u.name) : '守'} />
                 {u.commander && <text x={cx + R * 0.55} y={cy - R * 0.5} className="sg-star">帥</text>}
                 {u.home && <text x={cx - R * 0.5} y={cy - R * 0.38} className="sg-rein">援</text>}
@@ -216,7 +217,7 @@ export function BattleView({ s }: { s: GameState }) {
               {unit.officer && <Portrait id={unit.officer} size={46} year={s.year} color={unit.faction >= 0 ? s.factions[unit.faction]?.color : undefined} className="sg-oface" />}
               <strong>{unit.name}</strong>{' '}
               <small>
-                {unit.side === 0 ? '공격' : '수비'}{unit.commander ? ' · 총대장' : ''}{unit.home ? ` · ${CITY_BY_ID[unit.home].name} 원군` : ''}
+                <b className="sg-kind-tag">{kindOf(unit.kind).hanja} {kindOf(unit.kind).name}</b> {unit.side === 0 ? '공격' : '수비'}{unit.commander ? ' · 총대장' : ''}{unit.home ? ` · ${CITY_BY_ID[unit.home].name} 원군` : ''}
                 {unit.guard ? ' · 관문 수비' : ''} · {TILE_NAMES[tileAt(bs, unit.q, unit.r).t]}
               </small>
             </div>
@@ -224,6 +225,7 @@ export function BattleView({ s }: { s: GameState }) {
               병력 <b>{fmt(unit.troops)}</b>/{fmt(unit.maxTroops)} · 사기 <b>{unit.morale}</b> · 훈련 {unit.training} · 이동 {unit.move}
               {' '}· 통{unit.stats[0]} 무{unit.stats[1]} 지{unit.stats[2]}{unit.traits.length ? ` · ${unit.traits.join('·')}` : ''}
             </div>
+            <p className="sg-kind-desc">{kindOf(unit.kind).desc}{shootRange(bs, unit) ? ` 사거리 ${shootRange(bs, unit)}칸.` : ''}</p>
             {mineSel && !bs.over && !mineSel.acted && (
               <div className="sg-bt-acts">
                 <button className={`sg-cmd ${mode === 'fire' ? 'on' : ''}`} disabled={bs.weather === '비'} onClick={() => setMode(mode === 'fire' ? 'normal' : 'fire')}>화계</button>

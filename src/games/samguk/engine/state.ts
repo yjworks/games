@@ -99,6 +99,8 @@ export interface AttackOrder {
   to: CityId;
   officers: string[];
   troops: number[];
+  /** 장수별 병종(없으면 자동) */
+  kinds?: import('./units').UnitKind[];
   food: number;
   gold: number;
 }

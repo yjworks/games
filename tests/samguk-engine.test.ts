@@ -199,7 +199,7 @@ describe('천하삼분 전투', () => {
     const mk = (name: string, war: number, side: 0 | 1) => ({
       uid: 1, officer: name, name, side, faction: 0, q: 0, r: 0, troops: 1000, maxTroops: 1000, morale: 80, training: 80,
       stats: [80, war, 50, 50, 50] as [number, number, number, number, number], traits: [], move: 4, moved: false, acted: false,
-      confused: 0, commander: false, gone: null,
+      confused: 0, commander: false, gone: null, kind: '보병' as const,
     });
     let strongWins = 0;
     for (let i = 0; i < 200; i++) {

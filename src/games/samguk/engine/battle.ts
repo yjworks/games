@@ -4,6 +4,7 @@ import {
   type MapLabel, type Tile, type TileType, buildMap, centerXY, compassName, entryTiles, entryVector, hexDist,
 } from './battlemap';
 import { allied, autoAllot } from './commands';
+import { KINDS, autoKind, kindOf, type UnitKind } from './units';
 import { jo } from './josa';
 import { INT, LEAD, WAR, nameOf, statsOf, traitsOf, troopCap, worth } from './officers';
 import { chance, clamp, rint, rnd, rrange, type RngHolder } from './rng';
@@ -35,6 +36,8 @@ export interface Unit {
   confused: number;
   commander: boolean;
   gone: Fate | null;
+  /** 병종 */
+  kind: UnitKind;
   /** 원군이면 돌아갈 도시 */
   home?: CityId;
   /** 지키는 자리(관문 수비) — 적이 붙기 전에는 이 둘레를 떠나지 않는다 */
@@ -148,12 +151,20 @@ export function moveCost(bs: BattleState, u: Unit, q: number, r: number): number
   const t = tileAt(bs, q, r);
   if (t.fire > 0) return Infinity;
   const wet = t.flood > 0 ? 2 : 0;
+  const k = u.kind ?? '보병';
+  const engine = k === '공성';
+  const horse = k === '기병';
   switch (t.t) {
     case 'road': case 'bridge': return 0.5 + wet;
     case 'plain': case 'inner': case 'keep': case 'village': case 'dam': return 1 + wet;
-    case 'breach': case 'forest': case 'hill': case 'marsh': case 'ford': return 2 + wet;
-    case 'mountain': return 3;
-    case 'water': return bs.naval ? (u.traits.includes('수군') ? 1 : 2) : u.traits.includes('수군') ? 2 : 3;
+    case 'breach': return (engine ? 3 : 2) + wet;
+    case 'forest': case 'hill': case 'marsh': return engine ? Infinity : (horse ? 3 : 2) + wet;
+    case 'ford': return (engine ? 3 : 2) + wet;
+    case 'mountain': return engine ? Infinity : horse ? 5 : 3;
+    case 'water':
+      if (k === '수군') return 1;
+      if (engine) return Infinity;
+      return bs.naval ? (u.traits.includes('수군') ? 1 : 2) : u.traits.includes('수군') ? 2 : horse ? 4 : 3;
     case 'gate': case 'pass': return u.side === 1 && t.hp > 0 ? 1 : Infinity;
     case 'wall': case 'peak': return Infinity;
   }
@@ -216,7 +227,8 @@ export function createBattle(s: GameState, order: AttackOrder): BattleState {
   order.officers.forEach((id, i) => {
     const [q, r] = slots[i] ?? slots[slots.length - 1];
     taken.add(r * bs.W + q);
-    bs.units.push(makeUnit(s, uid++, id, 0, order.faction, q, r, order.troops[i], s.cities[order.from].training, s.cities[order.from].morale, i === 0));
+    const kind = order.kinds?.[i] ?? autoKind(s, order.from, id, naval);
+    bs.units.push(makeUnit(s, uid++, id, 0, order.faction, q, r, order.troops[i], s.cities[order.from].training, s.cities[order.from].morale, i === 0, kind));
   });
 
   /* 방어 부대: 장수에게 병력을 나눠 주고 남는 병력은 수비대로 */
@@ -266,8 +278,11 @@ export function createBattle(s: GameState, order: AttackOrder): BattleState {
       const id = fighters[i];
       if (!id) return;
       const k = ids.indexOf(id);
-      const u = makeUnit(s, uid++, id, 1, city.owner, q, r, allot[k] || Math.min(rest, troopCap(s, id)), city.training, city.morale, false);
-      if (!allot[k]) rest -= u.troops;
+      /* 관문 수비대는 성 병력의 2할까지만 — 나머지는 성을 지킨다 */
+      const share = Math.floor((city.troops * 0.2) / 100) * 100;
+      const want = Math.min(allot[k] || Math.min(rest, troopCap(s, id)), Math.max(1000, share));
+      const u = makeUnit(s, uid++, id, 1, city.owner, q, r, want, city.training, city.morale, false, defKind(s, order.to, id));
+      if (allot[k]) rest += allot[k] - want; else rest -= want;
       if (u.troops < 100) return;
       u.guard = [pq, pr];
       bs.units.push(u);
@@ -280,13 +295,13 @@ export function createBattle(s: GameState, order: AttackOrder): BattleState {
     let n = allot[i];
     if (n <= 0) { n = Math.min(rest, troopCap(s, id)); rest -= n; }
     const [q, r] = nextSlot();
-    bs.units.push(makeUnit(s, uid++, id, 1, city.owner, q, r, n, city.training, city.morale, lead?.id === id));
+    bs.units.push(makeUnit(s, uid++, id, 1, city.owner, q, r, n, city.training, city.morale, lead?.id === id, defKind(s, order.to, id)));
   });
   for (let g = 0; g < 4 && rest >= 100; g++) {
     const n = g === 3 ? rest : Math.min(rest, 5000);
     rest -= n;
     const [q, r] = nextSlot();
-    bs.units.push(makeUnit(s, uid++, null, 1, city.owner, q, r, n, city.training, city.morale, !lead && g === 0));
+    bs.units.push(makeUnit(s, uid++, null, 1, city.owner, q, r, n, city.training, city.morale, !lead && g === 0, g % 2 === 0 ? '궁병' : '창병'));
   }
 
   /* 원군: 수비 측은 이웃 아군·동맹 도시에서, 공격 측은 이웃 동맹 도시에서 */
@@ -336,7 +351,7 @@ function planReinforcement(s: GameState, bs: BattleState, side: 0 | 1, uid0: num
   c.troops -= total;
   const day = 2 + (roadKind(c.id, bs.to) === 'w' ? 1 : 0) + rint(bs, 0, 1);
   const units = team.map((id, i) => {
-    const u = makeUnit(s, uid++, id, side, c.owner, -1, -1, troops[i], c.training, c.morale, false);
+    const u = makeUnit(s, uid++, id, side, c.owner, -1, -1, troops[i], c.training, c.morale, false, autoKind(s, c.id, id, roadKind(c.id, bs.to) === 'w'));
     u.home = c.id;
     u.gone = 'retreated'; // 도착 전에는 전장에 없다
     return u;
@@ -348,17 +363,27 @@ function planReinforcement(s: GameState, bs: BattleState, side: 0 | 1, uid0: num
 }
 
 function makeUnit(s: GameState, uid: number, officer: string | null, side: 0 | 1, faction: number, q: number, r: number,
-  troops: number, training: number, morale: number, commander: boolean): Unit {
+  troops: number, training: number, morale: number, commander: boolean, kind: UnitKind = '보병'): Unit {
   const stats = officer ? statsOf(s, officer) : GARRISON;
   const traits = officer ? traitsOf(s, officer) : [];
   const items = officer ? s.officers[officer].items : [];
-  let move = 4 + (traits.includes('기병') ? 1 : 0);
-  for (const it of items) move += it === 'chitu' ? 2 : it === 'dilu' || it === 'jueying' ? 1 : 0;
+  let move = KINDS[kind].move + (traits.includes('기병') && kind === '기병' ? 1 : 0);
+  /* 명마는 말을 탄 장수에게 — 기병이면 온전히, 아니면 장수 혼자라 절반 */
+  for (const it of items) {
+    const bonus = it === 'chitu' ? 2 : it === 'dilu' || it === 'jueying' ? 1 : 0;
+    move += kind === '기병' ? bonus : Math.floor(bonus / 2);
+  }
   return {
     uid, officer, name: officer ? nameOf(officer) : '수비대', side, faction, q, r,
     troops, maxTroops: troops, morale, training, stats, traits, move,
-    moved: false, acted: false, confused: 0, commander, gone: null,
+    moved: false, acted: false, confused: 0, commander, gone: null, kind,
   };
+}
+
+/** 수비 장수의 병종 — 성을 지키므로 공성·수군은 쓰지 않는다 */
+function defKind(s: GameState, city: CityId, id: string): UnitKind {
+  const k = autoKind(s, city, id, false);
+  return k === '수군' || k === '공성' ? '보병' : k;
 }
 
 function pickWeather(bs: RngHolder, month: number): Weather {
@@ -454,7 +479,10 @@ function atkPower(u: Unit) {
 }
 function defPower(bs: BattleState, u: Unit) {
   const t = tileAt(bs, u.q, u.r);
-  let m = DEF_MOD[t.t];
+  const inCastle = t.t === 'inner' || t.t === 'keep';
+  /* 성안에서는 병종의 방어 약점이 없다(성가퀴 뒤에 선다). 기병은 성안에서 오히려 둔하다 */
+  let m = DEF_MOD[t.t] * (inCastle ? Math.max(1, kindOf(u.kind).def) * (u.kind === '기병' ? 0.9 : 1) : kindOf(u.kind).def);
+  if (u.kind === '수군') m *= t.t === 'water' ? 1.35 : 0.9;
   if (t.t === 'water' && u.traits.includes('수군')) m = 1.15;
   if ((t.t === 'inner' || t.t === 'keep') && u.traits.includes('수비')) m *= 1.2;
   if (t.flood > 0) m *= 0.85;
@@ -465,10 +493,22 @@ function attackMult(bs: BattleState, a: Unit, d: Unit, ranged: boolean) {
   let m = 1;
   const ta = tileAt(bs, a.q, a.r).t;
   const td = tileAt(bs, d.q, d.r).t;
-  if (!ranged && a.traits.includes('기병') && (ta === 'plain' || ta === 'road' || ta === 'breach')) m *= 1.2;
+  const ka = kindOf(a.kind);
+  const open = ta === 'plain' || ta === 'road' || ta === 'breach';
+  /* 병종: 근접은 공격 배율, 사격은 사격 배율(궁·노가 아니면 성루에서 쏘는 정도) */
+  if (ranged) m *= ka.range ? ka.shot * (a.traits.includes('궁병') ? 1.15 : 1) : a.traits.includes('궁병') ? 0.85 : 0.6;
+  else m *= ka.range && (ta === 'inner' || ta === 'keep') ? 1 : ka.atk;
+  /* 상성 */
+  if (!ranged && a.kind === '창병' && d.kind === '기병') m *= 1.5;
+  if (!ranged && a.kind === '기병') {
+    if (d.kind === '궁병' || d.kind === '노병' || d.kind === '공성') m *= 1.3;
+    if (open) m *= 1.1;
+    if (['forest', 'marsh', 'mountain', 'inner', 'keep'].includes(td)) m *= 0.8;
+    if (a.traits.includes('기병')) m *= 1.05;
+  }
+  if (a.kind === '수군') m *= ta === 'water' ? 1.4 : 0.8;
   if (!ranged && a.traits.includes('돌격')) m *= 1.15;
-  if (ta === 'water' && a.traits.includes('수군')) m *= 1.3;
-  if (ranged) m *= a.traits.includes('궁병') ? 0.85 : 0.6;
+  if (ta === 'water' && a.traits.includes('수군')) m *= 1.15;
   /* 높은 곳에서 낮은 곳을 치면 유리하다 */
   if (HIGH.includes(ta) && LOW.includes(td)) m *= 1.15;
   if (!ranged && d.traits.includes('매복') && (td === 'forest' || td === 'mountain')) m *= 0.85;
@@ -479,8 +519,13 @@ function attackMult(bs: BattleState, a: Unit, d: Unit, ranged: boolean) {
 export function shootRange(bs: BattleState, u: Unit, at?: TileType): number {
   if (bs.weather === '안개') return 0;
   const t = at ?? tileAt(bs, u.q, u.r).t;
+  const k = kindOf(u.kind);
+  let own = k.range;
+  if (own && u.kind === '노병' && ['hill', 'mountain', 'inner', 'keep', 'dam'].includes(t)) own = 3;
+  if (own && u.traits.includes('궁병')) own += 1;
+  if (!own && u.traits.includes('궁병') && u.kind !== '공성') own = 2;
   const tower = u.side === 1 && (t === 'inner' || t === 'keep') ? bs.radius : 0;
-  return Math.max(u.traits.includes('궁병') ? 2 : 0, tower);
+  return Math.max(own, tower);
 }
 
 export interface Target { kind: 'unit' | 'tile'; q: number; r: number; ranged: boolean }
@@ -496,9 +541,15 @@ export function attackTargets(bs: BattleState, u: Unit): Target[] {
     else if (d >= 2 && d <= range) out.push({ kind: 'unit', q: e.q, r: e.r, ranged: true });
   }
   if (u.side === 0) {
-    for (const [nq, nr] of neighbors(bs, u.q, u.r)) {
-      const t = tileAt(bs, nq, nr);
-      if (isBarrier(t.t) && t.hp > 0) out.push({ kind: 'tile', q: nq, r: nr, ranged: false });
+    /* 공성병기는 두 칸 밖의 성벽도 친다(투석) */
+    const reach = u.kind === '공성' ? 2 : 1;
+    for (let r = Math.max(0, u.r - reach); r <= Math.min(bs.H - 1, u.r + reach); r++) {
+      for (let q = Math.max(0, u.q - reach - 1); q <= Math.min(bs.W - 1, u.q + reach + 1); q++) {
+        const d = dist([u.q, u.r], [q, r]);
+        if (d < 1 || d > reach) continue;
+        const t = tileAt(bs, q, r);
+        if (isBarrier(t.t) && t.hp > 0) out.push({ kind: 'tile', q, r, ranged: d > 1 });
+      }
     }
   }
   return out;
@@ -516,7 +567,10 @@ export function attackUnit(bs: BattleState, a: Unit, target: Unit, ranged: boole
   hurt(bs, target, dmg);
   let text = `${a.name} → ${target.name}: ${ranged ? '사격' : '공격'} −${dmg}`;
   if (!ranged && !target.gone && target.confused === 0) {
-    const back = Math.round(damage(bs, target, a, false) * 0.4);
+    const pike = target.kind === '창병' && a.kind === '기병' ? 1.5 : 1;
+    const tt = tileAt(bs, target.q, target.r).t;
+    const weak = kindOf(target.kind).range && tt !== 'inner' && tt !== 'keep' ? 0.6 : 1;
+    const back = Math.round(damage(bs, target, a, false) * 0.4 * pike * weak);
     hurt(bs, a, back);
     text += ` (반격 −${back})`;
   }
@@ -531,7 +585,8 @@ export function attackTile(bs: BattleState, a: Unit, q: number, r: number): stri
   if (bs.over || a.acted) return '';
   const t = tileAt(bs, q, r);
   if (!isBarrier(t.t) || t.hp <= 0) return '';
-  const dmg = Math.round(a.troops * 0.03 * (atkPower(a) / 60) * rrange(bs, 0.85, 1.15) + 25);
+  const siege = a.kind === '공성' ? 3 : a.kind === '기병' ? 0.7 : 1;
+  const dmg = Math.round((a.troops * 0.03 * (atkPower(a) / 60) * siege + 25) * rrange(bs, 0.85, 1.15));
   const name = TILE_NAMES[t.t];
   t.hp = Math.max(0, t.hp - dmg);
   let text = `${a.name} → ${name}: −${dmg}`;
@@ -979,15 +1034,25 @@ export function aiUnit(bs: BattleState, u: Unit, keepCache?: number[], zoneCache
       }
     }
     let tile: [number, number] | undefined;
-    if (!target && u.side === 0) {
-      for (const [nq, nr] of neighbors(bs, q, r)) {
-        const nt = tileAt(bs, nq, nr);
-        if (isBarrier(nt.t) && nt.hp > 0) {
-          const v = 150 + (nt.t === 'gate' || nt.t === 'pass' ? 80 : 0) - nt.hp / 20;
-          if (v > score) { score = v; tile = [nq, nr]; }
+    const siege = u.kind === '공성';
+    if ((!target || siege) && u.side === 0) {
+      const reachW = siege ? 2 : 1;
+      for (let rr = Math.max(0, r - reachW); rr <= Math.min(bs.H - 1, r + reachW); rr++) {
+        for (let qq = Math.max(0, q - reachW - 1); qq <= Math.min(bs.W - 1, q + reachW + 1); qq++) {
+          const dd = dist([q, r], [qq, rr]);
+          if (dd < 1 || dd > reachW) continue;
+          const nt = tileAt(bs, qq, rr);
+          if (!isBarrier(nt.t) || nt.hp <= 0) continue;
+          const v = (150 + (nt.t === 'gate' || nt.t === 'pass' ? 80 : 0) - nt.hp / 20) * (siege ? 3 : u.kind === '기병' ? 0.6 : 1);
+          if (v > score) { score = v; tile = [qq, rr]; target = undefined; }
         }
       }
     }
+    /* 병종별 자리 잡기: 궁·노는 붙지 않고 쏠 자리, 공성은 적과 떨어진 자리 */
+    const adjEnemy = enemies.some((e) => dist([q, r], [e.q, e.r]) === 1);
+    if (kindOf(u.kind).range && !insideCastle(t.t)) score += (ranged ? 120 : 0) - (adjEnemy ? 150 : 0);
+    if (siege && adjEnemy) score -= 220;
+    if (u.kind === '기병' && ['forest', 'marsh', 'mountain'].includes(t.t)) score -= 60;
     if (keepD) score += 400 - keepD[k] * 12;
     else score += 80 - Math.min(...enemies.map((e) => dist([q, r], [e.q, e.r]))) * 6 + DEF_MOD[t.t] * 30;
     if (wantDam && t.t === 'dam') score += 400; // 수공 자리를 노린다

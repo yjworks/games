@@ -194,7 +194,7 @@ export function buildMap(city: CityId): BuiltMap {
     else if (d < R) set(q, r, 'inner');
     else if (d === R) set(q, r, 'wall');
     else if (d === R + 1 && def.moat) set(q, r, 'water');
-    else if (d === R + 1 && ['mountain', 'peak', 'water', 'marsh'].includes(at(q, r).t)) set(q, r, 'plain');
+    else if (d === R + 1 && ['mountain', 'water', 'marsh'].includes(at(q, r).t)) set(q, r, 'plain'); // 산줄기(험산)는 그대로 둔다
   }
   const [cx, cy] = centerXY(kq, kr);
   const ring: P[] = [];
@@ -253,7 +253,7 @@ const LAND_BLOCK: TileType[] = ['wall', 'gate', 'pass', 'mountain', 'peak', 'wat
  */
 export function entryTiles(map: { W: number; H: number; tiles: Tile[]; keep: [number, number]; radius: number }, v: [number, number], count: number, naval: boolean, taken: Set<number>): P[] {
   const [kx, ky] = centerXY(map.W / 2 - 0.5, (map.H - 1) / 2);
-  const cand: { p: P; proj: number; side: number; water: boolean }[] = [];
+  let cand: { p: P; proj: number; side: number; water: boolean }[] = [];
   for (let r = 0; r < map.H; r++) for (let q = 0; q < map.W; q++) {
     const t = map.tiles[r * map.W + q].t;
     const water = t === 'water';
@@ -267,6 +267,25 @@ export function entryTiles(map: { W: number; H: number; tiles: Tile[]; keep: [nu
     cand.push({ p: [q, r], proj, side, water });
   }
   if (!cand.length) return [];
+  /* 가장 바깥 칸과 이어진 구역에서만 고른다 — 관문·성벽 너머로 건너뛰어 들어오지 않게 */
+  const top = cand.reduce((a, b) => (b.proj > a.proj ? b : a));
+  const region = new Set<number>([top.p[1] * map.W + top.p[0]]);
+  const queue: P[] = [top.p];
+  const BAR: TileType[] = ['wall', 'gate', 'pass', 'peak', 'inner', 'keep'];
+  while (queue.length) {
+    const [q, r] = queue.shift()!;
+    const odd = r & 1;
+    const dirs = odd ? [[1, 0], [1, -1], [0, -1], [-1, 0], [0, 1], [1, 1]] : [[1, 0], [0, -1], [-1, -1], [-1, 0], [-1, 1], [0, 1]];
+    for (const [dq, dr] of dirs) {
+      const nq = q + dq, nr = r + dr;
+      if (nq < 0 || nr < 0 || nq >= map.W || nr >= map.H) continue;
+      const k = nr * map.W + nq;
+      if (region.has(k) || BAR.includes(map.tiles[k].t)) continue;
+      region.add(k);
+      queue.push([nq, nr]);
+    }
+  }
+  cand = cand.filter((c) => region.has(c.p[1] * map.W + c.p[0]));
   const maxProj = Math.max(...cand.map((c) => c.proj));
   const out: P[] = [];
   for (let depth = 2.2; out.length < count && depth < 30; depth += 1.5) {

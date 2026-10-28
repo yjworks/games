@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import type { TileType } from '../../engine/battlemap';
 import { darken, lighten } from './util';
+import { KINDS, type UnitKind } from '../../engine/units';
 
 /** 전장 칸 무늬와 그림 기호. 한 번만 그려 두고 <use>로 재사용한다 */
 export const BattleDefs = memo(function BattleDefs() {
@@ -165,35 +166,81 @@ export function TileArt({ t, cx, cy, seed }: { t: TileType; cx: number; cy: numb
   }
 }
 
-/** 군기(旗) 부대 — 세력 색 깃발에 장수의 성을 쓴다 */
-export function UnitBanner({ cx, cy, color, label, side, commander, ratio, troops }: {
-  cx: number; cy: number; color: string; label: string; side: 0 | 1; commander: boolean; ratio: number; troops: number;
+/** 병종별 병사 그림 — 기준점(x, y)은 발밑 */
+function Soldier({ x, y, kind, color }: { x: number; y: number; kind: UnitKind; color: string }) {
+  const body = darken(color, 0.45);
+  const skin = '#d9b48d';
+  const ink = '#241c16';
+  switch (kind) {
+    case '기병':
+      return (
+        <g>
+          <path d={`M${x - 7} ${y - 6} Q${x} ${y - 10} ${x + 6} ${y - 7} L${x + 9} ${y - 11} L${x + 11} ${y - 9} L${x + 8} ${y - 4} Q${x + 2} ${y - 2} ${x - 6} ${y - 3} Z`} fill="#6b4a2e" stroke={ink} strokeWidth="0.6" />
+          {[-5, -2, 3, 6].map((dx) => <line key={dx} x1={x + dx} y1={y - 3.5} x2={x + dx + (dx < 0 ? -1 : 1)} y2={y} stroke={ink} strokeWidth="1" />)}
+          <path d={`M${x - 2} ${y - 8} L${x - 1} ${y - 13} L${x + 2} ${y - 13} L${x + 2} ${y - 8} Z`} fill={body} />
+          <circle cx={x + 0.5} cy={y - 15} r="1.9" fill={skin} />
+          <line x1={x + 2} y1={y - 12} x2={x + 10} y2={y - 19} stroke={ink} strokeWidth="0.9" />
+        </g>
+      );
+    case '수군':
+      return (
+        <g>
+          <path d={`M${x - 8} ${y - 4} L${x + 8} ${y - 4} Q${x + 7} ${y} ${x} ${y} Q${x - 7} ${y} ${x - 8} ${y - 4} Z`} fill="#7a5530" stroke={ink} strokeWidth="0.6" />
+          <line x1={x - 6} y1={y - 3} x2={x - 9} y2={y + 1} stroke={ink} strokeWidth="0.8" />
+          <path d={`M${x - 2} ${y - 4} L${x - 1.5} ${y - 10} L${x + 1.5} ${y - 10} L${x + 2} ${y - 4} Z`} fill={body} />
+          <circle cx={x} cy={y - 11.5} r="2" fill={skin} />
+        </g>
+      );
+    case '공성':
+      return (
+        <g>
+          <rect x={x - 9} y={y - 9} width="18" height="6" fill="#7a5530" stroke={ink} strokeWidth="0.7" />
+          <path d={`M${x - 10} ${y - 9} L${x} ${y - 14} L${x + 10} ${y - 9} Z`} fill="#5a3a22" stroke={ink} strokeWidth="0.7" />
+          <line x1={x - 13} y1={y - 6} x2={x + 11} y2={y - 6} stroke="#3a2a1a" strokeWidth="2.2" />
+          <circle cx={x - 6} cy={y - 1.6} r="2.2" fill="#3a2a1a" /><circle cx={x + 6} cy={y - 1.6} r="2.2" fill="#3a2a1a" />
+        </g>
+      );
+    default: {
+      const arm = kind === '창병' ? <line x1={x + 1} y1={y - 4} x2={x + 9} y2={y - 19} stroke={ink} strokeWidth="1" />
+        : kind === '궁병' ? <path d={`M${x + 3} ${y - 14} Q${x + 8} ${y - 9} ${x + 3} ${y - 4}`} stroke={ink} strokeWidth="1" fill="none" />
+          : kind === '노병' ? <g><line x1={x - 1} y1={y - 9} x2={x + 7} y2={y - 9} stroke={ink} strokeWidth="1.2" /><path d={`M${x + 6} ${y - 12} Q${x + 8} ${y - 9} ${x + 6} ${y - 6}`} stroke={ink} strokeWidth="0.9" fill="none" /></g>
+            : <g><line x1={x + 3} y1={y - 6} x2={x + 6} y2={y - 14} stroke="#cfd3d8" strokeWidth="1" /><circle cx={x - 3} cy={y - 7} r="2.4" fill={darken(color, 0.2)} stroke={ink} strokeWidth="0.5" /></g>;
+      return (
+        <g>
+          <path d={`M${x - 2.5} ${y} L${x - 1.8} ${y - 8} L${x + 1.8} ${y - 8} L${x + 2.5} ${y} Z`} fill={body} />
+          <circle cx={x} cy={y - 10} r="2.3" fill={skin} />
+          {arm}
+        </g>
+      );
+    }
+  }
+}
+
+/** 군기(旗) 부대 — 세력 색 깃발에 장수의 성을 쓰고, 병종에 맞는 병사를 세운다 */
+export function UnitBanner({ cx, cy, color, label, side, commander, ratio, troops, kind = '보병' }: {
+  cx: number; cy: number; color: string; label: string; side: 0 | 1; commander: boolean; ratio: number; troops: number; kind?: UnitKind;
 }) {
-  const men = troops >= 6000 ? 3 : troops >= 2500 ? 2 : 1;
+  const men = kind === '공성' ? 1 : troops >= 6000 ? 3 : troops >= 2500 ? 2 : 1;
   const ring = side === 0 ? '#ffb19e' : '#9fc8ff';
   const two = label.length > 1;
+  const step = kind === '기병' ? 12 : 9;
   return (
     <g pointerEvents="none">
-      <ellipse cx={cx} cy={cy + 15} rx="17" ry="5" fill="#000" opacity="0.35" />
-      <ellipse cx={cx} cy={cy + 14} rx="15" ry="4.5" fill="none" stroke={ring} strokeWidth="2" opacity="0.9" />
-      {/* 병사 */}
-      {Array.from({ length: men }, (_, i) => {
-        const x = cx - 10 + i * 9;
-        return (
-          <g key={i}>
-            <line x1={x + 3} y1={cy + 12} x2={x + 5} y2={cy - 4} stroke="#2a2420" strokeWidth="1" />
-            <path d={`M${x - 2.5} ${cy + 13} L${x - 1.8} ${cy + 5} L${x + 1.8} ${cy + 5} L${x + 2.5} ${cy + 13} Z`} fill={darken(color, 0.45)} />
-            <circle cx={x} cy={cy + 3} r="2.3" fill="#d9b48d" />
-          </g>
-        );
-      })}
+      <ellipse cx={cx} cy={cy + 15} rx="18" ry="5" fill="#000" opacity="0.35" />
+      <ellipse cx={cx} cy={cy + 14} rx="16" ry="4.5" fill="none" stroke={ring} strokeWidth="2" opacity="0.9" />
+      {Array.from({ length: men }, (_, i) => (
+        <Soldier key={i} x={cx - (men - 1) * step / 2 + i * step + 2} y={cy + 13} kind={kind} color={color} />
+      ))}
       {/* 깃대와 깃발 */}
-      <line x1={cx - 12} y1={cy + 12} x2={cx - 12} y2={cy - 22} stroke="#3a2414" strokeWidth="1.8" />
-      {commander && <circle cx={cx - 12} cy={cy - 23} r="2.4" fill="#e7c25a" stroke="#6d531a" strokeWidth="0.6" />}
-      <path d={`M${cx - 11} ${cy - 21} L${cx + 13} ${cy - 21} L${cx + 13} ${cy + 1} L${cx + 6} ${cy - 3} L${cx - 1} ${cy + 1} L${cx - 11} ${cy - 2} Z`}
+      <line x1={cx - 13} y1={cy + 12} x2={cx - 13} y2={cy - 22} stroke="#3a2414" strokeWidth="1.8" />
+      {commander && <circle cx={cx - 13} cy={cy - 23} r="2.4" fill="#e7c25a" stroke="#6d531a" strokeWidth="0.6" />}
+      <path d={`M${cx - 12} ${cy - 21} L${cx + 12} ${cy - 21} L${cx + 12} ${cy - 1} L${cx + 5} ${cy - 5} L${cx - 2} ${cy - 1} L${cx - 12} ${cy - 4} Z`}
         fill={color} stroke={darken(color, 0.5)} strokeWidth="1" className="sg-ubanner" />
-      <path d={`M${cx - 11} ${cy - 21} L${cx + 13} ${cy - 21}`} stroke={lighten(color, 0.45)} strokeWidth="2" />
-      <text x={cx + 1} y={cy - (two ? 8 : 5)} className={`sg-ubanner-txt ${two ? 'two' : ''}`}>{label}</text>
+      <path d={`M${cx - 12} ${cy - 21} L${cx + 12} ${cy - 21}`} stroke={lighten(color, 0.45)} strokeWidth="2" />
+      <text x={cx} y={cy - (two ? 10 : 7)} className={`sg-ubanner-txt ${two ? 'two' : ''}`}>{label}</text>
+      {/* 병종 표 */}
+      <circle cx={cx + 13} cy={cy - 2} r="5.4" fill="#f1e4c3" stroke="#3a2614" strokeWidth="0.9" />
+      <text x={cx + 13} y={cy + 1.3} className="sg-ukind">{KINDS[kind].hanja}</text>
       {/* 병력 띠 */}
       <rect x={cx - 16} y={cy + 18} width="32" height="4" rx="1" fill="rgba(0,0,0,0.65)" />
       <rect x={cx - 16} y={cy + 18} width={32 * Math.max(0, Math.min(1, ratio))} height="4" rx="1" fill={ratio > 0.5 ? '#8be08f' : ratio > 0.25 ? '#e8c25a' : '#ef7d6b'} />

@@ -10,6 +10,7 @@ import { chance, clamp, rint, rrange } from './rng';
 import { agriCap, cityName, commCap, pickGovernor, updateRank } from './setup';
 import type { City, GameState, LogEntry, Officer } from './state';
 import { jo } from './josa';
+import { KINDS, kindAllowed, kindCost, type UnitKind } from './units';
 
 export interface Result { ok: boolean; msg: string }
 const ok = (msg: string): Result => ({ ok: true, msg });
@@ -642,7 +643,7 @@ export function betray(s: GameState, officerId: string, targetId: string): Resul
 
 /* ───────────── 출진 ───────────── */
 
-export function attack(s: GameState, from: CityId, to: CityId, officerIds: string[], troops: number[], food: number): Result {
+export function attack(s: GameState, from: CityId, to: CityId, officerIds: string[], troops: number[], food: number, kinds?: UnitKind[]): Result {
   const c = s.cities[from];
   const f = c.owner;
   if (f < 0) return fail('아군 도시가 아닙니다.');
@@ -662,12 +663,28 @@ export function attack(s: GameState, from: CityId, to: CityId, officerIds: strin
     total += n;
   }
   if (total > c.troops) return fail('도시 병력이 모자랍니다.');
+  /* 병종: 편성 조건과 비용 */
+  let cost = 0;
+  if (kinds) {
+    if (kinds.length !== officerIds.length) return fail('병종 수가 맞지 않습니다.');
+    for (let i = 0; i < kinds.length; i++) {
+      const k = kinds[i];
+      const al = kindAllowed(s, from, officerIds[i], k);
+      if (!al.ok) return fail(`${k}: ${al.why}`);
+      if (k === '공성' && nb.kind === 'w') return fail('수로로는 공성병기를 실어 갈 수 없습니다.');
+      const cap = KINDS[k].cap;
+      if (cap && troops[i] > cap) return fail(`${k} 부대는 ${cap.toLocaleString()}명까지입니다.`);
+      cost += kindCost(from, k, troops[i]);
+    }
+    if (cost > c.gold) return fail(`병종 편성에 금 ${cost}이 필요합니다.`);
+  }
   food = Math.floor(Math.min(food, c.food));
   if (food < total * 0.05) return fail(`군량을 적어도 ${Math.ceil(total * 0.05)} 가져가야 합니다.`);
   c.troops -= total;
   c.food -= food;
+  c.gold -= cost;
   for (const id of officerIds) done(s, s.officers[id], 0);
-  s.attacks.push({ faction: f, from, to, officers: [...officerIds], troops: officerIds.map((_, i) => Math.floor(troops[i] / 100) * 100), food, gold: 0 });
+  s.attacks.push({ faction: f, from, to, officers: [...officerIds], troops: officerIds.map((_, i) => Math.floor(troops[i] / 100) * 100), kinds: kinds ? [...kinds] : undefined, food, gold: 0 });
   /* 동맹을 깨고 친 것은 아니지만, 공격받은 쪽과는 사이가 나빠진다 */
   if (t.owner >= 0) addRel(s, f, t.owner, -15);
   return ok(`${cityName(from)}에서 ${jo(cityName(to), '로')} 출진합니다.`);
