@@ -1,12 +1,12 @@
 /** 허브 필터용 분류 */
-export type Category = '보드' | '퍼즐' | '액션' | '데일리';
+export type Category = '전략' | '보드' | '퍼즐' | '액션' | '데일리';
 
-export const CATEGORIES: Category[] = ['보드', '퍼즐', '액션', '데일리'];
+export const CATEGORIES: Category[] = ['전략', '보드', '퍼즐', '액션', '데일리'];
 
 /** 게임 식별자 — 저장소 이름이기도 하므로 한번 정하면 바꾸지 않는다 */
 export type GameId =
   | 'omok' | 'janggi' | 'sudoku' | 'tetris' | 'reversi' | 'kkodle'
-  | 'minesweeper' | 'nonogram' | 'solitaire' | 'g2048' | 'breakout' | 'yut';
+  | 'minesweeper' | 'nonogram' | 'solitaire' | 'g2048' | 'breakout' | 'yut' | 'samguk';
 
 /** 허브와 각 게임이 함께 쓰는 게임 목록(메타데이터) */
 export interface GameMeta {
@@ -33,6 +33,23 @@ export interface GameMeta {
 }
 
 export const GAMES: GameMeta[] = [
+  {
+    id: 'samguk',
+    title: '천하삼분',
+    subtitle: 'THREE KINGDOMS · 天下三分',
+    emoji: '🏯',
+    desc: '190~280년 53개 도시, 정사에 실존한 인물 700여 명. 내정·인사·외교·계략과 육각 칸 공성전으로 천하를 통일합니다.',
+    controls: '클릭 · 휠 확대 · Shift+Enter 턴 종료',
+    touchControls: '탭 · 끌어서 이동 · 두 손가락 확대',
+    category: '전략',
+    tags: ['전략', '역사', '싱글', '핫시트'],
+    accent: '#d4a24c',
+    lore: [
+      '한 왕조가 저물자 천하는 쉰세 개의 성으로 나뉘었다.',
+      '땅을 넓히는 것은 군사지만, 지키는 것은 사람이다.',
+      '셋으로 나뉜 것은 언젠가 하나로 돌아간다.',
+    ],
+  },
   {
     id: 'omok',
     title: '오목',

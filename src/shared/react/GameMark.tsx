@@ -220,6 +220,18 @@ const MARKS: Record<GameId, JSX.Element> = {
       ))}
     </>
   ),
+  samguk: (
+    <>
+      <Bg fill="#1d1a14" />
+      {/* 세 갈래로 나뉜 땅과 가운데 성 */}
+      <path d="M24 24 L24 6 A18 18 0 0 1 39.6 33 Z" fill="#3f74e0" opacity="0.85" />
+      <path d="M24 24 L39.6 33 A18 18 0 0 1 8.4 33 Z" fill="#d9453a" opacity="0.85" />
+      <path d="M24 24 L8.4 33 A18 18 0 0 1 24 6 Z" fill="#2fa35a" opacity="0.85" />
+      <circle cx="24" cy="24" r="18" fill="none" stroke="#d4a24c" strokeWidth="1.6" />
+      <rect x="18" y="18" width="12" height="12" rx="2" fill="#1d1a14" stroke="#d4a24c" strokeWidth="1.4" />
+      <text x="24" y="28.2" textAnchor="middle" fontSize="10" fontWeight="800" fill="#f3d79a">天</text>
+    </>
+  ),
 };
 
 export function GameMark({ id, size = 46, className }: Props) {
