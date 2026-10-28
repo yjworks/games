@@ -1,9 +1,11 @@
 /* 자동 생성 — vite.config.ts의 pwaPlugin이 만든 파일입니다. 직접 수정하지 마세요. */
-const CACHE = 'games-vmuiaap8v';
+const CACHE = 'games-vmvsm1w4f';
+/* 글꼴 조각은 바뀌지 않으므로 CACHE 를 올려도 지우지 않는다 */
+const FONT_CACHE = 'games-fonts-v1';
 const PRECACHE = [
-  "./assets/hub-CS_Zumyd.css",
-  "./assets/omok-_iV_uu2F.css",
-  "./assets/janggi-ByUKz1B3.css",
+  "./assets/hub-BXdIV0hM.css",
+  "./assets/omok-Dw-_x8Mw.css",
+  "./assets/janggi-CS9ZvPxz.css",
   "./assets/sudoku-BbWrtbDC.css",
   "./assets/tetris-fjyYOuZW.css",
   "./assets/reversi-C8W0XywZ.css",
@@ -14,31 +16,33 @@ const PRECACHE = [
   "./assets/g2048-BpiZUr8M.css",
   "./assets/breakout-CF8c8RiQ.css",
   "./assets/yut-BKsT7HDa.css",
-  "./assets/pwa-C1qk58tU.css",
-  "./assets/hub-d0ma1gwb.js",
-  "./assets/omok-DjS6KijN.js",
-  "./assets/janggi-B0pdeHGB.js",
-  "./assets/sudoku-Bqum-YOj.js",
-  "./assets/tetris-BHvUAXEg.js",
-  "./assets/reversi-lX8B8JlQ.js",
-  "./assets/kkodle-h13jiVZH.js",
-  "./assets/minesweeper-DkCaA4fm.js",
-  "./assets/nonogram-8HB8r3Tu.js",
-  "./assets/DailyToggle-BFQPtwrh.js",
-  "./assets/daily-5HwZDSkT.js",
-  "./assets/solitaire-CfuF9H13.js",
-  "./assets/g2048-DJbzMftg.js",
-  "./assets/breakout-BLns32wM.js",
+  "./assets/samguk-DmkbLvNk.css",
+  "./assets/pwa-DzUScA1d.css",
+  "./assets/hub-81dlNgaF.js",
+  "./assets/omok-vb2Z0ibc.js",
+  "./assets/janggi-CBEkzKsy.js",
+  "./assets/sudoku-m3PcqXU_.js",
+  "./assets/tetris-YDOmxDU2.js",
+  "./assets/reversi-YWFpsdJR.js",
+  "./assets/kkodle-DsvBXvi-.js",
+  "./assets/minesweeper-Dj-ZIdPO.js",
+  "./assets/nonogram-nEiq74cU.js",
+  "./assets/DailyToggle-CI42SPde.js",
+  "./assets/daily-DwhLK8ic.js",
+  "./assets/solitaire-zaqnLmtM.js",
+  "./assets/g2048-hNY841-N.js",
+  "./assets/breakout-BOrlK5ih.js",
   "./assets/color-BAMIQH0K.js",
-  "./assets/records-naaVqPS7.js",
-  "./assets/yut-DUU2aIXl.js",
-  "./assets/stats-D7cAYCAT.js",
-  "./assets/useKeys-DxjyVNNJ.js",
-  "./assets/react-C81AYkAM.js",
-  "./assets/progress-BNQEEG8Q.js",
-  "./assets/GameShell-DNC-L3AJ.js",
-  "./assets/sound-CSdQGWAp.js",
-  "./assets/pwa-SlPImvTy.js",
+  "./assets/records-BzATo3Hu.js",
+  "./assets/yut-BNOC6OCz.js",
+  "./assets/stats-CEnwLiph.js",
+  "./assets/useKeys-Dgx9tBwV.js",
+  "./assets/samguk-Dfhhd3lI.js",
+  "./assets/react-BqB6qhbB.js",
+  "./assets/progress-DOZT0hXu.js",
+  "./assets/GameShell-w4JSAGIa.js",
+  "./assets/sound-DkgRH6MJ.js",
+  "./assets/pwa-BpatQ1hU.js",
   "./manifest.webmanifest",
   "./icon.svg",
   "./icon-192.png",
@@ -47,6 +51,7 @@ const PRECACHE = [
   "./maskable-512.png",
   "./apple-touch-icon.png",
   "./favicon.ico",
+  "./vendor/fonts/pretendard.css",
   "./"
 ];
 
@@ -59,10 +64,15 @@ self.addEventListener('install', (event) => {
   );
 });
 
+/* dibrain.dev 는 여러 앱이 같은 주소(origin)를 쓴다. 다른 앱의 캐시는 건드리지 않고 딴짓의 옛 캐시만 지운다 */
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(
+        keys
+          .filter((k) => k.startsWith('games-') && k !== CACHE && k !== FONT_CACHE)
+          .map((k) => caches.delete(k))
+      ))
       .then(() => self.clients.claim())
   );
 });
@@ -77,6 +87,19 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+
+  /* 글꼴 조각: 저장해 둔 것이 있으면 네트워크를 보지 않고 바로 쓴다 */
+  if (url.pathname.includes('/vendor/fonts/') && url.pathname.endsWith('.woff2')) {
+    event.respondWith((async () => {
+      const cache = await caches.open(FONT_CACHE);
+      const hit = await cache.match(req);
+      if (hit) return hit;
+      const res = await fetch(req);
+      if (res.ok) cache.put(req, res.clone());
+      return res;
+    })());
+    return;
+  }
 
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);

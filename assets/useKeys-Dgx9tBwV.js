@@ -1,0 +1,1 @@
+import{r as i}from"./GameShell-w4JSAGIa.js";function f(t,s=!0){i.useEffect(()=>{if(!s)return;const n=e=>{const r=e.target;if(r&&["INPUT","TEXTAREA","SELECT"].includes(r.tagName))return;const o=t[e.key]??t[e.key.toLowerCase()];o&&o(e)};return window.addEventListener("keydown",n),()=>window.removeEventListener("keydown",n)})}export{f as u};

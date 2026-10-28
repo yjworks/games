@@ -1,1 +1,0 @@
-import{e as o,R as a,f as t,w as n}from"./pwa-SlPImvTy.js";const r=s=>`${a}:${s}:progress`;function g(s,e){n(r(s),{label:e,at:Date.now()})}function f(s){t(r(s))}function i(s){return o(r(s),null)}export{f as c,i as g,g as s};
