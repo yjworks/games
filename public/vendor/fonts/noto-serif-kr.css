@@ -1,0 +1,20 @@
+/*
+Noto Serif KR (Source Han Serif K) — 천하삼분이 쓰는 글자만 남긴 조각 두 개(보통·굵게).
+(c) 2017-2024 Adobe (http://www.adobe.com/).
+This Font Software is licensed under the SIL Open Font License, Version 1.1 — noto-serif-kr/LICENSE.
+다시 만들기: scripts/samguk-font.py
+*/
+@font-face {
+  font-family: 'Cheonha Serif';
+  font-style: normal;
+  font-weight: 100 599;
+  font-display: swap;
+  src: url('./noto-serif-kr/noto-serif-kr-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Cheonha Serif';
+  font-style: normal;
+  font-weight: 600 900;
+  font-display: swap;
+  src: url('./noto-serif-kr/noto-serif-kr-800.woff2') format('woff2');
+}

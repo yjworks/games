@@ -2,7 +2,7 @@
 
 잠깐 딴짓하기 좋은 게임 모음 — **천하삼분 · 오목 · 장기 · 리버시 · 윷놀이 · 스도쿠 · 지뢰찾기 · 노노그램 · 솔리테어 · 테트리스 · 벽돌깨기 · 2048 · 꼬들**
 
-<https://yjworks.github.io/games/>
+<https://dibrain.dev/games/>
 
 서버도 계정도 없습니다. 진행 상황과 기록은 브라우저(localStorage)에만 저장되고,
 한 번 열어 본 뒤에는 네트워크 없이도 실행됩니다(PWA).
@@ -84,7 +84,9 @@ npm run preview
 
 ## 배포
 
-`main`에 푸시하면 GitHub Actions가 빌드해 `gh-pages` 브랜치로 배포합니다.
+GitHub Pages는 꺼져 있습니다(`gh-pages` 브랜치는 예전 배포본이라 쓰지 않습니다).
+블로그 저장소(`yjworks/yjworks.github.io`)의 워크플로가 이 저장소의 `main`을 30분마다 확인해 빌드하고
+Cloudflare Pages(`dibrain.dev/games/`)에 올립니다. 이 저장소의 `ci.yml`은 타입 검사·테스트·빌드만 봅니다.
 `base`가 상대 경로(`./`)라서 계정 이름이나 저장소 이름이 바뀌어도 그대로 동작합니다.
 서비스 워커의 경로도 전부 상대 경로입니다.
 

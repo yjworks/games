@@ -66,6 +66,7 @@ function processAttack(s: GameState, order: AttackOrder) {
     return;
   }
   const bs = createBattle(s, order);
+  s.marches = [...(s.marches ?? []), { y: s.year, m: s.month, f: order.faction, from: order.from, to: order.to }].slice(-40);
   log(s, `${jo(factionName(s, order.faction), '이가')} ${cityName(order.from)}에서 ${target.owner >= 0 ? `${factionName(s, target.owner)}의 ` : '공백지 '}${jo(cityName(order.to), '을를')} 공격했습니다.`, 'war', order.faction);
   const humanInvolved = bs.human[0] || bs.human[1];
   if (humanInvolved && s.options.manualBattle) {

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { clearProgress, setProgress } from '../../shared/progress';
-import { sfx } from '../../shared/sound';
+import { sg } from './audio';
 import type { CityId } from './data/types';
 import type { Result } from './engine/commands';
 import { factionName } from './engine/officers';
@@ -91,7 +91,7 @@ export const useGame = create<UIState>((set, get) => ({
       const speaker = by ?? (f >= 0 ? s.factions[f].advisor ?? s.factions[f].ruler : null);
       const color = f >= 0 ? s.factions[f].color : undefined;
       set({ toast: { text: r.msg, ok: r.ok, at: Date.now(), by: speaker, color } });
-      if (r.ok) sfx.place(); else sfx.alert();
+      if (r.ok) sg.ok(); else sg.fail();
     }
     set({ rev: get().rev + 1 });
     return r;
@@ -101,7 +101,7 @@ export const useGame = create<UIState>((set, get) => ({
     if (!s) return;
     endTurn(s);
     afterAdvance(s);
-    sfx.tap();
+    sg.turn();
     const f = currentHuman(s);
     const keep = get().city;
     const events = s.news.filter((n) => n.kind === 'event' && n.y === s.year && n.m === s.month);

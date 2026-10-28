@@ -19,6 +19,8 @@ import { SEASON, fmt } from './labels';
 import { MapView } from './MapView';
 import { LoadSheet } from './Title';
 import { jo } from '../engine/josa';
+import { MONTH_HAN, SEASON_HAN, eraName } from './era';
+import { audioPrefs, setAudioPrefs } from '../audio';
 
 export function Game() {
   const s = useGame((u) => u.game)!;
@@ -56,6 +58,7 @@ export function Game() {
   }, [s, cmd, panel, endTurn]);
 
   if (s.battle) return <BattleView s={s} />;
+  const era = eraName(s.year, viewer >= 0 ? s.factions[viewer].key : null, viewer >= 0 && s.factions[viewer].rank >= 5);
   if (s.over) return <Ending s={s} />;
 
   const onSelect = (c: CityId) => { select(c); setPanelOpen(true); };
@@ -64,15 +67,24 @@ export function Game() {
     <div className="sg-game">
       <div className="sg-status">
         {viewer >= 0 && (
-          <Portrait id={s.factions[viewer].ruler} size={40} year={s.year} color={s.factions[viewer].color} ruler className="sg-status-face" />
+          <Portrait id={s.factions[viewer].ruler} size={44} year={s.year} color={s.factions[viewer].color} ruler className="sg-status-face" />
         )}
-        <span className="sg-date"><b>{s.year}</b>년 <b>{s.month}</b>월 <small>{SEASON(s.month)}</small></span>
-        {viewer >= 0 && (
-          <span className="sg-me"><Dot color={s.factions[viewer].color} /> {factionName(s, viewer)} <small>{RANK_TITLES[s.factions[viewer].rank]}</small></span>
+        <div className="sg-status-who">
+          {viewer >= 0 && <span className="sg-me"><Dot color={s.factions[viewer].color} /> {factionName(s, viewer)} <small>{RANK_TITLES[s.factions[viewer].rank]}</small></span>}
+          <span className="sg-date"><b>{s.year}</b>년 <b>{s.month}</b>월 <small>{SEASON(s.month)}</small></span>
+        </div>
+        {sum && (
+          <span className="sg-res">
+            <span><i>城</i>{sum.cities}</span>
+            <span><i>將</i>{sum.officers}</span>
+            <span><i>兵</i>{fmt(sum.troops)}</span>
+            <span><i>金</i>{fmt(sum.gold)}</span>
+            <span><i>糧</i>{fmt(sum.food)}</span>
+          </span>
         )}
-        {sum && <span className="sg-res">도시 {sum.cities} · 장수 {sum.officers} · 병력 {fmt(sum.troops)} · 금 {fmt(sum.gold)} · 군량 {fmt(sum.food)}</span>}
-        {s.emperor >= 0 && <span className="sg-emp">천자: {factionName(s, s.emperor)}</span>}
+        {s.emperor >= 0 && <span className="sg-emp">천자 · {factionName(s, s.emperor)}</span>}
       </div>
+      <MonthBanner key={`${s.year}-${s.month}`} era={era} month={s.month} year={s.year} />
       <div className="sg-main">
         <MapView s={s} selected={city} onSelect={onSelect} marks={marks} viewer={viewer} />
         {city && panelOpen && (
@@ -82,13 +94,13 @@ export function Game() {
         )}
       </div>
       <div className="sg-bottom">
-        <button className="sg-tab" onClick={() => open('report')}>보고{s.news.length ? <em>{Math.min(99, s.news.length)}</em> : null}</button>
-        <button className="sg-tab" onClick={() => open('factions')}>세력</button>
-        <button className="sg-tab" onClick={() => open('people')}>인물</button>
-        <button className="sg-tab" onClick={() => open('captives')}>포로{caps ? <em>{caps}</em> : null}</button>
-        <button className="sg-tab" onClick={() => open('menu')}>메뉴</button>
+        <button className="sg-tab" onClick={() => open('report')}><i>報</i>보고{s.news.length ? <em>{Math.min(99, s.news.length)}</em> : null}</button>
+        <button className="sg-tab" onClick={() => open('factions')}><i>勢</i>세력</button>
+        <button className="sg-tab" onClick={() => open('people')}><i>人</i>인물</button>
+        <button className="sg-tab" onClick={() => open('captives')}><i>虜</i>포로{caps ? <em>{caps}</em> : null}</button>
+        <button className="sg-tab" onClick={() => open('menu')}><i>錄</i>메뉴</button>
         <button className="sg-btn primary sg-end" onClick={endTurn} disabled={me < 0}>
-          턴 종료 <small className="kbd-only">⇧↵</small>
+          <span>턴 종료</span> <small className="kbd-only">⇧↵</small>
         </button>
       </div>
 
@@ -101,6 +113,25 @@ export function Game() {
       {panel === 'people' && <Encyclopedia s={s} onClose={() => open(null)} />}
       {panel === 'captives' && <Captives s={s} me={me} onClose={() => open(null)} />}
       {panel === 'menu' && <Menu s={s} onClose={() => open(null)} />}
+    </div>
+  );
+}
+
+/** 달이 바뀔 때 — 연호와 달을 붓글씨로 잠깐 띄운다 */
+let bannerShown = '';
+function MonthBanner({ era, month, year }: { era: string; month: number; year: number }) {
+  /* 전투를 마치고 지도로 돌아올 때는 같은 달을 다시 띄우지 않는다 */
+  const [on, setOn] = useState(() => { const k = `${year}-${month}`; const fresh = bannerShown !== k; bannerShown = k; return fresh; });
+  useEffect(() => { const t = setTimeout(() => setOn(false), 1900); return () => clearTimeout(t); }, []);
+  if (!on) return null;
+  return (
+    <div className="sg-monthban" aria-hidden="true">
+      <div>
+        <b>{era}</b>
+        <span>{MONTH_HAN(month)}</span>
+        <i>{SEASON_HAN(month)}</i>
+        <small>{year}년 {month}월</small>
+      </div>
     </div>
   );
 }
@@ -190,6 +221,18 @@ function Menu({ s, onClose }: { s: GameState; onClose: () => void }) {
         <button aria-pressed={s.options.manualBattle} onClick={() => { s.options.manualBattle = true; bump(); }}>전투 직접 지휘</button>
         <button aria-pressed={!s.options.manualBattle} onClick={() => { s.options.manualBattle = false; bump(); }}>전투 위임</button>
       </div>
+      <h4 className="sg-sub">배경음악</h4>
+      <div className="sg-seg">
+        {([['끔', 0], ['작게', 0.3], ['보통', 0.6], ['크게', 0.95]] as const).map(([label, v]) => {
+          const ap = audioPrefs();
+          const cur = !ap.music ? 0 : ap.volume;
+          return (
+            <button key={label} aria-pressed={Math.abs(cur - v) < 0.05}
+              onClick={() => { setAudioPrefs(v === 0 ? { music: false } : { music: true, volume: v }); bump(); }}>{label}</button>
+          );
+        })}
+      </div>
+      <p className="sg-muted">효과음은 위쪽 🔊 단추로 켜고 끕니다(모든 게임 공통). 꺼 두면 음악도 나오지 않습니다.</p>
       <p className="sg-muted">난이도 {{ easy: '쉬움', normal: '보통', hard: '어려움' }[s.options.difficulty]} · 수명 {s.options.lifespan === 'history' ? '역사대로' : '가상'} · 매달 자동 저장</p>
       <div className="sg-form-go"><button className="sg-btn" onClick={quit}>표제로 나가기</button></div>
     </Sheet>
