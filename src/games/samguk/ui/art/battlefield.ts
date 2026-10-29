@@ -60,11 +60,26 @@ export function paintField(f: Field, month: number): string {
   const hit = cache.get(key);
   if (hit) return hit;
   if (typeof document === 'undefined') return '';
+  const cv = draw(f, month, false);
+  if (!cv) return '';
+  const url = cv.toDataURL('image/webp', 0.86);
+  if (cache.size > 6) cache.delete(cache.keys().next().value as string);
+  cache.set(key, url);
+  return url;
+}
+
+/** 3D 전장의 바닥 그림 — 숲·산·집·성벽은 3D로 따로 세우므로 땅·물·길만 칠한다 */
+export function paintGround(f: Field, month: number): HTMLCanvasElement | null {
+  if (typeof document === 'undefined') return null;
+  return draw(f, month, true);
+}
+
+function draw(f: Field, month: number, groundOnly: boolean): HTMLCanvasElement | null {
   const w = Math.ceil(f.W * HEX_W + HEX_W / 2), h = Math.ceil(f.H * 1.5 * HEX_R + HEX_R / 2);
   const cv = document.createElement('canvas');
   cv.width = w * SCALE; cv.height = h * SCALE;
   const ctx = cv.getContext('2d');
-  if (!ctx) return '';
+  if (!ctx) return null;
   ctx.scale(SCALE, SCALE);
   const winter = seasonOf(month) === 'winter';
   const autumn = seasonOf(month) === 'autumn';
@@ -198,6 +213,14 @@ export function paintField(f: Field, month: number): string {
 
   /* 5. 지형 장식 */
   each((_q, _r, t, cx, cy, rnd) => {
+    if (groundOnly && t.t !== 'marsh' && t.t !== 'village' && t.t !== 'inner') return;
+    if (groundOnly && t.t === 'inner') { ctx.fillStyle = 'rgba(60,50,35,0.25)'; hexPath(ctx, cx, cy, HEX_R * 0.98); ctx.fill(); return; }
+    if (groundOnly && t.t === 'village') {
+      ctx.strokeStyle = 'rgba(60,50,20,0.25)';
+      ctx.lineWidth = 1;
+      for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(cx - 24, cy + 14 + i * 4); ctx.lineTo(cx + 24, cy + 10 + i * 4); ctx.stroke(); }
+      return;
+    }
     switch (t.t) {
       case 'marsh':
         for (let i = 0; i < 5; i++) {
@@ -262,6 +285,8 @@ export function paintField(f: Field, month: number): string {
     }
   });
 
+  if (groundOnly) return cv;
+
   /* 6. 성벽 — 이웃 성벽·성문과 이어 쌓는다 */
   const walls: [number, number, number, number][] = [];
   each((q, r, t, cx, cy) => {
@@ -324,10 +349,7 @@ export function paintField(f: Field, month: number): string {
   ctx.fillStyle = winter ? 'rgba(200,215,230,0.08)' : 'rgba(255,220,150,0.06)';
   ctx.fillRect(0, 0, w, h);
 
-  const url = cv.toDataURL('image/webp', 0.86);
-  if (cache.size > 6) cache.delete(cache.keys().next().value as string);
-  cache.set(key, url);
-  return url;
+  return cv;
 }
 
 /* ───────── 그림 조각 ───────── */

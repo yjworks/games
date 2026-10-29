@@ -710,7 +710,7 @@ button.sg-oline:hover { background: rgba(214, 170, 82, 0.07); }
 @media (prefers-reduced-motion: reduce) { .sg-seasonfx { display: none; } }
 
 /* 전장 날씨·흔들림 */
-.sg-bt-fieldwrap { position: relative; flex: 1 1 520px; min-height: 0; display: flex; min-width: 0; }
+.sg-bt-fieldwrap { position: relative; flex: 1 1 0; min-height: 260px; display: flex; min-width: 0; }
 .sg-bt-fieldwrap > .sg-bt-field { flex: 1; min-width: 0; }
 @media (min-width: 900px) { .sg-bt-fieldwrap { align-self: stretch; } }
 .sg-weather { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
@@ -761,3 +761,58 @@ button.sg-oline:hover { background: rgba(214, 170, 82, 0.07); }
 .sg-battle { animation: sgInkIn 0.7s cubic-bezier(0.3, 0.8, 0.3, 1); }
 @keyframes sgInkIn { from { clip-path: circle(0% at 50% 50%); filter: brightness(0.3); } to { clip-path: circle(150% at 50% 50%); filter: none; } }
 @media (prefers-reduced-motion: reduce) { .sg-monthban > div, .sg-battle { animation: none; } }
+
+/* ══════════ 3D 전장·전법 ══════════ */
+.sg-bt3d { position: relative; flex: 1; min-width: 0; min-height: 300px; overflow: hidden; touch-action: none; cursor: grab; background: #6f8a96; }
+.sg-bt3d:active { cursor: grabbing; }
+.sg-bt3d-canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; }
+.sg-bt3d-wait { display: grid; place-items: center; color: var(--sg-gold-2); font-weight: 800; letter-spacing: 0.2em; background: radial-gradient(circle, #2e2014, #0e0905); }
+.sg-viewbtn { min-height: 26px; padding: 0 10px; color: var(--sg-gold-2); }
+.sg-viewbtn[aria-pressed='true'] { background: var(--sg-red-lacquer); color: #fbe7c2; border-color: #c9a13e; }
+.sg-special { stroke-width: 2.6; pointer-events: none; animation: sgPulse 0.9s ease-in-out infinite alternate; }
+.sg-cmd.tactic { background: linear-gradient(180deg, #4a2a6a, #2a1640); border-color: #b48ad8; color: #f3e6ff; }
+.sg-cmd.tactic b { color: #ffd77a; margin-right: 2px; }
+.sg-cmd.tactic.on { background: linear-gradient(180deg, #c89cf0, #8a5ab8); color: #1a0a28; }
+.sg-tac-name { color: #d8b4ff; }
+.sg-flash { position: absolute; inset: 0; z-index: 8; pointer-events: none; display: flex; align-items: center; justify-content: center; gap: 18px;
+  background: linear-gradient(90deg, transparent, rgba(30, 6, 40, 0.82) 25%, rgba(30, 6, 40, 0.82) 75%, transparent);
+  animation: sgFlash 1.5s ease-out forwards; }
+.sg-flash-face { animation: sgFlashFace 1.5s cubic-bezier(0.2, 0.9, 0.2, 1) forwards; }
+.sg-flash-txt { display: flex; flex-direction: column; animation: sgFlashTxt 1.5s cubic-bezier(0.2, 0.9, 0.2, 1) forwards; }
+.sg-flash-txt b { font-size: clamp(2.4rem, 9vw, 5rem); font-weight: 800; color: #fff3d8; letter-spacing: 0.15em; text-shadow: 0 0 2px #000, 5px 6px 0 #7a1a8a, 0 0 30px rgba(220, 150, 255, 0.7); }
+.sg-flash-txt small { font-size: 1rem; color: #f0d8ff; letter-spacing: 0.3em; }
+@keyframes sgFlash { 0% { opacity: 0; } 10% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes sgFlashFace { 0% { transform: translateX(-60vw) skewX(-12deg); } 20% { transform: translateX(0) skewX(0); } 100% { transform: translateX(14px); } }
+@keyframes sgFlashTxt { 0% { transform: translateX(60vw); opacity: 0; } 25% { transform: translateX(0); opacity: 1; } 100% { transform: translateX(-10px); } }
+@media (max-width: 640px) { .sg-flash .sg-portrait { width: 110px !important; height: 110px !important; } }
+
+@media (min-width: 900px) {
+  .sg-battle { display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: auto auto minmax(0, 1fr); }
+  .sg-bt-top, .sg-bt-note { grid-column: 1 / -1; }
+  .sg-bt-fieldwrap { grid-column: 1; grid-row: 3; min-height: 0; }
+  .sg-bt-panel { grid-column: 2; grid-row: 3; width: auto; min-height: 0; overflow-y: auto; }
+}
+.sg-map3d { position: absolute; inset: 0; overflow: hidden; touch-action: none; cursor: grab; }
+.sg-map3d:active { cursor: grabbing; }
+.sg-map3d-canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; }
+.sg-zbtn-txt { font-size: 0.78rem; letter-spacing: 0.05em; }
+
+/* 결단 */
+.sg-decision { max-width: 560px; }
+.sg-dec-main { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 12px; }
+.sg-dec-who { display: block; color: var(--sg-gold-2); font-size: 1.05rem; font-weight: 800; letter-spacing: 0.08em; margin-bottom: 4px; }
+.sg-dec-text { margin: 0; font-size: 0.95rem; line-height: 1.8; color: var(--sg-ink); background: linear-gradient(180deg, #f1e3c0, #dcc699); padding: 10px 14px; border-left: 4px solid #8a2416; }
+.sg-dec-opts { display: flex; flex-direction: column; gap: 6px; }
+.sg-dec-opt strong { color: #fbe7c2; }
+.sg-dec-opt.first { border-color: #c9a13e; }
+@media (max-width: 480px) { .sg-dec-main .sg-portrait { width: 64px !important; height: 64px !important; } }
+
+/* 천명 */
+.sg-goals { position: absolute; left: 8px; top: 8px; z-index: 4; width: min(270px, 62vw); padding: 6px 8px 8px; background: rgba(22, 13, 7, 0.86); border: 1px solid #a07a35; box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.4), 0 6px 16px rgba(0, 0, 0, 0.5); }
+.sg-goals.closed { width: auto; padding-bottom: 6px; }
+.sg-goals-head { display: flex; align-items: center; gap: 6px; width: 100%; font-size: 0.8rem; font-weight: 800; color: var(--sg-gold-2); letter-spacing: 0.1em; min-height: 26px; }
+.sg-goals-head b { width: 34px; height: 20px; display: grid; place-items: center; font-size: 0.66rem; color: #fbe7c2; background: var(--sg-red-lacquer); border: 1px solid #c9a13e; letter-spacing: 0; }
+.sg-goals-head small { margin-left: auto; color: var(--sg-sub); font-weight: 500; letter-spacing: 0; }
+.sg-goal { display: flex; flex-direction: column; gap: 3px; padding: 5px 0 2px; border-top: 1px dotted rgba(214, 170, 82, 0.25); }
+.sg-goal-t { font-size: 0.8rem; font-weight: 800; color: var(--sg-text); }
+.sg-goal small { font-size: 0.66rem; color: var(--sg-sub); }

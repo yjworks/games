@@ -1,34 +1,19 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ROOT_NS } from '../../../shared/storage';
+import { gpuTier, lowQuality, read3d, write3d } from './three/gpu';
+import { useGame } from '../store';
 import { CITIES, MAP_H, MAP_W, ROADS, project } from '../data/cities';
 import { LAKES, REGION_LABELS, RIVERS, type LonLat } from '../data/geo';
 import { OFFICER_DEF } from '../data/officers';
 import type { CityId } from '../data/types';
 import type { GameState } from '../engine/state';
 import { darken, lighten, mix, paperTexture, surname } from './art/util';
-import { CELLS, EDGES, LABEL_POS, PT } from './mapgeo';
+import { CELLS, EDGES, LABEL_POS, LAND_URL, PT, TERRAIN_URL, ZHOU_LABELS } from './mapgeo';
+export { TERRAIN_URL } from './mapgeo';
 import { seasonOf } from './labels';
-
-/** 지도 바탕 그림(Natural Earth 고도·음영으로 만든 것 — scripts/samguk-terrain.py) */
-export const TERRAIN_URL = '../../samguk/terrain.webp';
-const LAND_URL = '../../samguk/land.png';
 
 const path = (pts: LonLat[], close = false) =>
   pts.map(([lo, la], i) => { const [x, y] = project(lo, la); return `${i ? 'L' : 'M'}${x} ${y}`; }).join(' ') + (close ? ' Z' : '');
-
-/** 주(州) 이름 자리 — 소속 도시의 무게중심 */
-const ZHOU_HANJA: Record<string, string> = {
-  유주: '幽州', 기주: '冀州', 병주: '幷州', 청주: '靑州', 연주: '兗州', 서주: '徐州', 예주: '豫州', 양주: '揚州',
-  사례: '司隸', 옹주: '雍州', '양주(涼)': '涼州', 익주: '益州', 형주: '荊州', 교주: '交州',
-};
-const ZHOU_LABELS = (() => {
-  const g = new Map<string, [number, number, number]>();
-  for (const c of CITIES) {
-    const [x, y] = PT[c.id];
-    const v = g.get(c.zhou) ?? [0, 0, 0];
-    g.set(c.zhou, [v[0] + x, v[1] + y, v[2] + 1]);
-  }
-  return [...g.entries()].map(([z, [x, y, n]]) => ({ z, h: ZHOU_HANJA[z] ?? z, x: x / n, y: y / n + 34 }));
-})();
 
 /** 철마다 지도 빛깔을 조금 바꾼다 */
 function seasonTint(month: number): { color: string; op: number; mode: 'screen' | 'multiply' | 'soft-light' } | null {
@@ -41,6 +26,46 @@ function seasonTint(month: number): { color: string; op: number; mode: 'screen' 
 
 interface View { x: number; y: number; w: number }
 
+const WorldMap3D = lazy(() => import('./three/WorldMap3D'));
+const MAP3D_KEY = `${ROOT_NS}:samguk:map3d`;
+/**
+ * 지도 — GPU 가속이 있으면 3D, 없으면(소프트웨어 렌더링) 2D가 기본. 사람이 고르면 그대로 따른다.
+ * 3D가 너무 느리면(낮은 화질로도 초당 12장 아래) 고른 적 없을 때만 알아서 2D로 내려간다.
+ */
+export function MapView(p: Props) {
+  const init = useMemo(() => read3d(MAP3D_KEY), []);
+  const [three, setThree] = useState(init.on);
+  const auto = useRef(init.auto);
+  const rev = useGame((u) => u.rev);
+  const say = useGame((u) => u.say);
+  const api = useRef<{ zoom: (f: number) => void; overview: () => void } | null>(null);
+  const toggle = () => {
+    const v = !three;
+    setThree(v); write3d(MAP3D_KEY, v); auto.current = false;
+    if (v && gpuTier() === 'soft') say('그래픽 가속(GPU)이 꺼져 있어 3D가 느릴 수 있습니다.', false);
+  };
+  const onSlow = () => {
+    if (auto.current) { setThree(false); write3d(MAP3D_KEY, false); say('화면이 느려 2D 지도로 바꿨습니다. 3D 버튼으로 되돌릴 수 있습니다.', true); }
+    else say('3D 지도가 느립니다. 2D 버튼을 누르면 부드러워집니다.', false);
+  };
+  if (!three) return <MapView2D {...p} onToggle={gpuTier() === 'none' ? null : toggle} />;
+  return (
+    <div className="sg-map-wrap">
+      <Suspense fallback={<div className="sg-map3d sg-bt3d-wait">천하를 펼치는 중…</div>}>
+        <WorldMap3D s={p.s} rev={rev} selected={p.selected} onSelect={p.onSelect} marks={p.marks} viewer={p.viewer}
+          onFail={() => setThree(false)} low={lowQuality()} onSlow={onSlow} onView={(a) => { api.current = a; }} />
+      </Suspense>
+      <SeasonFx month={p.s.month} />
+      <div className="sg-zoom">
+        <button className="sg-zbtn" onClick={() => api.current?.zoom(0.75)} aria-label="확대">＋</button>
+        <button className="sg-zbtn" onClick={() => api.current?.zoom(1.33)} aria-label="축소">－</button>
+        <button className="sg-zbtn" onClick={() => api.current?.overview()} aria-label="전체 보기">⤢</button>
+        <button className="sg-zbtn sg-zbtn-txt" onClick={toggle} aria-label="2D 지도로">2D</button>
+      </div>
+    </div>
+  );
+}
+
 interface Props {
   s: GameState;
   selected: CityId | null;
@@ -51,7 +76,7 @@ interface Props {
   viewer: number;
 }
 
-export function MapView({ s, selected, onSelect, marks, viewer }: Props) {
+function MapView2D({ s, selected, onSelect, marks, viewer, onToggle }: Props & { onToggle: (() => void) | null }) {
   const ref = useRef<SVGSVGElement>(null);
   const [view, setView] = useState<View>({ x: 0, y: 0, w: MAP_W });
   const aspect = useRef(MAP_H / MAP_W);
@@ -219,6 +244,7 @@ export function MapView({ s, selected, onSelect, marks, viewer }: Props) {
         <button className="sg-zbtn" onClick={() => zoom(1 / 1.3)} aria-label="확대">＋</button>
         <button className="sg-zbtn" onClick={() => zoom(1.3)} aria-label="축소">－</button>
         <button className="sg-zbtn" onClick={() => setView(clampView({ x: 0, y: 0, w: MAP_W }))} aria-label="전체 보기">⤢</button>
+        {onToggle && <button className="sg-zbtn sg-zbtn-txt" onClick={onToggle} aria-label="3D 지도로">3D</button>}
       </div>
     </div>
   );
