@@ -1,7 +1,7 @@
 import { CITY_BY_ID, NEIGHBORS, roadKind } from '../data/cities';
 import type { CityId, Stats, TraitId } from '../data/types';
 import {
-  type MapLabel, type Tile, type TileType, buildMap, centerXY, compassName, entryTiles, entryVector, hexDist,
+  type MapLabel, type Tile, type TileType, buildMap, centerXY, compassName, entryTiles, entryVector, hexDist, hexLine,
 } from './battlemap';
 import { allied, autoAllot } from './commands';
 import { KINDS, autoKind, kindOf, type UnitKind } from './units';
@@ -88,6 +88,8 @@ export interface BattleState extends RngHolder {
   duel: DuelResult | null;
   human: [boolean, boolean];
   over: null | { winner: 0 | 1; reason: string };
+  /** 방금 터진 필살 전법(장수 컷인 연출용, 화면이 보고 지운다) */
+  flash?: { officer: string; tactic: string } | null;
 }
 
 export interface DuelResult {
@@ -672,6 +674,238 @@ export function doConfuse(bs: BattleState, u: Unit, e: Unit): string {
   return t;
 }
 
+/* ───────────── 전법 — 병종마다 하나씩 있는 특수 공격 ───────────── */
+
+export interface TacticDef {
+  name: string;
+  hanja: string;
+  /** 성공률에 쓰는 능력치 */
+  stat: typeof LEAD | typeof WAR | typeof INT;
+  desc: string;
+}
+
+export const TACTICS: Record<UnitKind, TacticDef> = {
+  보병: { name: '돌파', hanja: '突破', stat: WAR, desc: '맞닿은 적을 1.6배로 치고 반격을 받지 않는다. 적 사기 −6.' },
+  창병: { name: '관통', hanja: '貫通', stat: WAR, desc: '긴 창으로 맞닿은 적과 그 뒤의 적까지 꿰뚫는다(1.3배·0.9배).' },
+  기병: { name: '돌격', hanja: '突擊', stat: WAR, desc: '두 칸 안의 적에게 달려들어 1.8배로 치고 한 칸 밀어낸다. 반격 없음, 적 사기 −10. 숲·산·늪을 지나지 못한다.' },
+  궁병: { name: '난사', hanja: '亂射', stat: LEAD, desc: '과녁과 그 둘레 적 모두에게 화살비를 퍼붓는다(1배·0.6배).' },
+  노병: { name: '연노', hanja: '連弩', stat: LEAD, desc: '쇠뇌를 두 번 잇달아 쏜다(0.9배씩), 적 사기 −8.' },
+  수군: { name: '화선', hanja: '火船', stat: INT, desc: '물 위에서 불붙인 배를 띄워 두 칸 안의 적을 불태운다(1.2배 + 불).' },
+  공성: { name: '투석', hanja: '投石', stat: LEAD, desc: '세 칸 밖까지 돌을 날린다. 성벽·성문에 4배, 부대에는 1.1배와 둘레 0.5배.' },
+};
+
+const NO_CHARGE: TileType[] = ['forest', 'marsh', 'mountain', 'peak', 'water', 'ford', 'wall', 'gate', 'pass', 'hill'];
+
+/** 전법을 쓸 수 있는 칸 */
+export function tacticTargets(bs: BattleState, u: Unit): Target[] {
+  if (u.acted || u.gone || u.confused > 0) return [];
+  const out: Target[] = [];
+  const foes = bs.units.filter((e) => !e.gone && e.side !== u.side);
+  const d = (e: Unit) => dist([u.q, u.r], [e.q, e.r]);
+  switch (u.kind) {
+    case '보병': case '창병':
+      for (const e of foes) if (d(e) === 1) out.push({ kind: 'unit', q: e.q, r: e.r, ranged: false });
+      break;
+    case '기병':
+      for (const e of foes) {
+        if (d(e) === 1) out.push({ kind: 'unit', q: e.q, r: e.r, ranged: false });
+        else if (d(e) === 2 && chargeSpot(bs, u, e)) out.push({ kind: 'unit', q: e.q, r: e.r, ranged: false });
+      }
+      break;
+    case '궁병': case '노병': {
+      const range = shootRange(bs, u);
+      for (const e of foes) if (d(e) >= 2 && d(e) <= range) out.push({ kind: 'unit', q: e.q, r: e.r, ranged: true });
+      break;
+    }
+    case '수군': {
+      const on = tileAt(bs, u.q, u.r).t;
+      if (on !== 'water' && on !== 'ford' && on !== 'bridge') break;
+      for (const e of foes) if (d(e) <= 2) out.push({ kind: 'unit', q: e.q, r: e.r, ranged: d(e) > 1 });
+      break;
+    }
+    case '공성':
+      for (const e of foes) if (d(e) >= 2 && d(e) <= 3) out.push({ kind: 'unit', q: e.q, r: e.r, ranged: true });
+      if (u.side === 0) {
+        bs.tiles.forEach((t, i) => {
+          if (!isBarrier(t.t) || t.hp <= 0) return;
+          const q = i % bs.W, r = Math.floor(i / bs.W);
+          const dd = dist([u.q, u.r], [q, r]);
+          if (dd >= 1 && dd <= 3) out.push({ kind: 'tile', q, r, ranged: dd > 1 });
+        });
+      }
+      break;
+  }
+  return out;
+}
+
+/** 기병 돌격 — 적과 사이의 빈 칸(트인 땅)으로 달려든다 */
+function chargeSpot(bs: BattleState, u: Unit, e: Unit): [number, number] | null {
+  if (NO_CHARGE.includes(tileAt(bs, u.q, u.r).t) && tileAt(bs, u.q, u.r).t !== 'hill') return null;
+  const line = hexLine([u.q, u.r], [e.q, e.r]);
+  if (line.length !== 3) return null;
+  const [q, r] = line[1];
+  const t = tileAt(bs, q, r);
+  if (NO_CHARGE.includes(t.t) || t.fire > 0 || unitAt(bs, q, r)) return null;
+  return [q, r];
+}
+
+/** 맞은 쪽 뒤 칸(때린 쪽에서 멀어지는 이웃 가운데 가장 곧은 칸) */
+function behind(bs: BattleState, from: [number, number], at: [number, number]): [number, number] | null {
+  const [ax, ay] = centerXY(from[0], from[1]);
+  const [bx, by] = centerXY(at[0], at[1]);
+  const vx = bx - ax, vy = by - ay;
+  let best: [number, number] | null = null, bestDot = 0.5;
+  for (const [q, r] of neighbors(bs, at[0], at[1])) {
+    const [cx, cy] = centerXY(q, r);
+    const wx = cx - bx, wy = cy - by;
+    const dot = (vx * wx + vy * wy) / (Math.hypot(vx, vy) * Math.hypot(wx, wy) || 1);
+    if (dot > bestDot) { bestDot = dot; best = [q, r]; }
+  }
+  return best;
+}
+
+export function tacticChance(bs: BattleState, u: Unit, q: number, r: number): number {
+  const def = TACTICS[u.kind];
+  if (!tacticTargets(bs, u).some((t) => t.q === q && t.r === r)) return 0;
+  const e = unitAt(bs, q, r);
+  let p = 0.3 + (u.stats[def.stat] - 55) / 100 * 1.1 + (u.morale - 60) / 400;
+  if (e) p -= (e.stats[def.stat === INT ? INT : LEAD] - 50) / 250;
+  if (e && e.confused > 0) p += 0.2;
+  if ((u.kind === '궁병' || u.kind === '노병') && (bs.weather === '비' || bs.weather === '강풍')) p -= 0.15;
+  if (u.kind === '수군' && bs.weather === '비') p -= 0.3;
+  if (u.kind === '수군' && bs.weather === '강풍') p += 0.1;
+  if (u.kind === '기병' && u.traits.includes('기병')) p += 0.1;
+  if ((u.kind === '보병' || u.kind === '기병' || u.kind === '창병') && u.traits.includes('돌격')) p += 0.08;
+  if ((u.kind === '궁병' || u.kind === '노병') && u.traits.includes('궁병')) p += 0.1;
+  if (u.kind === '수군' && (u.traits.includes('수군') || u.traits.includes('화계'))) p += 0.1;
+  return clamp(p, 0.08, 0.92);
+}
+
+/** 전법을 쓴다. 실패하면 차례만 쓰고 사기가 조금 떨어진다 */
+export function doTactic(bs: BattleState, u: Unit, q: number, r: number): string {
+  if (bs.over || u.acted) return '';
+  const def = TACTICS[u.kind];
+  const p = tacticChance(bs, u, q, r);
+  if (p <= 0) return '';
+  u.acted = true; u.moved = true;
+  if (!chance(bs, p)) {
+    u.morale = Math.max(0, u.morale - 3);
+    const t = `${u.name}의 ${jo(def.name, '이가')} 막혔다.`;
+    bs.log.push(t);
+    return t;
+  }
+  /* 필살 — 이름난 장수는 가끔 크게 터뜨린다 */
+  const s = u.stats[def.stat];
+  const crit = !!u.officer && s >= 88 && chance(bs, s >= 95 ? 0.35 : 0.22);
+  const k = crit ? 1.35 : 1;
+  if (crit) bs.flash = { officer: u.officer!, tactic: def.name };
+  const head = `${u.name}의 ${def.name}${crit ? '! 필살' : '!'}`;
+  const hit = (e: Unit, mult: number, ranged: boolean) => {
+    const dmg = Math.max(10, Math.round(Math.min(e.troops, damage(bs, u, e, ranged) * mult * k)));
+    hurt(bs, e, dmg);
+    return dmg;
+  };
+  const lines: string[] = [];
+  const e = unitAt(bs, q, r);
+  switch (u.kind) {
+    case '보병':
+      if (e) { lines.push(`${head} → ${e.name}: 전법 −${hit(e, 1.6, false)}`); e.morale = Math.max(0, e.morale - 6); }
+      break;
+    case '창병':
+      if (e) {
+        lines.push(`${head} → ${e.name}: 전법 −${hit(e, 1.3, false)}`);
+        const b = behind(bs, [u.q, u.r], [q, r]);
+        const e2 = b && unitAt(bs, b[0], b[1]);
+        if (e2 && e2.side !== u.side) lines.push(`${u.name} → ${e2.name}: 전법 −${hit(e2, 0.9, false)}`);
+      }
+      break;
+    case '기병':
+      if (e) {
+        if (dist([u.q, u.r], [q, r]) === 2) {
+          const spot = chargeSpot(bs, u, e);
+          if (spot) { u.q = spot[0]; u.r = spot[1]; }
+        }
+        lines.push(`${head} → ${e.name}: 전법 −${hit(e, 1.8, false)}`);
+        e.morale = Math.max(0, e.morale - 10);
+        if (!e.gone && !e.guard) {
+          const b = behind(bs, [u.q, u.r], [q, r]);
+          if (b && !unitAt(bs, b[0], b[1]) && Number.isFinite(moveCost(bs, e, b[0], b[1])) && !isBarrier(tileAt(bs, b[0], b[1]).t)) {
+            e.q = b[0]; e.r = b[1];
+            lines.push(`${jo(e.name, '이가')} 밀려났다.`);
+          }
+        }
+      }
+      break;
+    case '궁병':
+      if (e) {
+        lines.push(`${head} → ${e.name}: 전법 −${hit(e, 1, true)}`);
+        for (const [nq, nr] of neighbors(bs, q, r)) {
+          const o = unitAt(bs, nq, nr);
+          if (o && o.side !== u.side) lines.push(`${u.name} → ${o.name}: 전법 −${hit(o, 0.6, true)}`);
+        }
+      }
+      break;
+    case '노병':
+      if (e) {
+        const a1 = hit(e, 0.9, true);
+        const a2 = e.gone ? 0 : hit(e, 0.9, true);
+        lines.push(`${head} → ${e.name}: 전법 −${a1 + a2}`);
+        e.morale = Math.max(0, e.morale - 8);
+      }
+      break;
+    case '수군':
+      if (e) {
+        lines.push(`${head} → ${e.name}: 전법 −${hit(e, 1.2, dist([u.q, u.r], [q, r]) > 1)}`);
+        const t = tileAt(bs, q, r);
+        if (!e.gone && t.flood === 0) { t.fire = Math.max(t.fire, 2); lines.push(`${e.name} 부대 둘레에 불길이 치솟았다.`); }
+      }
+      break;
+    case '공성': {
+      const t = tileAt(bs, q, r);
+      if (isBarrier(t.t) && t.hp > 0) {
+        const dmg = Math.round((u.troops * 0.03 * (atkPower(u) / 60) * 4 * k + 30) * rrange(bs, 0.85, 1.15));
+        t.hp = Math.max(0, t.hp - dmg);
+        const name = TILE_NAMES[t.t];
+        let line = `${head} → ${name}: 전법 −${dmg}`;
+        if (t.hp === 0) { breakBarrier(bs, q, r); line += ` — ${jo(name, '이가')} 무너졌다!`; }
+        lines.push(line);
+      } else if (e) {
+        lines.push(`${head} → ${e.name}: 전법 −${hit(e, 1.1, true)}`);
+        for (const [nq, nr] of neighbors(bs, q, r)) {
+          const o = unitAt(bs, nq, nr);
+          if (o && o.side !== u.side) lines.push(`${u.name} → ${o.name}: 전법 −${hit(o, 0.5, true)}`);
+        }
+      }
+      break;
+    }
+  }
+  u.morale = Math.min(100, u.morale + 4);
+  bs.log.push(...lines);
+  checkEnd(bs);
+  return lines[0] ?? head;
+}
+
+/** AI: 전법이 보통 공격보다 낫다면 쓴다 */
+function aiTactic(bs: BattleState, u: Unit): boolean {
+  const ts = tacticTargets(bs, u);
+  if (!ts.length) return false;
+  let best: { q: number; r: number; v: number } | null = null;
+  for (const t of ts) {
+    const p = tacticChance(bs, u, t.q, t.r);
+    if (p < 0.5) continue;
+    const e = unitAt(bs, t.q, t.r);
+    const v = e ? p * Math.min(e.troops, expected(bs, u, e, t.ranged)) * (e.commander ? 1.4 : 1) : p * 260;
+    if (!best || v > best.v) best = { q: t.q, r: t.r, v };
+  }
+  if (!best) return false;
+  const plain = attackTargets(bs, u).filter((t) => t.kind === 'unit')
+    .map((t) => { const e = unitAt(bs, t.q, t.r)!; return Math.min(e.troops, expected(bs, u, e, t.ranged)); });
+  const normal = plain.length ? Math.max(...plain) : 0;
+  if (best.v * 1.25 < normal) return false;
+  doTactic(bs, u, best.q, best.r);
+  return true;
+}
+
 /* ───────────── 계략: 수공 ───────────── */
 
 /** 둑을 터뜨리면 잠기는 칸: 강물에서 3칸 안의 낮은 땅 */
@@ -1071,10 +1305,12 @@ export function aiUnit(bs: BattleState, u: Unit, keepCache?: number[], zoneCache
     if (q !== u.q || r !== u.r) moveUnit(bs, u, q, r);
     if (bs.over) return;
     if (canFlood(bs, u) && floodChance(bs, u) >= 0.35 && floodWorth()) { doFlood(bs, u); return; }
+    if (aiTactic(bs, u)) return;
     if (bestMove.target && !bestMove.target.gone) { attackUnit(bs, u, bestMove.target, !!bestMove.ranged); return; }
     if (bestMove.tile) { attackTile(bs, u, bestMove.tile[0], bestMove.tile[1]); return; }
   }
   /* 이동 뒤에라도 칠 수 있으면 친다 */
+  if (aiTactic(bs, u)) return;
   const ts = attackTargets(bs, u);
   const unitT = ts.find((t) => t.kind === 'unit');
   if (unitT) { attackUnit(bs, u, unitAt(bs, unitT.q, unitT.r)!, unitT.ranged); return; }

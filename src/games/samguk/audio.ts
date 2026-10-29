@@ -620,6 +620,27 @@ export const sg = {
     drum(g, g.sbus, t + 0.01, 0.12, 1.4);
     hiss(g, g.sbus, t + 0.09, { type: 'bandpass', f: 2600, q: 1.4, vel: 0.12, dur: 0.08 });
   }),
+  /** 전법 — 북 두 번에 칼바람 */
+  tactic: withSfx((g, t) => {
+    drum(g, g.sbus, t, 0.3, 0.9);
+    drum(g, g.sbus, t + 0.12, 0.26, 1.1);
+    hiss(g, g.sbus, t + 0.05, { type: 'bandpass', f: 1200, f2: 4200, q: 1.2, vel: 0.16, attack: 0.08, dur: 0.3 });
+    for (const d of [0.22, 0.3]) {
+      hiss(g, g.sbus, t + d, { type: 'bandpass', f: 3000, q: 1.8, vel: 0.2, dur: 0.1 });
+      const o = g.ac.createOscillator();
+      o.type = 'square';
+      o.frequency.value = 2000 + Math.random() * 900;
+      o.connect(filt(g, 'highpass', 1400)).connect(env(g, t + d, 0.04, 0.002, 0, 0.14)).connect(g.sbus);
+      o.start(t + d); o.stop(t + d + 0.18);
+    }
+  }),
+  /** 필살 — 징과 함께 큰 북 */
+  crit: withSfx((g, t) => {
+    gong(g, g.sbus, t, 0.22, 110);
+    smallGong(g, g.sbus, t + 0.05, 0.12);
+    [0, 0.1, 0.2].forEach((d, i) => drum(g, g.sbus, t + d, 0.24 + i * 0.05, 0.8));
+    cymbal(g, g.sbus, t + 0.3, 0.12, 1.1);
+  }),
   /** 화살 일제 사격 — 휙휙 날아가 박힌다 */
   volley: withSfx((g, t) => {
     for (let i = 0; i < 5; i++) {
@@ -743,6 +764,10 @@ export function battleCue(line: string): (() => void) | null {
   if (/둑|물이 차오른|물길/.test(line)) return /열리지 않았다/.test(line) ? null : () => sg.flood();
   if (/혼란/.test(line)) return /않았다/.test(line) ? null : () => sg.confuse();
   if (/원군.*도착했다/.test(line)) return () => sg.horn();
+  if (/막혔다/.test(line)) return null;
+  if (/필살/.test(line)) return null;
+  if (/의 \S+! → .*: 전법 −/.test(line)) return () => sg.tactic();
+  if (/: 전법 −/.test(line)) return null;
   if (/일기토|베었|사로잡/.test(line)) return null;
   if (/: 사격 −/.test(line)) return () => sg.volley();
   if (/: 공격 −/.test(line)) return () => sg.clash();

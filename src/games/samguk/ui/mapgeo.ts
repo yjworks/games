@@ -100,3 +100,23 @@ function placeLabels(): Record<CityId, LabelPos> {
 export const LABEL_POS = placeLabels();
 
 export const MAP_BOX = { w: MAP_W, h: MAP_H };
+
+/** 지도 바탕 그림(Natural Earth 고도·음영으로 만든 것 — scripts/samguk-terrain.py)과 뭍 가면, 3D용 고도(scripts/samguk-height.py) */
+export const TERRAIN_URL = '../../samguk/terrain.webp';
+export const LAND_URL = '../../samguk/land.png';
+export const HEIGHT_URL = '../../samguk/height.png';
+
+/** 주(州) 이름 자리 — 소속 도시의 무게중심 */
+const ZHOU_HANJA: Record<string, string> = {
+  유주: '幽州', 기주: '冀州', 병주: '幷州', 청주: '靑州', 연주: '兗州', 서주: '徐州', 예주: '豫州', 양주: '揚州',
+  사례: '司隸', 옹주: '雍州', '양주(涼)': '涼州', 익주: '益州', 형주: '荊州', 교주: '交州',
+};
+export const ZHOU_LABELS = (() => {
+  const g = new Map<string, [number, number, number]>();
+  for (const c of CITIES) {
+    const [x, y] = PT[c.id];
+    const v = g.get(c.zhou) ?? [0, 0, 0];
+    g.set(c.zhou, [v[0] + x, v[1] + y, v[2] + 1]);
+  }
+  return [...g.entries()].map(([z, [x, y, n]]) => ({ z, h: ZHOU_HANJA[z] ?? z, x: x / n, y: y / n + 34 }));
+})();
