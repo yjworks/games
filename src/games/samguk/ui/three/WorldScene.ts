@@ -8,6 +8,7 @@ import type { GameState } from '../../engine/state';
 import { CELLS, EDGES, HEIGHT_URL, LAND_URL, PT, TERRAIN_URL, ZHOU_LABELS } from '../mapgeo';
 import { seasonOf } from '../labels';
 import { surname } from '../art/util';
+import { FrameWatch, type SceneOpt } from './gpu';
 
 /**
  * 3D 천하 지도 — 실제 고도(SRTM·ETOPO1)로 솟은 땅 위에 바탕 그림과 세력권을 입히고,
@@ -58,11 +59,17 @@ export class WorldScene {
   private hemi: THREE.HemisphereLight;
   private focusAnim: { t0: number; from: THREE.Vector3; to: THREE.Vector3; off: THREE.Vector3 } | null = null;
   private season = '';
+  private low: boolean;
+  private loaded = false;
+  private watch: FrameWatch;
 
-  constructor(el: HTMLElement) {
+  constructor(el: HTMLElement, opt: SceneOpt = {}) {
     this.el = el;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    this.low = !!opt.low;
+    /* 느리면 한 번 화소 배율을 낮춰 보고, 그래도 느리면 바깥에 알린다 */
+    this.watch = new FrameWatch(() => { if (!this.low) { this.low = true; this.renderer.setPixelRatio(1); this.watch.reset(); } else opt.onSlow?.(); });
+    this.renderer = new THREE.WebGLRenderer({ antialias: !this.low, powerPreference: 'high-performance' });
+    this.renderer.setPixelRatio(this.low ? 1 : Math.min(2, window.devicePixelRatio || 1));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
@@ -104,7 +111,7 @@ export class WorldScene {
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(el);
     this.resize();
-    this.ready = this.load();
+    this.ready = this.load().then(() => { this.loaded = true; });
     this.loop();
   }
 
@@ -142,7 +149,7 @@ export class WorldScene {
       this.heights[j * this.hw + i] = sum / n;
     }
     /* 지형 판 */
-    const segX = 350, segZ = 300;
+    const segX = this.low ? 175 : 350, segZ = this.low ? 150 : 300;
     const geo = new THREE.PlaneGeometry(MAP_W * SC, MAP_H * SC, segX, segZ);
     geo.rotateX(-Math.PI / 2);
     geo.translate(MAP_W * SC / 2, 0, MAP_H * SC / 2);
@@ -574,6 +581,7 @@ export class WorldScene {
   private loop = () => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
+    if (this.loaded) this.watch.tick(performance.now());
     this.timer.update();
     const t = this.timer.getElapsed();
     if (this.focusAnim) {

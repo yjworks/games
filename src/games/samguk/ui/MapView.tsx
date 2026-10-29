@@ -1,5 +1,6 @@
 import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ROOT_NS, readJSON, writeJSON } from '../../../shared/storage';
+import { ROOT_NS } from '../../../shared/storage';
+import { gpuTier, lowQuality, read3d, write3d } from './three/gpu';
 import { useGame } from '../store';
 import { CITIES, MAP_H, MAP_W, ROADS, project } from '../data/cities';
 import { LAKES, REGION_LABELS, RIVERS, type LonLat } from '../data/geo';
@@ -27,22 +28,32 @@ interface View { x: number; y: number; w: number }
 
 const WorldMap3D = lazy(() => import('./three/WorldMap3D'));
 const MAP3D_KEY = `${ROOT_NS}:samguk:map3d`;
-function webglOk(): boolean {
-  try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; }
-}
-
-/** 지도 — 3D(기본)와 2D 그림 지도를 고를 수 있다 */
+/**
+ * 지도 — GPU 가속이 있으면 3D, 없으면(소프트웨어 렌더링) 2D가 기본. 사람이 고르면 그대로 따른다.
+ * 3D가 너무 느리면(낮은 화질로도 초당 12장 아래) 고른 적 없을 때만 알아서 2D로 내려간다.
+ */
 export function MapView(p: Props) {
-  const [three, setThree] = useState<boolean>(() => readJSON<boolean>(MAP3D_KEY, true) && webglOk());
+  const init = useMemo(() => read3d(MAP3D_KEY), []);
+  const [three, setThree] = useState(init.on);
+  const auto = useRef(init.auto);
   const rev = useGame((u) => u.rev);
+  const say = useGame((u) => u.say);
   const api = useRef<{ zoom: (f: number) => void; overview: () => void } | null>(null);
-  const toggle = () => { const v = !three; setThree(v); writeJSON(MAP3D_KEY, v); };
-  if (!three) return <MapView2D {...p} onToggle={toggle} />;
+  const toggle = () => {
+    const v = !three;
+    setThree(v); write3d(MAP3D_KEY, v); auto.current = false;
+    if (v && gpuTier() === 'soft') say('그래픽 가속(GPU)이 꺼져 있어 3D가 느릴 수 있습니다.', false);
+  };
+  const onSlow = () => {
+    if (auto.current) { setThree(false); write3d(MAP3D_KEY, false); say('화면이 느려 2D 지도로 바꿨습니다. 3D 버튼으로 되돌릴 수 있습니다.', true); }
+    else say('3D 지도가 느립니다. 2D 버튼을 누르면 부드러워집니다.', false);
+  };
+  if (!three) return <MapView2D {...p} onToggle={gpuTier() === 'none' ? null : toggle} />;
   return (
     <div className="sg-map-wrap">
       <Suspense fallback={<div className="sg-map3d sg-bt3d-wait">천하를 펼치는 중…</div>}>
         <WorldMap3D s={p.s} rev={rev} selected={p.selected} onSelect={p.onSelect} marks={p.marks} viewer={p.viewer}
-          onFail={() => setThree(false)} onView={(a) => { api.current = a; }} />
+          onFail={() => setThree(false)} low={lowQuality()} onSlow={onSlow} onView={(a) => { api.current = a; }} />
       </Suspense>
       <SeasonFx month={p.s.month} />
       <div className="sg-zoom">
@@ -65,7 +76,7 @@ interface Props {
   viewer: number;
 }
 
-function MapView2D({ s, selected, onSelect, marks, viewer, onToggle }: Props & { onToggle: () => void }) {
+function MapView2D({ s, selected, onSelect, marks, viewer, onToggle }: Props & { onToggle: (() => void) | null }) {
   const ref = useRef<SVGSVGElement>(null);
   const [view, setView] = useState<View>({ x: 0, y: 0, w: MAP_W });
   const aspect = useRef(MAP_H / MAP_W);
@@ -233,7 +244,7 @@ function MapView2D({ s, selected, onSelect, marks, viewer, onToggle }: Props & {
         <button className="sg-zbtn" onClick={() => zoom(1 / 1.3)} aria-label="확대">＋</button>
         <button className="sg-zbtn" onClick={() => zoom(1.3)} aria-label="축소">－</button>
         <button className="sg-zbtn" onClick={() => setView(clampView({ x: 0, y: 0, w: MAP_W }))} aria-label="전체 보기">⤢</button>
-        <button className="sg-zbtn sg-zbtn-txt" onClick={onToggle} aria-label="3D 지도로">3D</button>
+        {onToggle && <button className="sg-zbtn sg-zbtn-txt" onClick={onToggle} aria-label="3D 지도로">3D</button>}
       </div>
     </div>
   );

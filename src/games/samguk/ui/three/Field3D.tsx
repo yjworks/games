@@ -16,17 +16,21 @@ export interface Field3DProps {
   tick: number;
   focus: [number, number] | null;
   onFail: () => void;
+  low: boolean;
+  onSlow: () => void;
 }
 
 export default function Field3D(p: Field3DProps) {
   const host = useRef<HTMLDivElement>(null);
   const scene = useRef<BattleScene | null>(null);
   const down = useRef<{ x: number; y: number; t: number } | null>(null);
+  const slow = useRef(p.onSlow);
+  slow.current = p.onSlow;
 
   useEffect(() => {
     if (!host.current) return;
     try {
-      scene.current = new BattleScene(host.current);
+      scene.current = new BattleScene(host.current, { low: p.low, onSlow: () => slow.current() });
     } catch {
       p.onFail();
       return;

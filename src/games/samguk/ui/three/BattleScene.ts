@@ -4,6 +4,7 @@ import type { BattleState, Unit } from '../../engine/battle';
 import type { TileType } from '../../engine/battlemap';
 import { KINDS, type UnitKind } from '../../engine/units';
 import { HEX_R, HEX_W, hexCenter, paintGround } from '../art/battlefield';
+import { FrameWatch, type SceneOpt } from './gpu';
 
 /**
  * 3D 전장 — 2D 전장과 같은 칸·같은 규칙을 three.js로 세운다.
@@ -105,16 +106,21 @@ export class BattleScene {
   private seen = new Set<number>();
   private disposed = false;
   private ready = false;
+  private low: boolean;
+  private watch: FrameWatch;
 
-  constructor(el: HTMLElement) {
+  constructor(el: HTMLElement, opt: SceneOpt = {}) {
     this.el = el;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    this.low = !!opt.low;
+    /* 느리면 한 번 화질을 낮춰 보고, 그래도 느리면 바깥에 알린다 */
+    this.watch = new FrameWatch(() => { if (!this.low) { this.degrade(); this.watch.reset(); } else opt.onSlow?.(); });
+    this.renderer = new THREE.WebGLRenderer({ antialias: !this.low, alpha: false, powerPreference: 'high-performance' });
+    this.renderer.setPixelRatio(this.low ? 1 : Math.min(2, window.devicePixelRatio || 1));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
-    const mobile = Math.min(window.innerWidth, window.innerHeight) < 700;
-    this.renderer.shadowMap.enabled = !mobile;
+    const shadows = Math.min(window.innerWidth, window.innerHeight) >= 700 && !this.low;
+    this.renderer.shadowMap.enabled = shadows;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     el.appendChild(this.renderer.domElement);
     this.renderer.domElement.className = 'sg-bt3d-canvas';
@@ -139,7 +145,7 @@ export class BattleScene {
     this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight('#fff1d6', 2.2);
     this.sun.position.set(-18, 30, 14);
-    this.sun.castShadow = !mobile;
+    this.sun.castShadow = shadows;
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.bias = -0.0006;
     this.scene.add(this.sun, this.sun.target);
@@ -761,9 +767,24 @@ export class BattleScene {
     this.camera.updateProjectionMatrix();
   }
 
+  /** 낮은 화질로 — 화소 배율 1, 그림자 끔 */
+  private degrade() {
+    this.low = true;
+    this.renderer.setPixelRatio(1);
+    if (this.renderer.shadowMap.enabled) {
+      this.renderer.shadowMap.enabled = false;
+      this.sun.castShadow = false;
+      this.scene.traverse((o) => {
+        const m = (o as THREE.Mesh).material;
+        if (m) for (const x of Array.isArray(m) ? m : [m]) x.needsUpdate = true;
+      });
+    }
+  }
+
   private loop = () => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
+    if (this.ready) this.watch.tick(performance.now());
     this.clock.update();
     const t = this.clock.getElapsed();
     this.controls.update();

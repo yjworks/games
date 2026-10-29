@@ -18,7 +18,8 @@ import { Portrait } from './art/Portrait';
 import { surname } from './art/util';
 import { OFFICER_DEF } from '../data/officers';
 import type { Fx, Overlay } from './three/BattleScene';
-import { ROOT_NS, readJSON, writeJSON } from '../../../shared/storage';
+import { ROOT_NS } from '../../../shared/storage';
+import { gpuTier, lowQuality, read3d, write3d } from './three/gpu';
 
 const Field3D = lazy(() => import('./three/Field3D'));
 
@@ -43,13 +44,6 @@ interface Lunge { uid: number; dx: number; dy: number }
 let fxSeq = 1;
 const FLOAT_COLOR: Record<string, string> = { atk: '#ffb4a6', def: '#a6d2ff', wall: '#f3e6c4', break: '#ffdf6a' };
 
-function webglOk(): boolean {
-  try {
-    const c = document.createElement('canvas');
-    return !!(c.getContext('webgl2') || c.getContext('webgl'));
-  } catch { return false; }
-}
-
 export function BattleView({ s }: { s: GameState }) {
   const bs = s.battle!;
   const bump = useGame((u) => u.bump);
@@ -65,7 +59,11 @@ export function BattleView({ s }: { s: GameState }) {
   const [lunge, setLunge] = useState<Lunge[]>([]);
   const [shake, setShake] = useState(false);
   const [flash, setFlash] = useState<{ officer: string; tactic: string } | null>(null);
-  const [view3d, setView3d] = useState<boolean>(() => readJSON<boolean>(VIEW_KEY, true) && webglOk());
+  /* GPU 가속이 있으면 3D가 기본. 고른 적 없이 너무 느리면 알아서 2D로 */
+  const view0 = useMemo(() => read3d(VIEW_KEY), []);
+  const [view3d, setView3d] = useState(view0.on);
+  const autoView = useRef(view0.auto);
+  const say = useGame((u) => u.say);
   const fxQueue = useRef<Fx[]>([]);
   const [tick, setTick] = useState(0);
 
@@ -253,7 +251,15 @@ export function BattleView({ s }: { s: GameState }) {
     bump();
   };
   const auto = () => { autoResolve(bs); bump(); };
-  const toggleView = () => { const v = !view3d; setView3d(v); writeJSON(VIEW_KEY, v); };
+  const toggleView = () => {
+    const v = !view3d;
+    setView3d(v); write3d(VIEW_KEY, v); autoView.current = false;
+    if (v && gpuTier() === 'soft') say('그래픽 가속(GPU)이 꺼져 있어 3D가 느릴 수 있습니다.', false);
+  };
+  const onSlow = () => {
+    if (autoView.current) { setView3d(false); write3d(VIEW_KEY, false); say('화면이 느려 2D 전장으로 바꿨습니다. 「2D 보기」를 누르면 되돌립니다.', true); }
+    else say('3D 전장이 느립니다. 「3D 보기」를 누르면 2D로 바뀝니다.', false);
+  };
 
   const atk = alive(bs, 0), def = alive(bs, 1);
   const sum = (l: Unit[]) => l.reduce((a, u) => a + u.troops, 0);
@@ -301,7 +307,7 @@ export function BattleView({ s }: { s: GameState }) {
               원군 {rf.units.length}부대 · {CITY_BY_ID[rf.from].name} · {rf.day}일째
             </span>
           ))}
-          <button className="sg-chip sg-viewbtn" onClick={toggleView} aria-pressed={view3d}>{view3d ? '3D' : '2D'} 보기</button>
+          {gpuTier() !== 'none' && <button className="sg-chip sg-viewbtn" onClick={toggleView} aria-pressed={view3d}>{view3d ? '3D' : '2D'} 보기</button>}
           <span className={`sg-bt-turn ${bs.side === 0 ? 'atk' : 'def'}`}>{bs.over ? '전투 종료' : `${bs.side === 0 ? '공격' : '수비'} 측 차례`}</span>
         </div>
       </div>
@@ -315,7 +321,7 @@ export function BattleView({ s }: { s: GameState }) {
         {view3d ? (
           <Suspense fallback={<div className="sg-bt3d sg-bt3d-wait">전장을 세우는 중…</div>}>
             <Field3D bs={bs} month={s.month} sel={sel} overlays={overlays} colorOf={colorOf} labelOf={labelOf} onTile={onTile}
-              fxQueue={fxQueue} tick={tick} focus={mineSel ? [mineSel.q, mineSel.r] : null} onFail={() => setView3d(false)} />
+              fxQueue={fxQueue} tick={tick} focus={mineSel ? [mineSel.q, mineSel.r] : null} onFail={() => setView3d(false)} low={lowQuality()} onSlow={onSlow} />
           </Suspense>
         ) : (
           <div className="sg-bt-field" ref={fieldRef}>
