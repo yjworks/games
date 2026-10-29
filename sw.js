@@ -1,11 +1,11 @@
 /* 자동 생성 — vite.config.ts의 pwaPlugin이 만든 파일입니다. 직접 수정하지 마세요. */
-const CACHE = 'games-vmvsm1w4f';
+const CACHE = 'games-vmvtgg4j4';
 /* 글꼴 조각은 바뀌지 않으므로 CACHE 를 올려도 지우지 않는다 */
 const FONT_CACHE = 'games-fonts-v1';
 const PRECACHE = [
   "./assets/hub-BXdIV0hM.css",
-  "./assets/omok-Dw-_x8Mw.css",
-  "./assets/janggi-CS9ZvPxz.css",
+  "./assets/omok-Be0KCeul.css",
+  "./assets/janggi-Cu8s5zut.css",
   "./assets/sudoku-BbWrtbDC.css",
   "./assets/tetris-fjyYOuZW.css",
   "./assets/reversi-C8W0XywZ.css",
@@ -16,11 +16,11 @@ const PRECACHE = [
   "./assets/g2048-BpiZUr8M.css",
   "./assets/breakout-CF8c8RiQ.css",
   "./assets/yut-BKsT7HDa.css",
-  "./assets/samguk-DmkbLvNk.css",
+  "./assets/samguk-B5sjquai.css",
   "./assets/pwa-DzUScA1d.css",
   "./assets/hub-81dlNgaF.js",
-  "./assets/omok-vb2Z0ibc.js",
-  "./assets/janggi-CBEkzKsy.js",
+  "./assets/omok-BKAgvBYZ.js",
+  "./assets/janggi-CixKlDIf.js",
   "./assets/sudoku-m3PcqXU_.js",
   "./assets/tetris-YDOmxDU2.js",
   "./assets/reversi-YWFpsdJR.js",
@@ -37,12 +37,15 @@ const PRECACHE = [
   "./assets/yut-BNOC6OCz.js",
   "./assets/stats-CEnwLiph.js",
   "./assets/useKeys-Dgx9tBwV.js",
-  "./assets/samguk-Dfhhd3lI.js",
+  "./assets/samguk-dPyksa4M.js",
   "./assets/react-BqB6qhbB.js",
   "./assets/progress-DOZT0hXu.js",
   "./assets/GameShell-w4JSAGIa.js",
   "./assets/sound-DkgRH6MJ.js",
   "./assets/pwa-BpatQ1hU.js",
+  "./assets/Field3D-CL0eCPFl.js",
+  "./assets/WorldMap3D-BERNuZ9x.js",
+  "./assets/MapControls-CyXgqPuS.js",
   "./manifest.webmanifest",
   "./icon.svg",
   "./icon-192.png",
