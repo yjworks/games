@@ -11,6 +11,8 @@ import { agriCap, cityName, pickGovernor, updateRank } from './setup';
 import type { AttackOrder, City, GameState, Officer } from './state';
 import { checkFaction, officerDies, rulerCaptured } from './world';
 import { jo } from './josa';
+import { genDecisions } from './decisions';
+import { goalTick } from './goals';
 
 export const INCOME_MULT = { easy: 0.85, normal: 1, hard: 1.2 } as const;
 
@@ -238,6 +240,8 @@ export function nextMonth(s: GameState) {
   diplomacyTick(s);
   peopleTick(s);
   runEvents(s);
+  goalTick(s);
+  genDecisions(s);
   for (const f of s.factions) if (f.alive) checkFaction(s, f.idx);
   if (s.emperor >= 0 && !s.factions[s.emperor]?.alive) s.emperor = -1;
   checkOver(s);

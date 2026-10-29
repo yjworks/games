@@ -796,3 +796,23 @@ button.sg-oline:hover { background: rgba(214, 170, 82, 0.07); }
 .sg-map3d:active { cursor: grabbing; }
 .sg-map3d-canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; }
 .sg-zbtn-txt { font-size: 0.78rem; letter-spacing: 0.05em; }
+
+/* 결단 */
+.sg-decision { max-width: 560px; }
+.sg-dec-main { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 12px; }
+.sg-dec-who { display: block; color: var(--sg-gold-2); font-size: 1.05rem; font-weight: 800; letter-spacing: 0.08em; margin-bottom: 4px; }
+.sg-dec-text { margin: 0; font-size: 0.95rem; line-height: 1.8; color: var(--sg-ink); background: linear-gradient(180deg, #f1e3c0, #dcc699); padding: 10px 14px; border-left: 4px solid #8a2416; }
+.sg-dec-opts { display: flex; flex-direction: column; gap: 6px; }
+.sg-dec-opt strong { color: #fbe7c2; }
+.sg-dec-opt.first { border-color: #c9a13e; }
+@media (max-width: 480px) { .sg-dec-main .sg-portrait { width: 64px !important; height: 64px !important; } }
+
+/* 천명 */
+.sg-goals { position: absolute; left: 8px; top: 8px; z-index: 4; width: min(270px, 62vw); padding: 6px 8px 8px; background: rgba(22, 13, 7, 0.86); border: 1px solid #a07a35; box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.4), 0 6px 16px rgba(0, 0, 0, 0.5); }
+.sg-goals.closed { width: auto; padding-bottom: 6px; }
+.sg-goals-head { display: flex; align-items: center; gap: 6px; width: 100%; font-size: 0.8rem; font-weight: 800; color: var(--sg-gold-2); letter-spacing: 0.1em; min-height: 26px; }
+.sg-goals-head b { width: 34px; height: 20px; display: grid; place-items: center; font-size: 0.66rem; color: #fbe7c2; background: var(--sg-red-lacquer); border: 1px solid #c9a13e; letter-spacing: 0; }
+.sg-goals-head small { margin-left: auto; color: var(--sg-sub); font-weight: 500; letter-spacing: 0; }
+.sg-goal { display: flex; flex-direction: column; gap: 3px; padding: 5px 0 2px; border-top: 1px dotted rgba(214, 170, 82, 0.25); }
+.sg-goal-t { font-size: 0.8rem; font-weight: 800; color: var(--sg-text); }
+.sg-goal small { font-size: 0.66rem; color: var(--sg-sub); }

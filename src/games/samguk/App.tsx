@@ -8,6 +8,8 @@ import { Game } from './ui/Game';
 import { Portrait } from './ui/art/Portrait';
 import { EventArt, sceneFor } from './ui/art/EventArt';
 import { OFFICER_DEF } from './data/officers';
+import { resolveDecision } from './engine/decisions';
+import { currentHuman } from './engine/turn';
 import { audioPrefs, onAudioPrefs, playMusic, setAudioPrefs, sg, type Track } from './audio';
 
 const meta = gameById('samguk');
@@ -120,6 +122,43 @@ function EventCard({ e, more, next }: { e: { y: number; m: number; text: string 
   );
 }
 
+/** 결단 — 장수의 청원·고을 사건. 고르면 결과를 장수가 아뢴다 */
+function DecisionCards() {
+  const game = useGame((u) => u.game);
+  const screen = useGame((u) => u.screen);
+  const events = useGame((u) => u.events);
+  const act = useGame((u) => u.act);
+  useGame((u) => u.rev);
+  if (screen !== 'game' || !game || game.battle || game.over || events.length) return null;
+  const me = currentHuman(game);
+  const d = (game.decisions ?? []).find((x) => x.f === me);
+  if (!d) return null;
+  const color = game.factions[me]?.color;
+  return (
+    <div className="sg-overlay">
+      <div className="sg-sheet sg-decision" role="dialog" aria-modal="true">
+        <div className="sg-sheet-head"><h2>{d.title} <small>{d.y}년 {d.m}월</small></h2></div>
+        <div className="sg-sheet-body">
+          <div className="sg-dec-main">
+            {d.by && OFFICER_DEF[d.by] && <Portrait id={d.by} size={92} year={game.year} color={color} className="sg-bigface" />}
+            <div>
+              {d.by && OFFICER_DEF[d.by] && <strong className="sg-dec-who">{OFFICER_DEF[d.by].name}</strong>}
+              <p className="sg-dec-text">{d.text}</p>
+            </div>
+          </div>
+          <div className="sg-dec-opts">
+            {d.options.map((o, i) => (
+              <button key={i} className={`sg-row-btn sg-dec-opt ${i === 0 ? 'first' : ''}`} onClick={() => act((g) => resolveDecision(g, d.id, i))}>
+                <strong>{o.label}</strong><span>{o.hint}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const screen = useGame((u) => u.screen);
   return (
@@ -130,6 +169,7 @@ export default function App() {
         {screen === 'game' && <Game />}
         <Speech />
         <EventCards />
+        <DecisionCards />
         <AudioDirector />
       </div>
     </GameShell>

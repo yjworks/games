@@ -9,6 +9,7 @@ import { DEFAULT_OPTIONS, newGame } from './engine/setup';
 import type { GameState, Options } from './engine/state';
 import { advance, currentHuman, endTurn, finishBattle } from './engine/turn';
 import { lastActor } from './engine/commands';
+import { goalTick } from './engine/goals';
 import type { LogEntry } from './engine/state';
 
 export type Screen = 'title' | 'setup' | 'game';
@@ -59,6 +60,7 @@ export const useGame = create<UIState>((set, get) => ({
   go: (screen) => set({ screen }),
   start: (scenario, rulers, opts = DEFAULT_OPTIONS) => {
     const s = newGame(scenario, rulers, opts);
+    goalTick(s);
     advance(s);
     afterAdvance(s);
     const f = currentHuman(s);
@@ -68,6 +70,7 @@ export const useGame = create<UIState>((set, get) => ({
   load: (slot) => {
     const s = loadGame(slot);
     if (!s) return false;
+    if (!s.goals) goalTick(s);
     advance(s);
     const f = currentHuman(s);
     set({ game: s, screen: 'game', city: f >= 0 ? s.factions[f].capital : null, panel: null, rev: get().rev + 1 });

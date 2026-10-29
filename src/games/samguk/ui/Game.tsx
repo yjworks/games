@@ -20,6 +20,7 @@ import { MapView } from './MapView';
 import { LoadSheet } from './Title';
 import { jo } from '../engine/josa';
 import { MONTH_HAN, SEASON_HAN, eraName } from './era';
+import { GOAL_TEXT, goalMonthsLeft, goalProgress } from '../engine/goals';
 import { audioPrefs, setAudioPrefs } from '../audio';
 
 export function Game() {
@@ -87,6 +88,7 @@ export function Game() {
       <MonthBanner key={`${s.year}-${s.month}`} era={era} month={s.month} year={s.year} />
       <div className="sg-main">
         <MapView s={s} selected={city} onSelect={onSelect} marks={marks} viewer={viewer} />
+        {viewer >= 0 && <Goals s={s} f={viewer} />}
         {city && panelOpen && (
           <CityPanel s={s} city={city} me={me} onCmd={setCmd} onPerson={setPerson}
             onToggleDelegate={() => { s.cities[city].delegated = !s.cities[city].delegated; bump(); }}
@@ -113,6 +115,29 @@ export function Game() {
       {panel === 'people' && <Encyclopedia s={s} onClose={() => open(null)} />}
       {panel === 'captives' && <Captives s={s} me={me} onClose={() => open(null)} />}
       {panel === 'menu' && <Menu s={s} onClose={() => open(null)} />}
+    </div>
+  );
+}
+
+/** 천명 — 지도 왼쪽 위에 늘 떠 있는 두 가지 단기 목표 */
+function Goals({ s, f }: { s: GameState; f: number }) {
+  const [open, setOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 900);
+  const list = s.goals?.[f] ?? [];
+  if (!list.length) return null;
+  return (
+    <div className={`sg-goals ${open ? '' : 'closed'}`}>
+      <button className="sg-goals-head" onClick={() => setOpen(!open)} aria-expanded={open}><b>天命</b> 천명 <small>{open ? '접기' : `${list.length}`}</small></button>
+      {open && list.map((g, i) => {
+        const [now, tgt] = goalProgress(s, f, g);
+        const left = goalMonthsLeft(s, g);
+        return (
+          <div key={i} className="sg-goal">
+            <span className="sg-goal-t">{GOAL_TEXT[g.kind](g)}</span>
+            <span className="sg-bar"><span style={{ width: `${Math.min(100, (now / Math.max(1, tgt)) * 100)}%` }} /></span>
+            <small>{g.kind === 'conquer' || g.kind === 'recruit' ? `${now}/${tgt}` : `${fmt(now)}/${fmt(tgt)}`} · {left <= 0 ? '이달까지' : `${left}달 남음`} · 상 금 {fmt(g.gold)}{g.food ? `·쌀 ${fmt(g.food)}` : ''}</small>
+          </div>
+        );
+      })}
     </div>
   );
 }

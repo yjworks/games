@@ -131,6 +131,10 @@ export interface GameState {
   attacks: AttackOrder[];
   /** 최근 출진 기록(지도에 진군 화살표로 그린다). 옛 저장에는 없을 수 있다 */
   marches?: { y: number; m: number; f: number; from: CityId; to: CityId }[];
+  /** 이달 사람 세력에게 올라온 결단(청원·사건). 옛 저장에는 없을 수 있다 */
+  decisions?: import('./decisions').Decision[];
+  /** 사람 세력별 천명(단기 목표). 옛 저장에는 없을 수 있다 */
+  goals?: Record<number, import('./goals').Goal[]>;
   /** 지휘를 기다리는 전투 */
   battle: BattleState | null;
   /** 이번 달 보고 — 플레이어가 확인하면 비운다 */
