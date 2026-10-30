@@ -1,12 +1,12 @@
 /** 허브 필터용 분류 */
-export type Category = '전략' | '보드' | '퍼즐' | '액션' | '데일리';
+export type Category = '전략' | '육성' | '보드' | '퍼즐' | '액션' | '데일리';
 
-export const CATEGORIES: Category[] = ['전략', '보드', '퍼즐', '액션', '데일리'];
+export const CATEGORIES: Category[] = ['전략', '육성', '보드', '퍼즐', '액션', '데일리'];
 
 /** 게임 식별자 — 저장소 이름이기도 하므로 한번 정하면 바꾸지 않는다 */
 export type GameId =
   | 'omok' | 'janggi' | 'sudoku' | 'tetris' | 'reversi' | 'kkodle'
-  | 'minesweeper' | 'nonogram' | 'solitaire' | 'g2048' | 'breakout' | 'yut' | 'samguk';
+  | 'minesweeper' | 'nonogram' | 'solitaire' | 'g2048' | 'breakout' | 'yut' | 'samguk' | 'growup';
 
 /** 허브와 각 게임이 함께 쓰는 게임 목록(메타데이터) */
 export interface GameMeta {
@@ -48,6 +48,23 @@ export const GAMES: GameMeta[] = [
       '한 왕조가 저물자 천하는 쉰세 개의 성으로 나뉘었다.',
       '땅을 넓히는 것은 군사지만, 지키는 것은 사람이다.',
       '셋으로 나뉜 것은 언젠가 하나로 돌아간다.',
+    ],
+  },
+  {
+    id: 'growup',
+    title: '커서 뭐 될래',
+    subtitle: 'GROW UP · 진로 육성',
+    emoji: '🌱',
+    desc: '초1부터 고3까지 12년. 장소 12곳에서 활동 4개 중 하나를 골라 키우고, 졸업 때 직업 29가지 중 하나로 갑니다.',
+    controls: '클릭 · 숫자키 1~4',
+    touchControls: '탭',
+    category: '육성',
+    tags: ['육성', '진로', '싱글'],
+    accent: '#ffb547',
+    lore: [
+      '도서관에서 보낸 한 달, 운동장에서 보낸 한 달.',
+      '어느 쪽이 맞았는지는 열두 해가 지나야 안다.',
+      '커서 뭐가 될지는, 오늘 어디에 가느냐에 달렸다.',
     ],
   },
   {
