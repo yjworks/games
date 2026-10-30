@@ -5,9 +5,8 @@ export type StatKey = 'know' | 'logic' | 'create' | 'express' | 'body' | 'craft'
 export type FieldKey =
   | 'it' | 'eng' | 'sci' | 'med' | 'art' | 'music' | 'write' | 'food' | 'sport' | 'biz' | 'edu';
 
-export type PlaceId =
-  | 'home' | 'park' | 'library' | 'academy' | 'kitchen' | 'culture' | 'market'
-  | 'maker' | 'welfare' | 'media' | 'parttime' | 'career';
+/** 장소는 언제나 4곳 — 버튼 ①~④에 하나씩 대응한다 */
+export type PlaceId = 'home' | 'school' | 'town' | 'center';
 
 /** 0 초등 · 1 중등 · 2 고등 */
 export type Stage = 0 | 1 | 2;
@@ -41,7 +40,7 @@ export interface Activity extends Effect {
   safe?: boolean;
   /** 미리 내는 돈(만원) */
   cost?: number;
-  /** 잠긴 활동 — 단골도와 능력치 조건 */
+  /** 잠긴 활동 — 이번 학교급에서의 단골도와 능력치 조건 */
   lock?: { visits: number; stat?: StatKey; min?: number; bold?: number };
   /** 대회형 활동 — 결과가 이력에 남는다 */
   contest?: FieldKey;
@@ -51,15 +50,22 @@ export interface Activity extends Effect {
   special?: 'topField' | 'randomField' | 'counsel';
 }
 
+export type Four<T> = [T, T, T, T];
+
 export interface Place {
   id: PlaceId;
   name: string;
   emoji: string;
-  desc: string;
-  /** 열리는 학년(0=초1 … 11=고3) */
-  from: number;
   color: string;
-  acts: [Activity, Activity, Activity, Activity];
+  /** 학교급별 이름·설명·활동 4개 */
+  stages: [PlaceStage, PlaceStage, PlaceStage];
+}
+
+export interface PlaceStage {
+  /** 이 학교급에서 부르는 이름 (예: 방과후 교실 → 학원·공방 → 진로체험센터) */
+  label: string;
+  desc: string;
+  acts: Four<Activity>;
 }
 
 export interface Look {
@@ -90,7 +96,7 @@ export interface Ending {
 }
 
 export interface GameState {
-  v: 1;
+  v: 2;
   name: string;
   look: Look;
   mode: Mode;
@@ -104,13 +110,14 @@ export interface GameState {
   stress: number;
   money: number;
   bold: number;
+  /** 12년 동안 장소별로 간 횟수 */
   visits: Partial<Record<PlaceId, number>>;
+  /** 이번 학교급(초·중·고)에서 간 횟수 — 잠긴 활동은 이걸로 연다 */
+  stageVisits: Partial<Record<PlaceId, number>>;
   flags: string[];
   awards: Award[];
   /** 아파서 이번 달은 쉬어야 한다 */
   sick: boolean;
-  /** 이번 달 돌보기를 했는지 */
-  cared: boolean;
   /** 고르기를 기다리는 사건 id */
   pending: string | null;
   /** 사건 id → 마지막으로 나온 턴 */

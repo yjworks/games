@@ -4,8 +4,8 @@ import { clearProgress, setProgress } from '../../shared/progress';
 import { sfx } from '../../shared/sound';
 import { careerById } from './careers';
 import {
-  ActResult, CareKind, CareResult, EventResult, NewGameOpts, WakeResult,
-  accrue, care, doActivity, expression, finish, newGame, pendingEvent, progressLabel,
+  ActResult, EventResult, NewGameOpts, WakeResult,
+  accrue, doActivity, expression, fill, finish, newGame, pendingEvent, progressLabel,
   resolveEvent, restSick, toClassic,
 } from './engine';
 import { emit } from './bridge';
@@ -20,7 +20,7 @@ export type Dex = Record<string, number>;
 
 function loadSave(): GameState | null {
   const s = store.get<GameState | null>(SAVE_KEY, null);
-  if (!s || s.v !== 1 || typeof s.turn !== 'number' || !s.stats) return null;
+  if (!s || s.v !== 2 || typeof s.turn !== 'number' || !s.stats) return null;
   return s;
 }
 
@@ -31,7 +31,6 @@ interface State {
   act: (place: PlaceId, act: string) => ActResult;
   rest: () => ActResult;
   choose: (idx: number) => EventResult;
-  careFor: (kind: CareKind) => CareResult;
   /** 키우기 모드: 지난 시간만큼 행동력을 채운다 */
   wake: () => WakeResult | null;
   toClassic: () => void;
@@ -92,17 +91,6 @@ export const useGrow = create<State>()((set, get) => {
       return res;
     },
 
-    careFor: (kind) => {
-      const g = get().game;
-      if (!g) return { ok: false, reason: '게임이 없어요' };
-      const res = care(g, kind);
-      if (!res.ok) { sfx.alert(); return res; }
-      sfx.tap();
-      save(res.state);
-      emit({ type: 'care', kind, expression: expression(res.state) });
-      return res;
-    },
-
     wake: () => {
       const g = get().game;
       if (!g || g.mode !== 'raise') return null;
@@ -144,5 +132,5 @@ export const useGrow = create<State>()((set, get) => {
 
 function announcePending(s: GameState) {
   const ev = pendingEvent(s);
-  if (ev) emit({ type: 'event', id: ev.id, title: ev.title });
+  if (ev) emit({ type: 'event', id: ev.id, title: fill(ev.title, s.name) });
 }

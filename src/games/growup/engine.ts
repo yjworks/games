@@ -1,10 +1,10 @@
 import { TOTAL_TURNS, calendar, whenLabel } from './calendar';
 import { CAREERS, Career, careerById } from './careers';
-import { ALLOWANCE, FIELD_KEYS, FIELD_LABEL, PLACES, STAT_KEYS, placeById } from './data';
+import { ALLOWANCE, FIELD_KEYS, FIELD_LABEL, STAT_KEYS, placeById } from './data';
 import { EVENTS, GameEvent, eventById } from './events';
 import {
-  Activity, Award, CareerScore, Delta, Effect, ExamResult, FieldKey, GameState, Look, Mode,
-  Outcome, Place, PlaceId, StatKey, TurnReport,
+  Activity, Award, CareerScore, Delta, Effect, ExamResult, FieldKey, Four, GameState, Look, Mode,
+  Outcome, Place, PlaceId, PlaceStage, StatKey, TurnReport,
 } from './types';
 
 export { TOTAL_TURNS };
@@ -63,7 +63,7 @@ const zeroStats = (v: number): Record<StatKey, number> =>
 
 export function newGame({ name, look, mode, seed, now = Date.now() }: NewGameOpts): GameState {
   const s: GameState = {
-    v: 1,
+    v: 2,
     name: name.trim() || '하늘',
     look,
     mode,
@@ -77,10 +77,10 @@ export function newGame({ name, look, mode, seed, now = Date.now() }: NewGameOpt
     money: 2,
     bold: 0,
     visits: {},
+    stageVisits: {},
     flags: [],
     awards: [],
     sick: false,
-    cared: false,
     pending: null,
     eventSeen: {},
     yearStart: zeroStats(8),
@@ -100,13 +100,13 @@ export function newGame({ name, look, mode, seed, now = Date.now() }: NewGameOpt
   return s;
 }
 
-/* ── 장소와 활동 ── */
-export function placeOpen(s: GameState, p: Place): boolean {
-  return calendar(s.turn).grade >= p.from;
+/* ── 장소와 활동 — 장소는 늘 4곳, 활동은 학교급마다 4개 ── */
+export function placeStage(s: GameState, p: Place): PlaceStage {
+  return p.stages[calendar(s.turn).stage];
 }
 
-export function openPlaces(s: GameState): Place[] {
-  return PLACES.filter((p) => placeOpen(s, p));
+export function actsOf(s: GameState, p: Place): Four<Activity> {
+  return placeStage(s, p).acts;
 }
 
 export interface ActStatus {
@@ -117,7 +117,7 @@ export interface ActStatus {
 
 export function actStatus(s: GameState, p: Place, a: Activity): ActStatus {
   if (a.lock) {
-    const v = s.visits[p.id] ?? 0;
+    const v = s.stageVisits[p.id] ?? 0;
     const lacks: string[] = [];
     if (v < a.lock.visits) lacks.push(`단골도 ${v}/${a.lock.visits}`);
     if (a.lock.stat && s.stats[a.lock.stat] < (a.lock.min ?? 0)) {
@@ -236,9 +236,8 @@ export function doActivity(prev: GameState, placeId: PlaceId, actId: string): Ac
   if (why) return { ok: false, reason: why };
   if (prev.sick) return { ok: false, reason: '아파서 이번 달은 쉬어야 해요' };
   const place = placeById(placeId);
-  const act = place?.acts.find((a) => a.id === actId);
-  if (!place || !act) return { ok: false, reason: '없는 활동이에요' };
-  if (!placeOpen(prev, place)) return { ok: false, reason: '아직 갈 수 없는 곳이에요' };
+  const act = place ? actsOf(prev, place).find((a) => a.id === actId) : undefined;
+  if (!place || !act) return { ok: false, reason: '지금은 할 수 없는 활동이에요' };
   const st = actStatus(prev, place, act);
   if (!st.ok) return { ok: false, reason: st.reason ?? '지금은 할 수 없어요' };
 
@@ -284,13 +283,14 @@ export function doActivity(prev: GameState, placeId: PlaceId, actId: string): Ac
     lines.push(outcome === 'great' ? '🏆 대상을 받았다!' : outcome === 'ok' ? '🥈 입상했다!' : '참가에 의의를 뒀다.');
   }
 
-  /* 단골도 */
-  const v = (s.visits[placeId] ?? 0) + 1;
-  s.visits[placeId] = v;
-  const lockAct = place.acts.find((a) => a.lock && a.lock.visits === v);
+  /* 단골도 — 잠긴 활동은 이번 학교급에서 간 횟수로 연다 */
+  s.visits[placeId] = (s.visits[placeId] ?? 0) + 1;
+  const v = (s.stageVisits[placeId] ?? 0) + 1;
+  s.stageVisits[placeId] = v;
+  const lockAct = actsOf(s, place).find((a) => a.lock && a.lock.visits === v);
   if (lockAct) {
     const now = actStatus(s, place, lockAct);
-    lines.push(now.ok ? `${place.name} 단골이 됐다! “${lockAct.name}”을(를) 할 수 있다.`
+    lines.push(now.ok ? `${place.name} 단골이 됐다! 이제 “${lockAct.name}”도 할 수 있다.`
       : `${place.name} 단골이 됐다! “${lockAct.name}” 조건: ${now.reason}`);
   }
 
@@ -374,13 +374,13 @@ function endMonth(s: GameState, lines: string[]): Pick<TurnReport, 'exam' | 'yea
   if (s.sick) lines.push('몸이 으슬으슬하다… 다음 달은 쉬어야 할 것 같다.');
 
   s.turn += 1;
-  s.cared = false;
   if (s.mode === 'raise') s.tokens = Math.max(0, s.tokens - 1);
 
-  /* 새 장소 */
-  if (s.turn < TOTAL_TURNS && s.turn % 12 === 0) {
-    const g = calendar(s.turn).grade;
-    for (const p of PLACES) if (p.from === g) lines.push(`새로운 곳이 열렸다: ${p.emoji} ${p.name}`);
+  /* 중1·고1 — 장소마다 할 수 있는 일이 바뀌고, 단골도는 새로 쌓는다 */
+  if (s.turn < TOTAL_TURNS && calendar(s.turn).stage !== cal.stage) {
+    s.stageVisits = {};
+    const who = calendar(s.turn).stage === 1 ? '중학생' : '고등학생';
+    lines.push(`${who}이 됐다! 장소마다 할 수 있는 일이 바뀌었다.`);
   }
 
   /* 다음 달 사건 */
@@ -401,7 +401,7 @@ function pickEvent(s: GameState): string | null {
   if (fixed) { s.eventSeen[fixed.id] = s.turn; return fixed.id; }
   if (next(s) >= EVENT_CHANCE) return null;
   const pool = EVENTS.filter((e) => e.when?.(s, cal)
-    && (s.eventSeen[e.id] === undefined || s.turn - s.eventSeen[e.id] >= EVENT_COOLDOWN));
+    && (s.eventSeen[e.id] === undefined || s.turn - s.eventSeen[e.id] >= (e.cooldown ?? EVENT_COOLDOWN)));
   if (!pool.length) return null;
   const total = pool.reduce((t, e) => t + (e.weight ?? 1), 0);
   let r = next(s) * total;
@@ -436,36 +436,11 @@ export function resolveEvent(prev: GameState, optIdx: number): EventResult {
     s.fields[top.field] = clamp(s.fields[top.field] + 6, 0, 100);
   }
   s.pending = null;
-  return { ok: true, state: s, text: fill(opt.result, s.name), delta: diff(before, snap(s)) };
+  const text = opt.special === 'talk' ? talkLine(s) : fill(opt.result, s.name);
+  return { ok: true, state: s, text, delta: diff(before, snap(s)) };
 }
 
-/* ── 돌보기 — 달마다 한 번, 턴을 쓰지 않는다 ── */
-export type CareKind = 'praise' | 'snack' | 'talk';
-
-export type CareResult = { ok: true; state: GameState; line: string } | { ok: false; reason: string };
-
-export function care(prev: GameState, kind: CareKind): CareResult {
-  if (prev.ending || prev.turn >= TOTAL_TURNS) return { ok: false, reason: '이미 끝난 이야기예요' };
-  if (prev.cared) return { ok: false, reason: '이번 달은 이미 함께 시간을 보냈어요' };
-  if (kind === 'snack' && prev.money < 1) return { ok: false, reason: '용돈 1만원 필요' };
-  const s = clone(prev);
-  s.cared = true;
-  let line: string;
-  if (kind === 'praise') {
-    s.mood += 8; s.stress -= 4;
-    line = fill('칭찬을 들은 {name:이가} 배시시 웃는다.', s.name);
-  } else if (kind === 'snack') {
-    s.money -= 1; s.fatigue -= 8; s.mood += 4;
-    line = '맛있는 간식에 기운이 났다.';
-  } else {
-    s.mood += 3;
-    line = talkLine(s);
-  }
-  clampCond(s);
-  return { ok: true, state: s, line };
-}
-
-/** 이야기 듣기 — 지금 관심사를 슬쩍 알려 준다 */
+/** 이야기 들어 주기 — 지금 관심사를 슬쩍 알려 준다 */
 export function talkLine(s: GameState): string {
   const [top] = topFields(s, 1);
   if (top.value < 8) return '“아직 뭐가 제일 좋은지 모르겠어. 이것저것 해 보고 싶어!”';

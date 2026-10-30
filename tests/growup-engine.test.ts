@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  CHARGE_MS, MAX_TOKENS, MISS_MS, TOTAL_TURNS, accrue, actStatus, candidates, care, doActivity, fill, finish,
-  newGame, openPlaces, pendingEvent, resolveEvent, restSick, scoreCareer, topFields,
+  CHARGE_MS, MAX_TOKENS, MISS_MS, TOTAL_TURNS, accrue, actStatus, actsOf, candidates, doActivity, fill, finish,
+  newGame, pendingEvent, resolveEvent, restSick, scoreCareer, topFields,
 } from '../src/games/growup/engine';
 import { calendar } from '../src/games/growup/calendar';
 import { CAREERS, careerById } from '../src/games/growup/careers';
@@ -44,12 +44,13 @@ function play(seed: number, plan: [PlaceId, string][]): GameState {
   while (s.turn < TOTAL_TURNS) {
     s = settle(s);
     if (s.sick) { s = step(s, 'home', 'rest'); continue; }
-    if (s.fatigue >= 65 || s.stress >= 65) { s = step(s, 'home', s.stress > s.fatigue ? 'game' : 'rest'); continue; }
+    if (s.fatigue >= 65 || s.stress >= 65) { s = step(s, 'home', 'rest'); continue; }
     const ok = plan.filter(([p, a]) => {
       const pl = placeById(p)!;
-      return openPlaces(s).includes(pl) && actStatus(s, pl, pl.acts.find((x) => x.id === a)!).ok;
+      const act = actsOf(s, pl).find((x) => x.id === a);
+      return !!act && actStatus(s, pl, act).ok;
     });
-    const [p, a] = ok.length ? ok[i++ % ok.length] : ['home', 'chores'] as [PlaceId, string];
+    const [p, a] = ok.length ? ok[i++ % ok.length] : ['school', 'class'] as [PlaceId, string];
     s = step(s, p, a);
   }
   return settle(s);
@@ -81,48 +82,70 @@ describe('새 게임', () => {
   it('같은 씨앗이면 같은 아이가 나온다', () => {
     expect(make('classic', 7)).toEqual(make('classic', 7));
   });
-  it('처음엔 초등 장소만 열려 있다', () => {
-    const ids = openPlaces(make()).map((p) => p.id);
-    expect(ids).toEqual(['home', 'park', 'library', 'academy']);
+  it('장소는 4곳, 학교급마다 활동은 정확히 4개 — 버튼 4개로 다 고를 수 있다', () => {
+    expect(PLACES.map((p) => p.id)).toEqual(['home', 'school', 'town', 'center']);
+    for (const p of PLACES) {
+      expect(p.stages).toHaveLength(3);
+      for (const st of p.stages) expect(st.acts).toHaveLength(4);
+    }
   });
-  it('장소마다 활동은 정확히 4개', () => {
-    for (const p of PLACES) expect(p.acts).toHaveLength(4);
+  it('같은 장소에서 활동 id가 겹치지 않는다', () => {
+    for (const p of PLACES) for (const st of p.stages) {
+      expect(new Set(st.acts.map((a) => a.id)).size).toBe(4);
+    }
+  });
+  it('학교급이 바뀌면 같은 장소의 활동도 바뀐다', () => {
+    const center = placeById('center')!;
+    const early = actsOf(make(), center).map((a) => a.id);
+    const mid = actsOf({ ...make(), turn: 72 }, center).map((a) => a.id);
+    expect(early).not.toEqual(mid);
+  });
+  it('다른 학교급의 활동은 할 수 없다', () => {
+    expect(doActivity(make(), 'center', 'robot').ok).toBe(false);
+    expect(doActivity({ ...make(), turn: 72 }, 'center', 'robot').ok).toBe(true);
   });
 });
 
 describe('한 달 진행', () => {
   it('활동하면 능력치가 오르고 다음 달로 넘어간다', () => {
     const s = make();
-    const r = doActivity(s, 'library', 'study');
+    const r = doActivity(s, 'home', 'homework');
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.state.turn).toBe(1);
     expect(r.state.stats.know).toBeGreaterThan(s.stats.know);
-    expect(r.state.visits.library).toBe(1);
+    expect(r.state.visits.home).toBe(1);
+    expect(r.state.stageVisits.home).toBe(1);
     expect(r.report.when).toBe('초1 3월');
   });
 
-  it('학원비는 미리 내고, 모자라면 못 간다', () => {
+  it('수업료는 미리 내고, 모자라면 못 간다', () => {
     const s = { ...make(), money: 1 };
-    const r = doActivity(s, 'academy', 'math');
+    const r = doActivity(s, 'center', 'coding');
     expect(r.ok).toBe(false);
-    const ok = doActivity({ ...s, money: 5 }, 'academy', 'math');
-    expect(ok.ok && ok.report.delta.money).toBe(-2 + 1); // 학원비 2 - 용돈 1
+    const ok = doActivity({ ...s, money: 5 }, 'center', 'coding');
+    expect(ok.ok && ok.report.delta.money).toBe(-2 + 1); // 수업료 2 - 용돈 1
   });
 
-  it('아직 안 열린 장소는 갈 수 없다', () => {
-    expect(doActivity(make(), 'maker', 'robot').ok).toBe(false);
-  });
-
-  it('잠긴 활동은 단골이 되어야 열린다', () => {
-    let s = make();
-    const lib = placeById('library')!;
-    const club = lib.acts[3];
-    expect(actStatus(s, lib, club).locked).toBe(true);
-    for (let i = 0; i < 6; i++) s = step(s, 'library', 'novel');
+  it('잠긴 활동은 이번 학교급에서 단골이 되어야 열린다', () => {
+    let s = { ...make(), stats: { ...make().stats, body: 40 } };
+    const town = placeById('town')!;
+    const sportsday = actsOf(s, town)[3];
+    expect(actStatus(s, town, sportsday).locked).toBe(true);
+    for (let i = 0; i < 6; i++) s = step(s, 'town', 'novel');
     s = settle(s);
-    expect(actStatus(s, lib, club).ok).toBe(true);
-    expect(doActivity(s, 'library', 'bookclub').ok).toBe(true);
+    expect(actStatus(s, town, sportsday).ok).toBe(true);
+    expect(doActivity(s, 'town', 'sportsday').ok).toBe(true);
+  });
+
+  it('중학생이 되면 단골도를 새로 쌓는다', () => {
+    const s = { ...make(), turn: 71, stageVisits: { town: 20 }, visits: { town: 20 } };
+    const r = doActivity(s, 'town', 'novel');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.state.stageVisits).toEqual({});
+    expect(r.state.visits.town).toBe(21);
+    expect(r.report.lines.some((l) => l.includes('중학생'))).toBe(true);
   });
 
   it('고를 일이 남아 있으면 다음 달로 못 간다', () => {
@@ -140,7 +163,7 @@ describe('한 달 진행', () => {
 
   it('너무 지치면 아프고, 아픈 달은 쉬기만 할 수 있다', () => {
     const s = { ...make(), fatigue: 100 };
-    const r = doActivity(s, 'park', 'soccer');
+    const r = doActivity(s, 'school', 'soccer');
     expect(r.ok && r.state.sick).toBe(true);
     if (!r.ok) return;
     const t = settle(r.state);
@@ -162,7 +185,7 @@ describe('한 달 진행', () => {
   });
 
   it('2월이 끝나면 학년 정산이 나온다', () => {
-    const r = doActivity({ ...make(), turn: 11 }, 'library', 'study');
+    const r = doActivity({ ...make(), turn: 11 }, 'home', 'homework');
     expect(r.ok && r.report.yearEnd?.grade).toBe('초1');
   });
 
@@ -181,20 +204,22 @@ describe('한 달 진행', () => {
   });
 });
 
-describe('돌보기', () => {
-  it('달마다 한 번만 할 수 있고 턴을 쓰지 않는다', () => {
-    const s = make();
-    const r = care(s, 'praise');
+describe('돌보기 사건', () => {
+  it('칭찬하면 기분이 오르고 턴은 그대로다', () => {
+    const s = { ...make(), pending: 'care' };
+    const r = resolveEvent(s, 0);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.state.turn).toBe(0);
     expect(r.state.mood).toBeGreaterThan(s.mood);
-    expect(care(r.state, 'talk').ok).toBe(false);
-    const next = doActivity(r.state, 'home', 'rest');
-    expect(next.ok && next.state.cared).toBe(false);
+  });
+  it('이야기를 들어 주면 아이의 속마음이 나온다', () => {
+    const s = { ...make(), pending: 'care', fields: { ...make().fields, food: 30 } };
+    const r = resolveEvent(s, 2);
+    expect(r.ok && r.text).toContain('맛있게');
   });
   it('간식은 용돈이 든다', () => {
-    expect(care({ ...make(), money: 0 }, 'snack').ok).toBe(false);
+    expect(resolveEvent({ ...make(), pending: 'care', money: 0 }, 1).ok).toBe(false);
   });
 });
 
@@ -278,7 +303,7 @@ describe('진로', () => {
 });
 
 describe('끝까지 키우기', () => {
-  const ALL: [PlaceId, string][] = PLACES.flatMap((p) => p.acts.map((a) => [p.id, a.id] as [PlaceId, string]));
+  const ALL: [PlaceId, string][] = PLACES.flatMap((p) => p.stages.flatMap((st) => st.acts.map((a) => [p.id, a.id] as [PlaceId, string])));
 
   it('아무렇게나 키워도 144달 뒤 진로가 하나 이상 나온다', () => {
     for (let seed = 1; seed <= 15; seed++) {
@@ -294,14 +319,14 @@ describe('끝까지 키우기', () => {
   });
 
   it('코딩을 꾸준히 판 아이는 개발자 3등급에 닿는다', () => {
-    const s = play(3, [['academy', 'coding'], ['academy', 'math'], ['library', 'study'], ['home', 'chores'], ['maker', 'circuit'], ['media', 'video']]);
+    const s = play(3, [['center', 'coding'], ['center', 'codeacademy'], ['center', 'math'], ['home', 'homework'], ['home', 'study'], ['home', 'cram'], ['school', 'class'], ['school', 'project'], ['home', 'video']]);
     const dev = candidates(s).find((c) => c.careerId === 'dev');
     expect(dev?.tier).toBe(3);
     expect(topFields(s, 1)[0].field).toBe('it');
   });
 
   it('몸만 쓴 아이는 운동 쪽으로 간다', () => {
-    const s = play(5, [['park', 'soccer'], ['park', 'run'], ['park', 'sportsday'], ['park', 'play']]);
+    const s = play(5, [['school', 'soccer'], ['town', 'sportsday'], ['school', 'pe'], ['home', 'workout'], ['school', 'play']]);
     const ids = candidates(s).map((c) => c.careerId);
     expect(ids).toContain('athlete');
   });

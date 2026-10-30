@@ -10,13 +10,18 @@ import {
   FIELD_EMOJI, FIELD_LABEL, HAIR_COLORS, HAIR_STYLES, PLACES, STAT_COLOR, STAT_KEYS, STAT_LABEL, placeById,
 } from './data';
 import {
-  CHARGE_MS, MAX_TOKENS, actStatus, bubble, candidates, expression, fill, nextChargeIn, odds, pendingEvent, placeOpen, topFields,
+  CHARGE_MS, MAX_TOKENS, actStatus, actsOf, bubble, candidates, expression, fill, nextChargeIn, odds, pendingEvent,
+  placeStage, topFields,
 } from './engine';
+import { Button, LAYER, useButtons } from './input';
 import {
   Activity, Delta, FieldKey, GameState, Look, Mode, Place, PlaceId, StatKey, TurnReport,
 } from './types';
 
 const meta = gameById('growup');
+
+/** 머리색 5 × 머리 모양 3 — ③ 버튼으로 차례로 넘긴다 */
+const LOOKS: Look[] = HAIR_STYLES.flatMap((_, style) => HAIR_COLORS.map((_, hair) => ({ hair, style })));
 
 export default function App() {
   const game = useGrow((s) => s.game);
@@ -42,15 +47,16 @@ export default function App() {
 
 /* ══════════════ 공용 조각 ══════════════ */
 
+const NUM = ['①', '②', '③', '④'];
+
+/** 버튼 번호 — 기기의 버튼 ①~④와 같은 자리 */
+function Num({ n }: { n: number }) {
+  return <span className="gu-num" aria-hidden="true">{NUM[n - 1]}</span>;
+}
+
 function Modal({ children, onClose, className = '', label }: {
   children: ReactNode; onClose?: () => void; className?: string; label: string;
 }) {
-  useEffect(() => {
-    if (!onClose) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); onClose(); } };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
   return (
     <div className="gu-modal-back fade-in" onClick={onClose} role="presentation">
       <div className={`gu-modal ${className}`} role="dialog" aria-modal="true" aria-label={label}
@@ -113,8 +119,20 @@ function TitleScreen({ onDex }: { onDex: () => void }) {
   const dex = useGrow((s) => s.dex);
   const [name, setName] = useState('하늘');
   const [look, setLook] = useState<Look>({ hair: 0, style: 0 });
-  const [mode, setMode] = useState<Mode>('classic');
   const seen = Object.keys(dex).length;
+
+  const go = (mode: Mode) => start({ name, look, mode });
+  const nextLook = () => {
+    const i = LOOKS.findIndex((l) => l.hair === look.hair && l.style === look.style);
+    setLook(LOOKS[(i + 1) % LOOKS.length]);
+  };
+
+  useButtons((b) => {
+    if (b === 1) go('classic');
+    else if (b === 2) go('raise');
+    else if (b === 3) nextLook();
+    else if (b === 4) onDex();
+  }, LAYER.screen, 'title', ['한 번에 키우기', '키우기 모드', '모습 바꾸기', '엔딩 도감']);
 
   return (
     <div className="gu-title center-scroll">
@@ -128,12 +146,12 @@ function TitleScreen({ onDex }: { onDex: () => void }) {
         </div>
 
         <label className="gu-field">
-          <span>이름</span>
+          <span>이름 (그대로 두면 “하늘”)</span>
           <input value={name} maxLength={8} onChange={(e) => setName(e.target.value)} placeholder="하늘" />
         </label>
 
         <div className="gu-field">
-          <span>머리색</span>
+          <span>머리색 · 머리 모양</span>
           <div className="gu-swatches">
             {HAIR_COLORS.map((c, i) => (
               <button key={c} className={`gu-swatch ${look.hair === i ? 'on' : ''}`} style={{ background: c }}
@@ -141,10 +159,6 @@ function TitleScreen({ onDex }: { onDex: () => void }) {
                 onClick={() => setLook({ ...look, hair: i })} />
             ))}
           </div>
-        </div>
-
-        <div className="gu-field">
-          <span>머리 모양</span>
           <div className="gu-seg">
             {HAIR_STYLES.map((s, i) => (
               <button key={s} className={look.style === i ? 'on' : ''} aria-pressed={look.style === i}
@@ -153,22 +167,24 @@ function TitleScreen({ onDex }: { onDex: () => void }) {
           </div>
         </div>
 
-        <div className="gu-field">
-          <span>모드</span>
-          <div className="gu-modes">
-            <button className={mode === 'classic' ? 'on' : ''} aria-pressed={mode === 'classic'} onClick={() => setMode('classic')}>
-              <strong>⏩ 한 번에 키우기</strong>
-              <small>원하는 만큼 계속 진행. 30~40분이면 졸업.</small>
-            </button>
-            <button className={mode === 'raise' ? 'on' : ''} aria-pressed={mode === 'raise'} onClick={() => setMode('raise')}>
-              <strong>🌱 키우기 모드</strong>
-              <small>4시간마다 행동 1번(최대 {MAX_TOKENS}번). 매일 들러 돌봐요.</small>
-            </button>
-          </div>
+        <div className="gu-four">
+          <button className="gu-choice primary" onClick={() => go('classic')}>
+            <Num n={1} />
+            <span className="gu-choice-body"><strong>⏩ 한 번에 키우기</strong><small>원하는 만큼 계속. 30~40분이면 졸업.</small></span>
+          </button>
+          <button className="gu-choice" onClick={() => go('raise')}>
+            <Num n={2} />
+            <span className="gu-choice-body"><strong>🌱 키우기 모드</strong><small>4시간마다 행동 1번(최대 {MAX_TOKENS}번).</small></span>
+          </button>
+          <button className="gu-choice" onClick={nextLook}>
+            <Num n={3} />
+            <span className="gu-choice-body"><strong>✨ 모습 바꾸기</strong><small>머리색·머리 모양을 차례로.</small></span>
+          </button>
+          <button className="gu-choice" onClick={onDex}>
+            <Num n={4} />
+            <span className="gu-choice-body"><strong>📖 엔딩 도감</strong><small>{seen} / {CAREERS.length} 직업</small></span>
+          </button>
         </div>
-
-        <button className="gu-primary" onClick={() => start({ name, look, mode })}>키우기 시작</button>
-        <button className="gu-ghost" onClick={onDex}>📖 엔딩 도감 ({seen}/{CAREERS.length})</button>
       </div>
     </div>
   );
@@ -203,7 +219,6 @@ function MainScreen({ game }: { game: GameState }) {
   const act = useGrow((s) => s.act);
   const rest = useGrow((s) => s.rest);
   const choose = useGrow((s) => s.choose);
-  const careFor = useGrow((s) => s.careFor);
   const wake = useGrow((s) => s.wake);
   const switchClassic = useGrow((s) => s.toClassic);
   const reset = useGrow((s) => s.reset);
@@ -250,6 +265,11 @@ function MainScreen({ game }: { game: GameState }) {
   const ev = pendingEvent(game);
   const showEvent = !!ev && pops.length === 0 && !placeId;
 
+  const openPlace = (id: PlaceId) => {
+    if (noToken) { setToast('⚡ 행동력이 차면 다시 움직일 수 있어요'); return; }
+    setPlaceId(id);
+  };
+
   const doAct = (p: PlaceId, a: string) => {
     const res = act(p, a);
     if (!res.ok) { setToast(res.reason); return; }
@@ -267,14 +287,16 @@ function MainScreen({ game }: { game: GameState }) {
     if (!ev) return;
     const res = choose(i);
     if (!res.ok) { setToast(res.reason); return; }
-    push({ kind: 'eventResult', title: ev.title, emoji: ev.emoji, text: res.text, delta: res.delta });
+    push({ kind: 'eventResult', title: fill(ev.title, game.name), emoji: ev.emoji, text: res.text, delta: res.delta });
   };
 
-  const doCare = (k: 'praise' | 'snack' | 'talk') => {
-    const res = careFor(k);
-    if (!res.ok) { setToast(res.reason); return; }
-    push({ kind: 'note', title: k === 'talk' ? `${game.name}의 이야기` : '함께한 시간', text: res.line });
-  };
+  /* 기본 화면의 버튼: ①~④ = 장소 4곳. 아픈 달에는 어느 버튼이든 쉬기 */
+  useButtons((b) => {
+    if (b === 'back') return;
+    if (game.sick) { doRest(); return; }
+    openPlace(PLACES[b - 1].id);
+  }, LAYER.screen, game.sick ? 'sick' : 'places',
+  game.sick ? ['한 달 쉬기', '한 달 쉬기', '한 달 쉬기', '한 달 쉬기'] : PLACES.map((p) => placeStage(game, p).label));
 
   const place = placeId ? placeById(placeId) ?? null : null;
   const counseled = game.counseledAt >= 0 && game.turn - game.counseledAt <= 12;
@@ -321,15 +343,9 @@ function MainScreen({ game }: { game: GameState }) {
             }}>한 번에 키우기로</button>
           </div>
         )}
-        <div className="gu-care" role="group" aria-label="돌보기">
-          <button disabled={game.cared} onClick={() => doCare('praise')}>👏 칭찬하기</button>
-          <button disabled={game.cared || game.money < 1} onClick={() => doCare('snack')}>🍩 간식 (1만원)</button>
-          <button disabled={game.cared} onClick={() => doCare('talk')}>💬 이야기 듣기</button>
-        </div>
-        {game.cared && <p className="gu-care-note">이번 달 돌보기를 했어요. 다음 달에 또 함께해요.</p>}
       </section>
 
-      {/* ── 장소 ── */}
+      {/* ── 장소 4곳 = 버튼 ①~④ ── */}
       <section className="gu-places" aria-label="장소">
         <div className="gu-sec-head">
           <h3>{game.sick ? '이번 달은 쉬어야 해요' : '이번 달엔 어디로 갈까요?'}</h3>
@@ -339,22 +355,21 @@ function MainScreen({ game }: { game: GameState }) {
           <div className="gu-sick">
             <div className="gu-sick-emoji">🤒</div>
             <p>너무 무리했나 봐요. 한 달 동안 푹 쉬면 피로와 스트레스가 크게 풀려요.</p>
-            <button className="gu-primary" disabled={noToken} onClick={doRest}>한 달 쉬기</button>
+            <button className="gu-primary" disabled={noToken} onClick={doRest}>아무 버튼이나 눌러 한 달 쉬기</button>
           </div>
         ) : (
           <div className="gu-place-grid">
-            {PLACES.map((p) => {
-              const open = placeOpen(game, p);
-              const v = game.visits[p.id] ?? 0;
+            {PLACES.map((p, i) => {
+              const st = placeStage(game, p);
+              const v = game.stageVisits[p.id] ?? 0;
               return (
-                <button key={p.id} className={`gu-place ${open ? '' : 'locked'}`} disabled={!open}
-                  style={{ ['--pc' as string]: p.color }}
-                  onClick={() => setPlaceId(p.id)}>
-                  <span className="gu-place-emoji">{open ? p.emoji : '🔒'}</span>
-                  <span className="gu-place-name">{p.name}</span>
-                  <span className="gu-place-sub">
-                    {open ? (v > 0 ? `단골도 ${v}` : '처음') : `${calendar(p.from * 12).gradeLabel}부터`}
-                  </span>
+                <button key={p.id} className="gu-place" style={{ ['--pc' as string]: p.color }}
+                  onClick={() => openPlace(p.id)}>
+                  <Num n={i + 1} />
+                  <span className="gu-place-emoji">{p.emoji}</span>
+                  <span className="gu-place-name">{st.label}</span>
+                  <span className="gu-place-acts" aria-hidden="true">{st.acts.map((a) => a.emoji).join(' ')}</span>
+                  <span className="gu-place-sub">{v > 0 ? `단골도 ${v}` : '처음'}</span>
                 </button>
               );
             })}
@@ -394,31 +409,34 @@ function MainScreen({ game }: { game: GameState }) {
 
       {/* ── 활동 고르기 ── */}
       {place && (
-        <ActivitySheet game={game} place={place} disabled={noToken}
-          onPick={(a) => doAct(place.id, a)} onClose={() => setPlaceId(null)} />
+        <ActivitySheet game={game} place={place}
+          onPick={(a) => doAct(place.id, a)} onClose={() => setPlaceId(null)} onBlocked={setToast} />
       )}
 
       {/* ── 결과·사건 ── */}
       {pops[0]?.kind === 'result' && <ResultView report={pops[0].report} game={game} onClose={shift} />}
       {pops[0]?.kind === 'eventResult' && (
-        <Modal label="사건 결과" onClose={shift}>
-          <div className="gu-pop-head"><span className="gu-pop-emoji">{pops[0].emoji}</span><h2>{pops[0].title}</h2></div>
-          <p className="gu-pop-text">{pops[0].text}</p>
-          <DeltaChips d={pops[0].delta} />
-          <OkButton onClick={shift} />
-        </Modal>
+        <Notice emoji={pops[0].emoji} title={pops[0].title} text={pops[0].text} delta={pops[0].delta} onClose={shift} />
       )}
-      {pops[0]?.kind === 'note' && (
-        <Modal label={pops[0].title} onClose={shift}>
-          <div className="gu-pop-head"><span className="gu-pop-emoji">💛</span><h2>{pops[0].title}</h2></div>
-          <p className="gu-pop-text">{pops[0].text}</p>
-          <OkButton onClick={shift} />
-        </Modal>
-      )}
-      {showEvent && ev && <EventView game={game} onPick={pickOption} />}
+      {pops[0]?.kind === 'note' && <Notice emoji="💛" title={pops[0].title} text={pops[0].text} onClose={shift} />}
+      {showEvent && ev && <EventView game={game} onPick={pickOption} onBlocked={setToast} />}
 
       {toast && <div className="gu-toast fade-in" role="status">{toast}</div>}
     </div>
+  );
+}
+
+function Notice({ emoji, title, text, delta, onClose }: {
+  emoji: string; title: string; text: string; delta?: Delta; onClose: () => void;
+}) {
+  useButtons(() => onClose(), LAYER.popup, 'notice', ['계속', '계속', '계속', '계속']);
+  return (
+    <Modal label={title} onClose={onClose}>
+      <div className="gu-pop-head"><span className="gu-pop-emoji">{emoji}</span><h2>{title}</h2></div>
+      <p className="gu-pop-text">{text}</p>
+      {delta && <DeltaChips d={delta} />}
+      <button className="gu-primary" onClick={onClose}>아무 버튼이나 눌러 계속</button>
+    </Modal>
   );
 }
 
@@ -433,20 +451,9 @@ function Interests({ game, exact }: { game: GameState; exact: boolean }) {
           {exact ? <strong>{Math.round(t.value)}</strong> : <em>{'♥'.repeat(t.value >= 60 ? 3 : t.value >= 25 ? 2 : 1)}</em>}
         </li>
       ))}
-      {!exact && <li className="gu-muted small">진로체험센터에서 상담을 받으면 정확히 알 수 있어요.</li>}
+      {!exact && <li className="gu-muted small">고등학교 진로 상담을 받으면 정확히 알 수 있어요.</li>}
     </ul>
   );
-}
-
-function OkButton({ onClick, label = '확인' }: { onClick: () => void; label?: string }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClick]);
-  return <button className="gu-primary" onClick={onClick} autoFocus>{label}</button>;
 }
 
 /** 활동 카드에 붙는 예상 효과 */
@@ -470,57 +477,60 @@ function effectHints(a: Activity): { text: string; tone: 'up' | 'down' | 'field'
   return out;
 }
 
-function ActivitySheet({ game, place, disabled, onPick, onClose }: {
-  game: GameState; place: Place; disabled: boolean; onPick: (id: string) => void; onClose: () => void;
+function ActivitySheet({ game, place, onPick, onClose, onBlocked }: {
+  game: GameState; place: Place; onPick: (id: string) => void; onClose: () => void; onBlocked: (why: string) => void;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const i = Number(e.key) - 1;
-      if (i >= 0 && i < 4) {
-        const a = place.acts[i];
-        if (!disabled && actStatus(game, place, a).ok) { e.preventDefault(); onPick(a.id); }
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [game, place, disabled, onPick]);
+  const st = placeStage(game, place);
+  const acts = actsOf(game, place);
+
+  const tryPick = (a: Activity) => {
+    const s = actStatus(game, place, a);
+    if (!s.ok) { onBlocked(s.reason ?? '지금은 할 수 없어요'); return; }
+    onPick(a.id);
+  };
+
+  useButtons((b: Button) => {
+    if (b === 'back') { onClose(); return; }
+    tryPick(acts[b - 1]);
+  }, LAYER.popup, `place:${place.id}`, acts.map((a) => a.name));
 
   return (
-    <Modal label={place.name} onClose={onClose} className="gu-sheet">
+    <Modal label={st.label} onClose={onClose} className="gu-sheet">
       <div className="gu-sheet-head" style={{ ['--pc' as string]: place.color }}>
         <span className="gu-sheet-emoji">{place.emoji}</span>
         <div>
-          <h2>{place.name}</h2>
-          <p>{place.desc}</p>
+          <h2>{st.label}</h2>
+          <p>{st.desc}</p>
         </div>
-        <button className="gu-close" onClick={onClose} aria-label="닫기">✕</button>
+        <button className="gu-close" onClick={onClose} aria-label="뒤로">✕</button>
       </div>
       <div className="gu-acts">
-        {place.acts.map((a, i) => {
-          const st = actStatus(game, place, a);
+        {acts.map((a, i) => {
+          const s = actStatus(game, place, a);
           const o = odds(game, a);
           return (
-            <button key={a.id} className={`gu-act ${st.locked ? 'locked' : ''}`} disabled={!st.ok || disabled}
-              onClick={() => onPick(a.id)}>
-              <span className="gu-act-key kbd-only">{i + 1}</span>
-              <span className="gu-act-emoji">{st.locked ? '🔒' : a.emoji}</span>
+            <button key={a.id} className={`gu-act ${s.locked ? 'locked' : ''} ${s.ok ? '' : 'off'}`} aria-disabled={!s.ok}
+              onClick={() => tryPick(a)}>
+              <Num n={i + 1} />
+              <span className="gu-act-emoji">{s.locked ? '🔒' : a.emoji}</span>
               <span className="gu-act-body">
                 <strong>{a.name}</strong>
-                <small>{st.locked ? `잠김 — ${st.reason}` : a.desc}</small>
-                {!st.locked && (
+                <small>{s.locked ? `잠김 — ${s.reason}` : a.desc}</small>
+                {!s.locked && (
                   <span className="gu-hints">
                     {effectHints(a).map((h) => <span key={h.text} className={`gu-chip ${h.tone}`}>{h.text}</span>)}
                   </span>
                 )}
-                {!st.locked && !a.safe && (
+                {!s.locked && !a.safe && (
                   <span className="gu-odds">대성공 {Math.round(o.great * 100)}% · 실패 {Math.round(o.fail * 100)}%</span>
                 )}
-                {!st.ok && !st.locked && <span className="gu-odds warn">{st.reason}</span>}
+                {!s.ok && !s.locked && <span className="gu-odds warn">{s.reason}</span>}
               </span>
             </button>
           );
         })}
       </div>
+      <p className="gu-back-hint">돌아가기: ✕ · Esc · 기기의 ‘뒤로’ 입력</p>
     </Modal>
   );
 }
@@ -534,14 +544,18 @@ const OUTCOME_TEXT = {
 
 function ResultView({ report, game, onClose }: { report: TurnReport; game: GameState; onClose: () => void }) {
   const place = report.place ? placeById(report.place) : undefined;
-  const act = place?.acts.find((a) => a.id === report.act);
+  const act = place ? place.stages.flatMap((st) => st.acts).find((a) => a.id === report.act) : undefined;
   const head = act?.safe && report.outcome === 'ok' ? { title: '좋은 시간이었어요', emoji: act.emoji } : OUTCOME_TEXT[report.outcome];
+  const last = game.turn >= TOTAL_TURNS;
+
+  useButtons(() => onClose(), LAYER.popup, 'result', ['다음', '다음', '다음', '다음']);
+
   return (
     <Modal label="이번 달 결과" onClose={onClose}>
       <div className={`gu-pop-head ${report.outcome}`}>
         <span className="gu-pop-emoji">{head.emoji}</span>
         <div>
-          <small>{report.when}{act ? ` · ${place?.name} · ${act.name}` : ''}</small>
+          <small>{report.when}{act ? ` · ${act.name}` : ''}</small>
           <h2>{head.title}</h2>
         </div>
       </div>
@@ -571,36 +585,40 @@ function ResultView({ report, game, onClose }: { report: TurnReport; game: GameS
               ))}
             </div>
           ) : <span className="gu-muted">이번 해는 크게 자라지 못했어요.</span>}
-          {game.turn < TOTAL_TURNS && <span className="gu-muted">이제 {calendar(game.turn).gradeLabel}!</span>}
+          {!last && <span className="gu-muted">이제 {calendar(game.turn).gradeLabel}!</span>}
         </div>
       )}
-      <OkButton onClick={onClose} label={game.turn >= TOTAL_TURNS ? '졸업식으로' : '다음 달로'} />
+      <button className="gu-primary" onClick={onClose}>{last ? '아무 버튼이나 눌러 졸업식으로' : '아무 버튼이나 눌러 다음 달로'}</button>
     </Modal>
   );
 }
 
-function EventView({ game, onPick }: { game: GameState; onPick: (i: number) => void }) {
+function EventView({ game, onPick, onBlocked }: { game: GameState; onPick: (i: number) => void; onBlocked: (why: string) => void }) {
   const ev = pendingEvent(game)!;
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const i = Number(e.key) - 1;
-      if (i >= 0 && i < ev.options.length) { e.preventDefault(); onPick(i); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [ev, onPick]);
+  const can = (i: number) => {
+    const o = ev.options[i];
+    return !!o && (!o.need || game.money >= o.need);
+  };
+  const tryPick = (i: number) => {
+    if (!ev.options[i]) return;
+    if (!can(i)) { onBlocked(`용돈 ${ev.options[i].need}만원 필요`); return; }
+    onPick(i);
+  };
+
+  useButtons((b) => { if (b !== 'back') tryPick(b - 1); }, LAYER.popup, `event:${ev.id}`, ev.options.map((o) => o.label));
+
   return (
-    <Modal label={ev.title}>
+    <Modal label={fill(ev.title, game.name)}>
       <div className="gu-pop-head event">
         <span className="gu-pop-emoji">{ev.emoji}</span>
-        <div><small>이번 달의 일</small><h2>{ev.title}</h2></div>
+        <div><small>이번 달의 일</small><h2>{fill(ev.title, game.name)}</h2></div>
       </div>
       <p className="gu-pop-text">{fill(ev.text, game.name)}</p>
       <div className="gu-options">
         {ev.options.map((o, i) => (
-          <button key={o.label} className="gu-option" disabled={!!o.need && game.money < o.need} onClick={() => onPick(i)}>
-            <span className="gu-act-key kbd-only">{i + 1}</span>
-            {o.label}{o.need ? <small> (💰{o.need}만원)</small> : null}
+          <button key={o.label} className={`gu-option ${can(i) ? '' : 'off'}`} aria-disabled={!can(i)} onClick={() => tryPick(i)}>
+            <Num n={i + 1} />
+            <span>{o.label}{o.need ? <small> (💰{o.need}만원)</small> : null}</span>
           </button>
         ))}
       </div>
@@ -618,6 +636,12 @@ function Graduation({ game }: { game: GameState }) {
   const wins = game.awards.filter((a) => a.rank !== 'fail').length;
   const burnout = list.length === 1 && list[0].careerId === 'gap' && game.stress >= 85;
 
+  useButtons((b) => {
+    if (b === 'back') return;
+    const c = list[b - 1];
+    if (c) finish(c.careerId);
+  }, LAYER.screen, 'graduation', list.map((c) => careerById(c.careerId)?.title ?? c.careerId));
+
   return (
     <div className="gu-grad center-scroll">
       <div className="gu-grad-card">
@@ -630,10 +654,11 @@ function Graduation({ game }: { game: GameState }) {
         </ul>
         <h3>{burnout ? '너무 지쳐 있어요… 잠시 쉬어 가기로 했어요.' : '어떤 길을 걸어갈까요?'}</h3>
         <div className="gu-cands">
-          {list.map((c) => {
+          {list.map((c, i) => {
             const job = careerById(c.careerId)!;
             return (
               <button key={c.careerId} className="gu-cand" onClick={() => finish(c.careerId)}>
+                <Num n={i + 1} />
                 <span className="gu-cand-emoji">{job.emoji}</span>
                 <span className="gu-cand-body">
                   <strong>{job.title}</strong>
@@ -656,6 +681,12 @@ function EndingScreen({ game, onDex }: { game: GameState; onDex: () => void }) {
   const end = game.ending!;
   const job = careerById(end.careerId)!;
   const wins = game.awards.filter((a) => a.rank !== 'fail');
+
+  useButtons((b) => {
+    if (b === 1) reset();
+    else if (b === 2) onDex();
+  }, LAYER.screen, 'ending', ['새로 키우기', '엔딩 도감']);
+
   return (
     <div className="gu-end center-scroll">
       <article className="gu-end-card">
@@ -688,9 +719,9 @@ function EndingScreen({ game, onDex }: { game: GameState; onDex: () => void }) {
             </ul>
           )}
         </section>
-        <div className="gu-end-actions">
-          <button className="gu-ghost" onClick={onDex}>📖 엔딩 도감</button>
-          <button className="gu-primary" onClick={reset}>새로 키우기</button>
+        <div className="gu-four two">
+          <button className="gu-choice primary" onClick={reset}><Num n={1} /><span className="gu-choice-body"><strong>새로 키우기</strong></span></button>
+          <button className="gu-choice" onClick={onDex}><Num n={2} /><span className="gu-choice-body"><strong>📖 엔딩 도감</strong></span></button>
         </div>
       </article>
     </div>
@@ -704,11 +735,17 @@ function DexView({ onClose }: { onClose: () => void }) {
   const [pick, setPick] = useState<string | null>(null);
   const seen = Object.keys(dex).length;
   const job = pick ? careerById(pick) : null;
+
+  useButtons((b) => {
+    if (pick && b === 'back') setPick(null);
+    else onClose();
+  }, LAYER.overlay, 'dex', ['닫기', '닫기', '닫기', '닫기']);
+
   return (
     <Modal label="엔딩 도감" onClose={onClose} className="gu-dex">
       <div className="gu-sheet-head">
         <span className="gu-sheet-emoji">📖</span>
-        <div><h2>엔딩 도감</h2><p>{seen} / {CAREERS.length} 직업을 만났어요</p></div>
+        <div><h2>엔딩 도감</h2><p>{seen} / {CAREERS.length} 직업을 만났어요 · 아무 버튼이나 눌러 닫기</p></div>
         <button className="gu-close" onClick={onClose} aria-label="닫기">✕</button>
       </div>
       {job ? (

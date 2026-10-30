@@ -135,20 +135,6 @@
   color: var(--gu-sub);
 }
 .gu-seg button.on { color: var(--gu-text); border-color: var(--gu-accent); background: rgba(255, 181, 71, 0.12); }
-.gu-modes { display: flex; flex-direction: column; gap: 8px; }
-.gu-modes button {
-  text-align: left;
-  border-radius: 14px;
-  padding: 12px 14px;
-  background: var(--gu-card-2);
-  border: 1px solid var(--gu-line);
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.gu-modes button.on { border-color: var(--gu-accent); background: rgba(255, 181, 71, 0.1); }
-.gu-modes strong { font-size: 0.92rem; }
-.gu-modes small { font-size: 0.75rem; color: var(--gu-sub); }
 
 /* ══ 진행 화면 ══ */
 .gu-main {
@@ -242,28 +228,17 @@
 .gu-token-dots i.on { opacity: 1; filter: none; }
 .gu-token-next { font-weight: 800; font-variant-numeric: tabular-nums; flex: 1; }
 
-.gu-care { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.gu-care button {
-  min-height: 44px;
-  border-radius: 12px;
-  background: var(--gu-card-2);
-  border: 1px solid var(--gu-line);
-  font-size: 0.76rem;
-  font-weight: 800;
-  padding: 0 4px;
-}
-.gu-care button:disabled { opacity: 0.4; }
-.gu-care-note { margin: 0; font-size: 0.72rem; color: var(--gu-sub); text-align: center; }
 
 .gu-sec-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px; }
 .gu-sec-head h3 { font-size: 1rem; font-weight: 900; }
 .gu-warn { font-size: 0.74rem; color: var(--gu-accent); font-weight: 800; }
 
-.gu-place-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.gu-place-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .gu-place {
-  min-height: 92px;
-  border-radius: 16px;
-  padding: 10px 6px;
+  position: relative;
+  min-height: 128px;
+  border-radius: 18px;
+  padding: 12px 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -274,11 +249,49 @@
   border: 1px solid color-mix(in srgb, var(--pc) 40%, transparent);
   transition: transform 0.12s ease;
 }
-.gu-place:active:not(:disabled) { transform: scale(0.97); }
-.gu-place-emoji { font-size: 1.7rem; line-height: 1; }
-.gu-place-name { font-size: 0.82rem; font-weight: 900; text-align: center; }
-.gu-place-sub { font-size: 0.66rem; color: var(--gu-sub); font-weight: 700; }
-.gu-place.locked { background: rgba(255, 255, 255, 0.03); border-color: var(--gu-line); opacity: 0.55; }
+.gu-place:active { transform: scale(0.97); }
+.gu-place-emoji { font-size: 2.2rem; line-height: 1; }
+.gu-place-name { font-size: 0.95rem; font-weight: 900; text-align: center; }
+.gu-place-acts { font-size: 0.86rem; letter-spacing: 1px; }
+.gu-place-sub { font-size: 0.68rem; color: var(--gu-sub); font-weight: 700; }
+.gu-place .gu-num { position: absolute; top: 8px; left: 8px; }
+
+/* ── 버튼 번호 ①~④ — 기기의 버튼과 같은 자리 ── */
+.gu-num {
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--gu-text);
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+/* 시작·엔딩 화면의 4갈래 선택 */
+.gu-four { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.gu-four.two { grid-template-columns: 1fr 1fr; }
+.gu-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  text-align: left;
+  background: var(--gu-card-2);
+  border: 1px solid var(--gu-line);
+}
+.gu-choice.primary { background: var(--gu-accent); color: #2a1a00; border-color: transparent; }
+.gu-choice.primary .gu-num { background: rgba(0, 0, 0, 0.15); color: #2a1a00; }
+.gu-choice.primary small { color: rgba(42, 26, 0, 0.75); }
+.gu-choice-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gu-choice-body strong { font-size: 0.92rem; font-weight: 900; }
+.gu-choice-body small { font-size: 0.74rem; color: var(--gu-sub); }
+.gu-back-hint { margin: 0; font-size: 0.7rem; color: var(--gu-sub); text-align: center; }
 
 .gu-sick { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 12px 4px; }
 .gu-sick-emoji { font-size: 3rem; }
@@ -380,8 +393,8 @@
   background: var(--gu-card-2);
   border: 1px solid var(--gu-line);
 }
-.gu-act:not(:disabled):active { transform: scale(0.99); }
-.gu-act:disabled { opacity: 0.55; }
+.gu-act:not(.off):active { transform: scale(0.99); }
+.gu-act.off { opacity: 0.55; }
 .gu-act.locked { background: rgba(255, 255, 255, 0.03); border-style: dashed; }
 .gu-act-emoji { font-size: 1.7rem; line-height: 1.1; }
 .gu-act-body { display: flex; flex-direction: column; gap: 5px; min-width: 0; flex: 1; }
@@ -389,17 +402,6 @@
 .gu-act-body small { font-size: 0.76rem; color: var(--gu-sub); line-height: 1.4; }
 .gu-odds { font-size: 0.7rem; color: var(--gu-sub); font-weight: 700; }
 .gu-odds.warn { color: var(--gu-down); }
-.gu-act-key {
-  position: absolute;
-  top: 8px;
-  right: 10px;
-  font-size: 0.66rem;
-  font-weight: 900;
-  color: var(--gu-sub);
-  border: 1px solid var(--gu-line);
-  border-radius: 6px;
-  padding: 1px 5px;
-}
 
 .gu-pop-head { display: flex; align-items: center; gap: 12px; }
 .gu-pop-head small { font-size: 0.72rem; color: var(--gu-sub); font-weight: 700; }
@@ -424,19 +426,20 @@
 
 .gu-options { display: flex; flex-direction: column; gap: 8px; }
 .gu-option {
-  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-height: 52px;
   border-radius: 14px;
-  padding: 10px 40px 10px 14px;
+  padding: 10px 14px;
   text-align: left;
   font-size: 0.92rem;
   font-weight: 800;
   background: var(--gu-card-2);
   border: 1px solid var(--gu-line);
 }
-.gu-option:disabled { opacity: 0.45; }
+.gu-option.off { opacity: 0.45; }
 .gu-option small { color: var(--gu-sub); font-weight: 700; }
-.gu-option .gu-act-key { top: 50%; transform: translateY(-50%); }
 
 .gu-toast {
   position: fixed;
@@ -557,14 +560,14 @@
 .gu-dex-detail p { margin: 0; font-size: 0.86rem; line-height: 1.6; }
 
 @media (max-width: 359px) {
-  .gu-place-grid, .gu-dex-grid { grid-template-columns: repeat(2, 1fr); }
+  .gu-dex-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (min-width: 640px) {
   .gu-modal-back { align-items: center; }
   .gu-modal { border-radius: 22px; }
   .gu-dex-grid { grid-template-columns: repeat(4, 1fr); }
-  .gu-place-grid { grid-template-columns: repeat(4, 1fr); }
+  .gu-four { grid-template-columns: 1fr 1fr; }
 }
 
 @media (min-width: 900px) {
@@ -575,13 +578,14 @@
     padding-top: 16px;
   }
   .gu-places { position: sticky; top: 0; }
-  .gu-place { min-height: 110px; }
+  .gu-place { min-height: 170px; }
+  .gu-place-emoji { font-size: 2.8rem; }
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .gu-place:not(:disabled):hover,
-  .gu-act:not(:disabled):hover,
-  .gu-option:not(:disabled):hover,
+  .gu-place:hover,
+  .gu-act:not(.off):hover,
+  .gu-option:not(.off):hover,
   .gu-cand:hover,
-  .gu-care button:not(:disabled):hover { filter: brightness(1.12); }
+  .gu-choice:hover { filter: brightness(1.12); }
 }

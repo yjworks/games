@@ -7,8 +7,8 @@ export interface EventOption extends Effect {
   result: string;
   /** 돈이 이만큼 있어야 고를 수 있다 */
   need?: number;
-  /** 가장 관심 있는 분야를 더 키운다 */
-  special?: 'topField';
+  /** topField: 가장 관심 있는 분야를 더 키운다 · talk: 결과 대신 아이의 속마음을 들려준다 */
+  special?: 'topField' | 'talk';
 }
 
 export interface GameEvent {
@@ -22,6 +22,8 @@ export interface GameEvent {
   /** 무작위 사건이 나올 수 있는 때 */
   when?: (s: GameState, c: Calendar) => boolean;
   weight?: number;
+  /** 같은 사건이 다시 나오기까지의 최소 간격(달). 없으면 엔진 기본값 */
+  cooldown?: number;
   options: EventOption[];
 }
 
@@ -60,6 +62,27 @@ export const EVENTS: GameEvent[] = [
   },
 
   /* ── 무작위 사건 ── */
+  {
+    /* 돌보기 — 다마고치처럼 아이가 먼저 다가온다. 기분이 가라앉았을 때 더 자주 온다 */
+    id: 'care', title: '다가온 {name}', emoji: '💛',
+    text: '{name:이가} 쭈뼛쭈뼛 다가와 옆에 앉았다. 뭐라고 해 줄까?',
+    when: () => true, weight: 3, cooldown: 4,
+    options: [
+      { label: '칭찬해 준다', mood: 8, stress: -4, result: '칭찬을 들은 {name:이가} 배시시 웃는다.' },
+      { label: '간식을 준다', need: 1, money: -1, fatigue: -8, mood: 4, result: '맛있는 간식에 기운이 났다.' },
+      { label: '이야기를 들어 준다', mood: 3, special: 'talk', result: '' },
+    ],
+  },
+  {
+    id: 'care-low', title: '시무룩한 {name}', emoji: '🥺',
+    text: '요즘 {name:이가} 기운이 없어 보인다.',
+    when: (s) => s.mood < 40 || s.stress >= 60, weight: 6, cooldown: 4,
+    options: [
+      { label: '꼭 안아 준다', mood: 12, stress: -8, result: '{name:이가} 한참 동안 안겨 있었다.' },
+      { label: '같이 산책한다', mood: 8, stress: -10, fatigue: -4, result: '바람을 쐬니 표정이 풀렸다.' },
+      { label: '이야기를 들어 준다', mood: 5, stress: -5, special: 'talk', result: '' },
+    ],
+  },
   {
     id: 'friend', title: '친구의 연락', emoji: '📞',
     text: '“지금 나와! 다 모였어!” 할 일이 남았는데…',
