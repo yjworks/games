@@ -2,6 +2,12 @@ import { FieldKey, StatKey } from './types';
 
 export type CareerKind = '취업' | '창업' | '프리랜서' | '연구';
 
+/**
+ * 진로흥미 6유형(홀랜드 RIASEC) — R 현실형 · I 탐구형 · A 예술형 · S 사회형 · E 진취형 · C 관습형.
+ * 직업에 붙인 두 글자 코드는 이 게임 안에서 쓰는 간이 분류다(공식 검사 결과가 아니다).
+ */
+export type Riasec = 'R' | 'I' | 'A' | 'S' | 'E' | 'C';
+
 export interface Career {
   id: string;
   title: string;
@@ -27,9 +33,15 @@ export interface Career {
   path: string;
   /** 10년 뒤 모습 — 등급 1·2·3 */
   epilogue: [string, string, string];
+  /** 흥미 유형 두 글자(주·부) */
+  riasec: Riasec[];
+  /** 학교에서 관련 있는 과목 */
+  subjects: string[];
 }
 
-export const CAREERS: Career[] = [
+type RawCareer = Omit<Career, 'riasec' | 'subjects'>;
+
+const RAW: RawCareer[] = [
   /* ── IT ── */
   {
     id: 'dev', title: '소프트웨어 개발자', emoji: '👩‍💻', kind: '취업', field: 'it', minField: 25,
@@ -368,5 +380,44 @@ export const CAREERS: Career[] = [
     ],
   },
 ];
+
+/** 흥미 유형과 관련 과목 */
+const EDU: Record<string, [string, string[]]> = {
+  dev: ['IC', ['수학', '정보', '영어']],
+  gamedev: ['AI', ['정보', '미술', '수학']],
+  appstartup: ['EI', ['정보', '경제', '국어']],
+  robotics: ['RI', ['물리', '수학', '정보']],
+  hwstartup: ['ER', ['물리', '기술·가정', '경제']],
+  mecheng: ['RI', ['물리', '수학', '기술·가정']],
+  scientist: ['IR', ['과학', '수학', '영어']],
+  pharmacist: ['IS', ['화학', '생명과학', '수학']],
+  doctor: ['IS', ['생명과학', '화학', '영어']],
+  nurse: ['SI', ['생명과학', '보건', '국어']],
+  vet: ['IR', ['생명과학', '화학', '수학']],
+  designer: ['AR', ['미술', '정보', '국어']],
+  webtoon: ['AE', ['미술', '국어', '정보']],
+  musician: ['AE', ['음악', '국어', '영어']],
+  actor: ['AS', ['국어', '음악', '체육']],
+  writer: ['AI', ['국어', '사회', '영어']],
+  reporter: ['EA', ['국어', '사회', '영어']],
+  creator: ['AE', ['국어', '정보', '미술']],
+  chef: ['RA', ['기술·가정', '과학', '영어']],
+  bakery: ['ER', ['기술·가정', '경제', '수학']],
+  athlete: ['RE', ['체육', '과학', '영어']],
+  trainer: ['SR', ['체육', '생명과학', '국어']],
+  marketer: ['EC', ['경제', '국어', '수학']],
+  cafe: ['ES', ['경제', '기술·가정', '국어']],
+  teacher: ['SA', ['국어', '사회', '가르칠 교과']],
+  counselor: ['SA', ['사회', '국어', '윤리']],
+  civil: ['CS', ['사회', '국어', '한국사']],
+  allround: ['ES', ['국어', '수학', '사회']],
+  gap: ['', []],
+};
+
+export const CAREERS: Career[] = RAW.map((c) => ({
+  ...c,
+  riasec: EDU[c.id][0].split('') as Riasec[],
+  subjects: EDU[c.id][1],
+}));
 
 export const careerById = (id: string) => CAREERS.find((c) => c.id === id);

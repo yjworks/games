@@ -26,7 +26,8 @@ interface Props {
   effect?: WorldEffect | null;
   /** 스트레스가 높으면 비가 온다 */
   rain: boolean;
-  bubble: string;
+  /** 아이 머리 위 말풍선(없으면 안 띄운다) */
+  bubble?: string;
   /** 장소 이름(학교급마다 다르다) — 버튼 ①~④ */
   labels: string[];
   onPlace?: (p: PlaceId) => void;
@@ -282,7 +283,7 @@ export function WorldView(p: Props) {
           </button>
         );
       })}
-      <div ref={bubbleRef} className="gu-world-bubble" style={{ bottom: `${100 - kidTop}%` }}>{p.bubble}</div>
+      {p.bubble && <div ref={bubbleRef} className="gu-world-bubble" style={{ bottom: `${100 - kidTop}%` }}>{p.bubble}</div>}
     </div>
   );
 }

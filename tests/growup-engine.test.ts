@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  CHARGE_MS, MAX_TOKENS, MISS_MS, TOTAL_TURNS, accrue, actStatus, actsOf, candidates, doActivity, fill, finish,
+  CHARGE_MS, MAX_TOKENS, MISS_MS, TOTAL_TURNS, accrue, answerQuiz, reflect, actStatus, actsOf, candidates, doActivity, fill, finish,
   newGame, pendingEvent, resolveEvent, restSick, scoreCareer, topFields,
 } from '../src/games/growup/engine';
 import { calendar } from '../src/games/growup/calendar';
@@ -12,8 +12,10 @@ import { GameState, Mode, PlaceId } from '../src/games/growup/types';
 const make = (mode: Mode = 'classic', seed = 1, now = 0) =>
   newGame({ name: '하늘', look: { hair: 0, style: 0 }, mode, seed, now });
 
-/** 사건이 있으면 첫 선택지로 넘긴다 */
+/** 돌아보기·퀴즈·사건이 있으면 첫 보기로 넘긴다 */
 function settle(s: GameState): GameState {
+  if (s.reviewPending) { const r = reflect(s, 0); if (!r.ok) throw new Error(r.reason); s = r.state; }
+  if (s.quiz) { const r = answerQuiz(s, 0); if (!r.ok) throw new Error(r.reason); s = r.state; }
   while (s.pending) {
     const ev = pendingEvent(s)!;
     const i = ev.options.findIndex((o) => !o.need || s.money >= o.need);

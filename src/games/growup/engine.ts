@@ -1,11 +1,14 @@
 import { TOTAL_TURNS, calendar, whenLabel } from './calendar';
 import { CAREERS, Career, careerById } from './careers';
-import { ALLOWANCE, FIELD_KEYS, FIELD_LABEL, STAT_KEYS, placeById } from './data';
+import { ALLOWANCE, FIELD_KEYS, FIELD_LABEL, PLACES, STAT_KEYS, placeById } from './data';
+
+
 import { EVENTS, GameEvent, eventById } from './events';
 import { FRIENDS, FRIEND_EVENTS, FRIEND_LEVELS, FRIEND_MET } from './friends';
+import { makeQuiz, quizExplain, yearTips } from './edu';
 import {
   Activity, Award, CareerScore, Delta, Effect, ExamResult, FieldKey, Four, GameState, Look, Mode,
-  Outcome, Place, PlaceId, PlaceStage, StatKey, TurnReport,
+  Outcome, Place, PlaceId, PlaceStage, StatKey, TurnReport, WeekLog, YearStats, YearSummary,
 } from './types';
 
 export { TOTAL_TURNS };
@@ -18,6 +21,8 @@ export const MISS_MS = 24 * 60 * 60 * 1000;
 
 /** 사건이 나올 확률(정해진 사건 제외) */
 const EVENT_CHANCE = 0.3;
+/** 무작위 사건 자리에 직업 퀴즈가 대신 나올 확률(초3부터) */
+const QUIZ_CHANCE = 0.35;
 /** 같은 사건이 다시 나오기까지의 최소 간격(달) */
 const EVENT_COOLDOWN = 14;
 
@@ -67,9 +72,13 @@ export interface NewGameOpts {
 const zeroStats = (v: number): Record<StatKey, number> =>
   Object.fromEntries(STAT_KEYS.map((k) => [k, v])) as Record<StatKey, number>;
 
+export const emptyYear = (): YearStats => ({
+  income: 0, spend: 0, acts: {}, places: {}, rests: 0, greats: 0, fails: 0, sick: 0, quizRight: 0, quizTotal: 0,
+});
+
 export function newGame({ name, look, mode, seed, now = Date.now() }: NewGameOpts): GameState {
   const s: GameState = {
-    v: 3,
+    v: 4,
     name: name.trim() || '하늘',
     look,
     mode,
@@ -87,6 +96,11 @@ export function newGame({ name, look, mode, seed, now = Date.now() }: NewGameOpt
     flags: [],
     awards: [],
     friends: { minjun: 0, seoyeon: 0, doyun: 0, haeun: 0 },
+    year: emptyYear(),
+    history: [],
+    reviewPending: false,
+    quiz: null,
+    known: [],
     sick: false,
     pending: null,
     eventSeen: {},
@@ -161,6 +175,26 @@ export function odds(s: GameState, a: Activity): { great: number; fail: number }
 
 const MULT: Record<Outcome, number> = { great: 1.6, ok: 1, fail: 0.35 };
 
+function scaleRec<K extends string>(r: Partial<Record<K, number>> | undefined, k: number): Partial<Record<K, number>> {
+  const out: Partial<Record<K, number>> = {};
+  for (const [key, v] of Object.entries(r ?? {}) as [K, number][]) out[key] = v * k;
+  return out;
+}
+
+const WEEK_TEXT: Record<Outcome, string[]> = {
+  great: ['{act} 시간 가는 줄 몰랐다!', '오늘은 뭐든 술술 풀렸다.', '칭찬을 들었다. 어깨가 으쓱!', '지난주보다 확실히 늘었다.'],
+  ok: ['꾸준히 했다.', '조금씩 익숙해지고 있다.', '평소처럼 열심히 했다.', '무난한 한 주였다.'],
+  fail: ['집중이 잘 안 됐다…', '실수가 잦았다.', '오늘은 영 안 풀린다.', '하기 싫은 마음이 컸다.'],
+};
+const REST_TEXT = ['늦잠을 실컷 잤다.', '뒹굴뒹굴, 아무것도 안 했다.', '맛있는 걸 먹고 푹 쉬었다.', '몸이 한결 가볍다.'];
+
+function weekText(s: GameState, a: Activity, o: Outcome, w: number): string {
+  if (a.safe) return a.id === 'rest' ? REST_TEXT[w] : ['신나게 놀았다!', '기분이 확 풀렸다.', '마음이 편해졌다.', '재미있는 한 주였다.'][w];
+  if (o !== 'great' && s.fatigue >= 75) return '몸이 무거워 힘들었다…';
+  const pool = WEEK_TEXT[o];
+  return pool[Math.floor(next(s) * pool.length)].replace('{act}', `${a.name}에 빠져`);
+}
+
 /** 활동이 적어 둔 수치를 실제로 얼마나 올릴지. 12년(144달)에 맞춘 값 */
 const STAT_SCALE = 0.55;
 const FIELD_SCALE = 0.6;
@@ -176,12 +210,19 @@ function applyEffect(s: GameState, e: Effect, mult = 1) {
   for (const [k, v] of Object.entries(e.fields ?? {}) as [FieldKey, number][]) {
     s.fields[k] = clamp(s.fields[k] + (v > 0 ? v * FIELD_SCALE * mult : v), 0, 100);
   }
-  if (e.money) s.money = Math.max(0, s.money + (e.money > 0 ? Math.round(e.money * mult) : e.money));
+  if (e.money) addMoney(s, e.money > 0 ? Math.round(e.money * mult) : e.money);
   if (e.fatigue) s.fatigue += e.fatigue;
   if (e.stress) s.stress += e.stress;
   if (e.mood) s.mood += e.mood;
   if (e.bold) s.bold += e.bold;
   clampCond(s);
+}
+
+/** 돈이 오가면 용돈 기입장에도 적는다 */
+function addMoney(s: GameState, n: number) {
+  if (n > 0) s.year.income += n;
+  else if (n < 0) s.year.spend += Math.min(-n, s.money);
+  s.money = Math.max(0, s.money + n);
 }
 
 function clampCond(s: GameState) {
@@ -233,7 +274,9 @@ export type ActResult =
 function blocked(s: GameState): string | null {
   if (s.ending) return '이미 끝난 이야기예요';
   if (s.turn >= TOTAL_TURNS) return '졸업했어요';
+  if (s.reviewPending) return '먼저 한 해를 돌아봐요';
   if (s.pending) return '먼저 일어난 일을 골라 주세요';
+  if (s.quiz) return '먼저 퀴즈를 풀어 주세요';
   if (s.mode === 'raise' && s.tokens <= 0) return '행동력이 다시 찰 때까지 기다려요';
   return null;
 }
@@ -254,16 +297,35 @@ export function doActivity(prev: GameState, placeId: PlaceId, actId: string): Ac
   const grade = calendar(s.turn).gradeLabel;
   const lines: string[] = [];
 
-  if (act.cost) s.money -= act.cost;
+  if (act.cost) addMoney(s, -act.cost);
 
-  /* 결과 판정 */
-  const o = odds(s, act);
-  const r = next(s);
-  const outcome: Outcome = act.safe ? 'ok' : r < o.fail ? 'fail' : r < o.fail + o.great ? 'great' : 'ok';
+  /* 4주 — 주마다 그때의 컨디션으로 판정한다. 지치면 뒤로 갈수록 실패가 잦다 */
+  const weeks: WeekLog[] = [];
+  const quarter: Effect = {
+    stats: scaleRec(act.stats, 0.25), fields: scaleRec(act.fields, 0.25),
+    fatigue: (act.fatigue ?? 0) / 4, stress: (act.stress ?? 0) / 4, mood: (act.mood ?? 0) / 4, bold: (act.bold ?? 0) / 4,
+  };
+  for (let w = 0; w < 4; w++) {
+    const o = odds(s, act);
+    const r = next(s);
+    const wo: Outcome = act.safe ? 'ok' : r < o.fail ? 'fail' : r < o.fail + o.great ? 'great' : 'ok';
+    applyEffect(s, quarter, MULT[wo]);
+    weeks.push({ outcome: wo, text: weekText(s, act, wo, w) });
+  }
+  const greats = weeks.filter((w) => w.outcome === 'great').length;
+  const fails = weeks.filter((w) => w.outcome === 'fail').length;
+  const outcome: Outcome = act.safe ? 'ok' : fails >= 2 ? 'fail' : greats >= 2 && fails === 0 ? 'great' : 'ok';
   const mult = MULT[outcome];
-  applyEffect(s, act, mult);
+  if (act.money) addMoney(s, Math.round(act.money * mult));
   if (outcome === 'great') s.mood = clamp(s.mood + 6, 0, 100);
   if (outcome === 'fail') { s.stress = clamp(s.stress + 6, 0, 100); s.mood = clamp(s.mood - 6, 0, 100); }
+
+  /* 올해 기록 */
+  s.year.acts[act.id] = (s.year.acts[act.id] ?? 0) + 1;
+  s.year.places[placeId] = (s.year.places[placeId] ?? 0) + 1;
+  if (act.id === 'rest') s.year.rests += 1;
+  if (outcome === 'great') s.year.greats += 1;
+  if (outcome === 'fail') s.year.fails += 1;
 
   /* 특수 활동 */
   let counsel: TurnReport['counsel'];
@@ -321,7 +383,7 @@ export function doActivity(prev: GameState, placeId: PlaceId, actId: string): Ac
     ok: true,
     state: s,
     report: {
-      when, place: placeId, act: actId, outcome,
+      when, place: placeId, act: actId, outcome, weeks,
       delta: diff(before, snap(s)),
       lines,
       counsel,
@@ -343,6 +405,7 @@ export function restSick(prev: GameState): ActResult {
   s.fatigue = clamp(s.fatigue - 45, 0, 100);
   s.stress = clamp(s.stress - 20, 0, 100);
   s.mood = clamp(s.mood - 5, 0, 100);
+  s.year.sick += 1;
   const lines = ['한 달 동안 앓아누웠다. 무리하지 말자.'];
   const rest = endMonth(s, lines);
   return { ok: true, state: s, report: { when, outcome: 'sick', delta: diff(before, snap(s)), lines, ...rest } };
@@ -366,7 +429,7 @@ function endMonth(s: GameState, lines: string[]): Pick<TurnReport, 'exam' | 'yea
   if (s.stress >= 70) s.mood -= 4;
   clampCond(s);
 
-  s.money += ALLOWANCE[cal.stage];
+  addMoney(s, ALLOWANCE[cal.stage]);
 
   /* 시험 — 초4부터 7월·12월 */
   if (cal.grade >= 3 && (cal.month === 7 || cal.month === 12)) {
@@ -386,7 +449,21 @@ function endMonth(s: GameState, lines: string[]): Pick<TurnReport, 'exam' | 'yea
       const d = s.stats[k] - s.yearStart[k];
       if (d >= 0.5) delta[k] = d;
     }
-    out.yearEnd = { grade: cal.gradeLabel, delta };
+    /* 한 해 요약 — 돌아보기 질문 보기는 올해 많이 한 활동 넷 */
+    const choices = Object.entries(s.year.acts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([id]) => id);
+    const summary: YearSummary = {
+      ...s.year,
+      grade: cal.gradeLabel,
+      money: s.money,
+      exam: s.lastExam && s.lastExam.grade === cal.gradeLabel ? s.lastExam.score : null,
+      tips: yearTips(s.year, s),
+      choices,
+      favorite: null,
+    };
+    s.history.push(summary);
+    s.year = emptyYear();
+    s.reviewPending = choices.length > 0;
+    out.yearEnd = { grade: cal.gradeLabel, delta, summary };
     s.yearStart = { ...s.stats };
   }
 
@@ -425,6 +502,11 @@ function pickEvent(s: GameState): string | null {
   const fe = FRIEND_EVENTS.find((e) => s.friends[e.friend] >= FRIEND_LEVELS[e.level] && s.eventSeen[e.id] === undefined);
   if (fe) { s.eventSeen[fe.id] = s.turn; return fe.id; }
   if (next(s) >= EVENT_CHANCE) return null;
+  /* 직업 퀴즈 — 사건 대신 */
+  if (cal.grade >= 2 && next(s) < QUIZ_CHANCE) {
+    s.quiz = makeQuiz(s, () => next(s));
+    return null;
+  }
   const pool = EVENTS.filter((e) => e.when?.(s, cal)
     && (s.eventSeen[e.id] === undefined || s.turn - s.eventSeen[e.id] >= (e.cooldown ?? EVENT_COOLDOWN)));
   if (!pool.length) return null;
@@ -437,6 +519,57 @@ function pickEvent(s: GameState): string | null {
   const last = pool[pool.length - 1];
   s.eventSeen[last.id] = s.turn;
   return last.id;
+}
+
+/* ── 직업 퀴즈 ── */
+export type QuizResult =
+  | { ok: true; state: GameState; correct: boolean; text: string; delta: Delta }
+  | { ok: false; reason: string };
+
+export function answerQuiz(prev: GameState, idx: number): QuizResult {
+  const q = prev.quiz;
+  if (!q) return { ok: false, reason: '풀 퀴즈가 없어요' };
+  if (idx < 0 || idx > 3) return { ok: false, reason: '없는 보기예요' };
+  const s = clone(prev);
+  const before = snap(s);
+  const correct = idx === q.answer;
+  const c = careerById(q.careerId);
+  s.year.quizTotal += 1;
+  if (correct) {
+    s.year.quizRight += 1;
+    s.mood = clamp(s.mood + 4, 0, 100);
+    if (c?.field) s.fields[c.field] = clamp(s.fields[c.field] + 2, 0, 100);
+  }
+  if (!s.known.includes(q.careerId)) s.known.push(q.careerId);
+  s.quiz = null;
+  const head = correct ? '정답!' : `아쉬워요. 정답은 “${q.options[q.answer]}”.`;
+  return { ok: true, state: s, correct, text: `${head} ${quizExplain(q)}`, delta: diff(before, snap(s)) };
+}
+
+/* ── 학년 돌아보기 — “올해 가장 즐거웠던 일은?” ── */
+export type ReviewResult = { ok: true; state: GameState; text: string } | { ok: false; reason: string };
+
+export function reflect(prev: GameState, idx: number): ReviewResult {
+  if (!prev.reviewPending) return { ok: false, reason: '돌아볼 해가 없어요' };
+  const last = prev.history[prev.history.length - 1];
+  const id = last?.choices[idx];
+  if (!id) return { ok: false, reason: '없는 보기예요' };
+  const s = clone(prev);
+  const y = s.history[s.history.length - 1];
+  y.favorite = id;
+  s.reviewPending = false;
+  const act = findAct(id);
+  s.mood = clamp(s.mood + 3, 0, 100);
+  /* 좋아한 일을 알아차리면 그 분야 관심이 조금 더 자란다 */
+  const f = act && (Object.entries(act.fields ?? {}) as [FieldKey, number][]).sort((a, b) => b[1] - a[1])[0];
+  if (f) s.fields[f[0]] = clamp(s.fields[f[0]] + 2, 0, 100);
+  return { ok: true, state: s, text: fill(`${act?.emoji ?? ''} “${act?.name ?? id}” — {name:이가} 즐거워한 일을 기억해 둘게요.`, s.name) };
+}
+
+/** 활동 id로 활동 찾기(학교급 상관없이) */
+export function findAct(id: string): Activity | undefined {
+  for (const p of PLACES) for (const st of p.stages) for (const a of st.acts) if (a.id === id) return a;
+  return undefined;
 }
 
 export function pendingEvent(s: GameState): GameEvent | null {

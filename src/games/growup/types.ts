@@ -97,8 +97,51 @@ export interface Ending {
   score: number;
 }
 
+/** 학년 하나 동안 모으는 기록 — 돌아보기와 진로 리포트의 재료 */
+export interface YearStats {
+  /** 들어온 돈·나간 돈(만원) — 용돈 기입장 */
+  income: number;
+  spend: number;
+  /** 활동 id → 횟수 */
+  acts: Record<string, number>;
+  places: Partial<Record<PlaceId, number>>;
+  rests: number;
+  greats: number;
+  fails: number;
+  sick: number;
+  quizRight: number;
+  quizTotal: number;
+}
+
+export interface YearSummary extends YearStats {
+  grade: string;
+  /** 학년 끝에 남은 돈 */
+  money: number;
+  exam: number | null;
+  /** 돌아보기 조언 */
+  tips: string[];
+  /** 돌아보기 질문 “올해 가장 즐거웠던 일은?”의 보기(활동 id)와 고른 답 */
+  choices: string[];
+  favorite: string | null;
+}
+
+/** 직업 퀴즈 — 보기 4개, 버튼 ①~④로 답한다 */
+export interface Quiz {
+  careerId: string;
+  kind: 'job' | 'field' | 'subject';
+  question: string;
+  options: [string, string, string, string];
+  answer: number;
+}
+
+/** 한 달을 4주로 — 주마다 결과가 따로 난다 */
+export interface WeekLog {
+  outcome: Outcome;
+  text: string;
+}
+
 export interface GameState {
-  v: 3;
+  v: 4;
   name: string;
   look: Look;
   mode: Mode;
@@ -120,6 +163,15 @@ export interface GameState {
   awards: Award[];
   /** 친구별 친밀도 0~100 */
   friends: Record<FriendId, number>;
+  /** 올해 기록과 지난 학년들의 요약 */
+  year: YearStats;
+  history: YearSummary[];
+  /** 학년이 끝나 돌아보기 질문에 답해야 한다 */
+  reviewPending: boolean;
+  /** 답을 기다리는 직업 퀴즈 */
+  quiz: Quiz | null;
+  /** 퀴즈·체험으로 알게 된 직업 */
+  known: string[];
   /** 아파서 이번 달은 쉬어야 한다 */
   sick: boolean;
   /** 고르기를 기다리는 사건 id */
@@ -159,8 +211,10 @@ export interface TurnReport {
   lines: string[];
   exam?: ExamResult;
   award?: Award;
-  /** 학년이 끝났으면 그 학년과 능력치 변화 */
-  yearEnd?: { grade: string; delta: Partial<Record<StatKey, number>> };
+  /** 4주 동안의 기록 */
+  weeks?: WeekLog[];
+  /** 학년이 끝났으면 그 학년과 능력치 변화, 한 해 요약 */
+  yearEnd?: { grade: string; delta: Partial<Record<StatKey, number>>; summary: YearSummary };
   /** 진로 상담 결과 */
   counsel?: { field: FieldKey; value: number }[];
 }

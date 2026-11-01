@@ -232,9 +232,12 @@
   padding: 10px 10px calc(20px + env(safe-area-inset-bottom));
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-areas: 'town' 'status' 'stats';
+  grid-template-areas: 'stage' 'side';
   gap: 10px;
 }
+.gu-stage { grid-area: stage; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+.gu-side { grid-area: side; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+.gu-side h3 { font-size: 0.76rem; font-weight: 900; color: var(--gu-sub); letter-spacing: 0.06em; margin: 0; }
 .gu-town { grid-area: town; }
 .gu-status { grid-area: status; }
 .gu-stats { grid-area: stats; }
@@ -670,16 +673,245 @@
 
 @media (min-width: 900px) {
   .gu-main {
-    grid-template-columns: 1fr 340px;
-    grid-template-areas: 'town status' 'town stats';
-    grid-template-rows: auto 1fr;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    grid-template-areas: 'stage side';
     align-items: start;
     padding-top: 14px;
   }
-  .gu-town { position: sticky; top: 0; }
+  .gu-side { position: sticky; top: 0; }
 }
 
 @media (hover: hover) and (pointer: fine) {
   .gu-place:hover, .gu-act:not(.off):hover, .gu-option:not(.off):hover, .gu-cand:hover, .gu-choice:hover,
   .gu-primary:hover, .gu-ghost:hover { filter: brightness(1.12); }
+}
+
+
+/* ══ 진행 화면 v4 — HUD · 대화창 · 명령 패널 ══ */
+.gu-hud { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.gu-dim { font-style: normal; opacity: 0.25; filter: grayscale(1); }
+
+/* 프린세스 메이커식 대화창 — 초상 + 이름 + 한마디 */
+.gu-dialog {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px 6px 6px;
+  border: 3px solid var(--gu-ink);
+  border-radius: 4px;
+  background: linear-gradient(#fffdf6, #f1ead8);
+  color: #2a2230;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.08);
+}
+.gu-dialog-body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.gu-dialog-body b { font-size: 0.78rem; color: #8a5a20; }
+.gu-dialog-body p { margin: 0; font-size: 0.92rem; font-weight: 800; line-height: 1.35; }
+
+/* 초상 틀 */
+.gu-portrait {
+  flex-shrink: 0;
+  display: grid;
+  place-items: end center;
+  overflow: hidden;
+  border: 3px solid var(--gu-ink);
+  border-radius: 4px;
+  background: linear-gradient(#7ec4f8 0 74%, #5cb04a 74% 80%, #8a5a35 80%);
+}
+.gu-portrait.img { place-items: center; background: linear-gradient(#ffe9c8, #ffd3a0); }
+.gu-portrait img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.gu-portrait.tiny img { image-rendering: pixelated; image-rendering: crisp-edges; }
+.gu-portrait.sick { filter: saturate(0.6); }
+.gu-portrait.xs { width: 34px; height: 44px; border-width: 2px; }
+.gu-portrait.sm { width: 58px; height: 72px; }
+.gu-portrait.md { width: 84px; height: 104px; }
+.gu-portrait.lg { width: 112px; height: 140px; }
+.gu-portrait canvas { image-rendering: pixelated; max-width: 100%; max-height: 100%; }
+
+/* 명령 패널 */
+.gu-cmd {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 4px;
+  background: var(--gu-card-2);
+  border: 3px solid var(--gu-ink);
+  box-shadow: var(--gu-bevel);
+  animation: gu-rise 0.16s ease-out;
+}
+.gu-cmd.good { background: color-mix(in srgb, #ffc23d 14%, var(--gu-card-2)); }
+.gu-cmd.bad { background: color-mix(in srgb, #5a6a9a 22%, var(--gu-card-2)); }
+.gu-cmd-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gu-cmd-title { margin: 0; font-size: 1rem; font-weight: 900; }
+.gu-cmd-title small { font-size: 0.72rem; color: var(--gu-sub); font-weight: 700; margin-left: 6px; }
+.gu-cmd-title.result.great { color: var(--gu-accent); text-shadow: 2px 2px 0 var(--gu-ink); font-size: 1.25rem; }
+.gu-cmd-title.result.fail { color: var(--gu-down); font-size: 1.15rem; }
+.gu-cmd-text { margin: 0; font-size: 0.84rem; color: var(--gu-sub); line-height: 1.5; }
+.gu-cmd-text.big { font-size: 0.95rem; color: var(--gu-text); }
+.gu-cmd-text.center { text-align: center; padding: 18px 0; }
+.gu-cmd-line { margin: 0; font-size: 0.86rem; line-height: 1.5; }
+.gu-cmd-box {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 3px;
+  background: var(--gu-ink);
+  font-size: 0.84rem;
+}
+.gu-cmd-box small { color: var(--gu-sub); font-size: 0.76rem; }
+.gu-back { min-height: 36px; padding: 0 10px; border-radius: 4px; background: var(--gu-ink); color: var(--gu-sub); font-size: 0.78rem; font-weight: 800; }
+.gu-anykey {
+  align-self: stretch;
+  min-height: 46px;
+  border: 3px solid var(--gu-ink);
+  border-radius: 4px;
+  background: var(--gu-accent);
+  color: #2a1a00;
+  font-weight: 900;
+  font-size: 0.9rem;
+  box-shadow: var(--gu-bevel), 0 3px 0 var(--gu-ink);
+}
+.gu-anykey span { display: inline-block; animation: gu-nudge 0.9s steps(2) infinite; }
+@keyframes gu-nudge { 50% { transform: translateX(3px); } }
+.gu-anykey:active { transform: translateY(3px); box-shadow: var(--gu-bevel); }
+.gu-choice-emoji { font-size: 1.4rem; line-height: 1; }
+.gu-choice.off { opacity: 0.45; }
+
+/* 4주 진행 */
+.gu-weeks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.gu-weeks li {
+  display: grid;
+  grid-template-columns: 34px 22px 1fr;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  background: var(--gu-ink);
+  font-size: 0.86rem;
+  opacity: 0.4;
+}
+.gu-weeks li.on { opacity: 1; animation: gu-pop 0.25s ease-out; }
+@keyframes gu-pop { from { transform: scale(0.96); } }
+.gu-week-n { font-size: 0.72rem; color: var(--gu-sub); font-weight: 900; }
+.gu-week-icon { font-weight: 900; text-align: center; }
+.gu-weeks li.on.great .gu-week-icon { color: var(--gu-accent); }
+.gu-weeks li.on.fail .gu-week-icon { color: var(--gu-down); }
+.gu-weeks li.on.ok .gu-week-icon { color: var(--gu-up); }
+
+/* 학년 돌아보기 */
+.gu-year-card { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; background: var(--gu-ink); border-radius: 3px; }
+.gu-ledger { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; font-size: 0.76rem; color: var(--gu-sub); }
+.gu-ledger b { display: block; font-size: 1rem; color: var(--gu-text); }
+.gu-place-mix { display: flex; height: 22px; border-radius: 2px; overflow: hidden; border: 2px solid #000; }
+.gu-place-mix span { display: grid; place-items: center; font-size: 0.7rem; min-width: 0; overflow: hidden; }
+.gu-tips { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; line-height: 1.5; }
+
+/* 옆 단 */
+.gu-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.gu-tabs button {
+  min-height: 38px;
+  border: 3px solid var(--gu-ink);
+  border-radius: 4px;
+  background: var(--gu-card-2);
+  color: var(--gu-sub);
+  font-weight: 900;
+  font-size: 0.8rem;
+}
+.gu-tabs button.on { background: var(--gu-accent); color: #2a1a00; }
+.gu-friends li { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto auto; column-gap: 8px; align-items: center; }
+.gu-friends li .gu-pixel { grid-row: 1 / span 3; }
+.gu-friends li small { grid-column: 2; font-size: 0.7rem; line-height: 1.35; }
+.gu-log { display: flex; flex-direction: column; gap: 8px; }
+.gu-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 0.8rem; }
+.gu-link.inline { min-height: 0; padding: 0 0 0 6px; font-size: 0.72rem; color: var(--gu-accent); }
+
+/* 진로 리포트 */
+.gu-report { padding: 10px; background: var(--gu-card-2); border-radius: 4px; border: 3px solid var(--gu-ink); }
+.gu-report p { margin: 0; font-size: 0.86rem; line-height: 1.5; }
+.gu-report-riasec { display: grid; grid-template-columns: 170px 1fr; gap: 8px; align-items: center; }
+.gu-riasec { width: 100%; height: auto; }
+.gu-riasec .grid { fill: none; stroke: rgba(255, 255, 255, 0.14); stroke-width: 1; }
+.gu-riasec .value { fill: rgba(255, 194, 61, 0.35); stroke: var(--gu-accent); stroke-width: 2; }
+.gu-riasec text { fill: var(--gu-text); font-size: 10px; font-weight: 800; }
+.gu-timeline { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.gu-timeline li { display: flex; flex-direction: column; align-items: center; padding: 4px 0; background: var(--gu-ink); border-radius: 3px; }
+.gu-timeline span { font-size: 0.64rem; color: var(--gu-sub); font-weight: 800; }
+.gu-timeline b { font-size: 1.1rem; }
+.gu-end-hero h2 { font-size: 1.3rem; }
+
+/* 초상 바꾸기 */
+.gu-portraits { max-width: 620px; }
+.gu-sub { font-size: 0.8rem; font-weight: 900; color: var(--gu-sub); }
+.gu-presets { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.gu-preset {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 2px;
+  border: 3px solid var(--gu-ink);
+  border-radius: 4px;
+  background: linear-gradient(#ffe9c8, #ffd3a0);
+  color: #3a2410;
+}
+.gu-preset img, .gu-preset canvas { width: 100%; max-width: 56px; aspect-ratio: 1; image-rendering: pixelated; object-fit: contain; }
+.gu-preset small { font-size: 0.66rem; font-weight: 900; }
+.gu-preset.on { outline: 3px solid var(--gu-accent); outline-offset: 1px; }
+.gu-current { display: flex; align-items: center; gap: 10px; }
+.gu-portrait-img { width: 56px; height: 56px; object-fit: contain; image-rendering: pixelated; background: #ffe9c8; border: 3px solid var(--gu-ink); border-radius: 4px; }
+.gu-more summary { cursor: pointer; font-size: 0.82rem; font-weight: 800; color: var(--gu-sub); padding: 6px 0; }
+.gu-pt-table { border-collapse: separate; border-spacing: 4px; font-size: 0.7rem; }
+.gu-pt-table th { color: var(--gu-sub); font-weight: 800; }
+.gu-pt-table td { position: relative; }
+.gu-pt-slot { display: grid; place-items: center; width: 40px; height: 50px; border: 2px dashed rgba(255, 255, 255, 0.2); border-radius: 3px; overflow: hidden; }
+.gu-pt-slot.has { border-style: solid; border-color: var(--gu-accent); }
+.gu-pt-slot img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+.gu-pt-del { position: absolute; top: -4px; right: -4px; width: 20px; height: 20px; border-radius: 50%; background: var(--gu-down); color: #fff; font-size: 0.6rem; }
+.gu-muted code { font-size: 0.7rem; }
+
+/* 픽셀 편집기 */
+.gu-editor { display: flex; flex-direction: column; gap: 10px; }
+.gu-editor-top { display: flex; gap: 10px; align-items: flex-start; }
+.gu-editor-canvas {
+  width: min(320px, 100%);
+  aspect-ratio: 1;
+  height: auto;
+  border: 3px solid var(--gu-ink);
+  border-radius: 3px;
+  touch-action: none;
+  cursor: crosshair;
+  image-rendering: pixelated;
+}
+.gu-editor-preview { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.gu-editor-big { width: 96px; height: 96px; image-rendering: pixelated; background: linear-gradient(#ffe9c8, #ffd3a0); border: 3px solid var(--gu-ink); border-radius: 4px; }
+.gu-editor-small { width: 32px; height: 32px; image-rendering: pixelated; background: #ffe9c8; border: 2px solid var(--gu-ink); }
+.gu-editor-tools { display: flex; flex-wrap: wrap; gap: 4px; }
+.gu-editor-tools button, .gu-mini {
+  min-height: 36px;
+  padding: 0 9px;
+  border: 2px solid var(--gu-ink);
+  border-radius: 4px;
+  background: var(--gu-card-2);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.gu-editor-tools button.on, .gu-mini.on { background: var(--gu-accent); color: #2a1a00; }
+.gu-editor-tools button:disabled { opacity: 0.4; }
+.gu-palette { display: grid; grid-template-columns: repeat(11, 1fr); gap: 4px; }
+.gu-palette button, .gu-palette-custom span { display: block; aspect-ratio: 1; width: 100%; border: 2px solid var(--gu-ink); border-radius: 3px; }
+.gu-palette button.on { outline: 3px solid #fff; outline-offset: 1px; }
+.gu-palette-custom { position: relative; cursor: pointer; }
+.gu-palette-custom input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.gu-palette-custom span { background-image: linear-gradient(45deg, transparent 40%, rgba(255,255,255,0.6) 40% 60%, transparent 60%); }
+.gu-editor-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+
+@media (max-width: 520px) {
+  .gu-editor-top { flex-direction: column; align-items: stretch; }
+  .gu-editor-preview { flex-direction: row; }
+  .gu-presets { grid-template-columns: repeat(4, 1fr); }
+  .gu-report-riasec { grid-template-columns: 1fr; }
+  .gu-riasec { max-width: 220px; margin: 0 auto; }
 }
