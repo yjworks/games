@@ -156,6 +156,7 @@ export default defineConfig(({ mode }) => ({
         breakout: resolve(__dirname, 'games/breakout/index.html'),
         yut: resolve(__dirname, 'games/yut/index.html'),
         samguk: resolve(__dirname, 'games/samguk/index.html'),
+        growup: resolve(__dirname, 'games/growup/index.html'),
       },
     },
   },

@@ -232,6 +232,21 @@ const MARKS: Record<GameId, JSX.Element> = {
       <text x="24" y="28.2" textAnchor="middle" fontSize="10" fontWeight="800" fill="#f3d79a">天</text>
     </>
   ),
+  growup: (
+    <>
+      <Bg fill="#2a2238" />
+      {/* 새싹 머리를 한 아이 */}
+      <path d="M24 15 C24 10 21 7 16 7 C16 11 19 14 24 15 Z" fill="#6fdc94" />
+      <path d="M24 15 C24 9 28 6 33 6 C33 11 29 14 24 15 Z" fill="#4fbf6b" />
+      <line x1="24" y1="15" x2="24" y2="19" stroke="#4fbf6b" strokeWidth="1.6" />
+      <circle cx="24" cy="30" r="12" fill="#ffd9bf" />
+      <path d="M12 30 C12 17 36 17 36 30 C33 24 28 23 24 26 C20 23 15 24 12 30 Z" fill="#7a4a2a" />
+      <path d="M19 31 Q20.5 29 22 31 M26 31 Q27.5 29 29 31" stroke="#2a2230" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+      <path d="M21 35 Q24 38 27 35" stroke="#c94a5a" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+      <circle cx="17.5" cy="34" r="1.8" fill="#ff9aa8" opacity="0.7" />
+      <circle cx="30.5" cy="34" r="1.8" fill="#ff9aa8" opacity="0.7" />
+    </>
+  ),
 };
 
 export function GameMark({ id, size = 46, className }: Props) {
