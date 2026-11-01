@@ -2,6 +2,7 @@ import { TOTAL_TURNS, calendar, whenLabel } from './calendar';
 import { CAREERS, Career, careerById } from './careers';
 import { ALLOWANCE, FIELD_KEYS, FIELD_LABEL, STAT_KEYS, placeById } from './data';
 import { EVENTS, GameEvent, eventById } from './events';
+import { FRIENDS, FRIEND_EVENTS, FRIEND_LEVELS, FRIEND_MET } from './friends';
 import {
   Activity, Award, CareerScore, Delta, Effect, ExamResult, FieldKey, Four, GameState, Look, Mode,
   Outcome, Place, PlaceId, PlaceStage, StatKey, TurnReport,
@@ -40,6 +41,11 @@ function hasBatchim(word: string): boolean {
 const PAIRS: Record<string, [string, string]> = {
   이가: ['이', '가'], 은는: ['은', '는'], 을를: ['을', '를'], 와과: ['과', '와'], 아야: ['아', '야'],
 };
+/** 낱말에 받침에 맞는 조사를 붙인다 — josa('민준', '와과') → '민준과' */
+export function josa(word: string, pair: keyof typeof PAIRS): string {
+  const [withB, without] = PAIRS[pair];
+  return word + (hasBatchim(word) ? withB : without);
+}
 /** "{name:이가}" 같은 자리에 이름과 맞는 조사를 넣는다 */
 export function fill(text: string, name: string): string {
   return text.replace(/\{name(?::(이가|은는|을를|와과|아야))?\}/g, (_m, p?: string) => {
@@ -63,7 +69,7 @@ const zeroStats = (v: number): Record<StatKey, number> =>
 
 export function newGame({ name, look, mode, seed, now = Date.now() }: NewGameOpts): GameState {
   const s: GameState = {
-    v: 2,
+    v: 3,
     name: name.trim() || '하늘',
     look,
     mode,
@@ -80,6 +86,7 @@ export function newGame({ name, look, mode, seed, now = Date.now() }: NewGameOpt
     stageVisits: {},
     flags: [],
     awards: [],
+    friends: { minjun: 0, seoyeon: 0, doyun: 0, haeun: 0 },
     sick: false,
     pending: null,
     eventSeen: {},
@@ -275,6 +282,21 @@ export function doActivity(prev: GameState, placeId: PlaceId, actId: string): Ac
 
   if (act.flag && outcome !== 'fail' && !s.flags.includes(act.flag)) s.flags.push(act.flag);
 
+  /* 친구 — 같은 걸 좋아하는 친구, 같은 곳에 있는 친구와 가까워진다 */
+  for (const f of FRIENDS) {
+    let g = 0;
+    if (f.fields.some((k) => (act.fields?.[k] ?? 0) > 0 || act.contest === k)) g += 2.5;
+    if (f.place === placeId) g += 0.5;
+    if (act.id === 'play') g += 2;
+    if (outcome === 'fail') g /= 2;
+    if (!g) continue;
+    const was = s.friends[f.id];
+    s.friends[f.id] = clamp(was + g, 0, 100);
+    if (was < FRIEND_MET && s.friends[f.id] >= FRIEND_MET) {
+      lines.push(`${f.emoji} ${josa(f.name, '와과')} 알게 됐다. ${f.intro}`);
+    }
+  }
+
   /* 대회 */
   let award: Award | undefined;
   if (act.contest) {
@@ -399,6 +421,9 @@ function pickEvent(s: GameState): string | null {
   const cal = calendar(s.turn);
   const fixed = EVENTS.find((e) => e.fixed?.(s, cal));
   if (fixed) { s.eventSeen[fixed.id] = s.turn; return fixed.id; }
+  /* 친구와 가까워진 달에는 친구 사건이 먼저 */
+  const fe = FRIEND_EVENTS.find((e) => s.friends[e.friend] >= FRIEND_LEVELS[e.level] && s.eventSeen[e.id] === undefined);
+  if (fe) { s.eventSeen[fe.id] = s.turn; return fe.id; }
   if (next(s) >= EVENT_CHANCE) return null;
   const pool = EVENTS.filter((e) => e.when?.(s, cal)
     && (s.eventSeen[e.id] === undefined || s.turn - s.eventSeen[e.id] >= (e.cooldown ?? EVENT_COOLDOWN)));
@@ -435,6 +460,8 @@ export function resolveEvent(prev: GameState, optIdx: number): EventResult {
     const top = topFields(s, 1)[0];
     s.fields[top.field] = clamp(s.fields[top.field] + 6, 0, 100);
   }
+  const fe = FRIEND_EVENTS.find((e) => e.id === ev.id);
+  if (fe) s.friends[fe.friend] = clamp(s.friends[fe.friend] + 5, 0, 100);
   s.pending = null;
   const text = opt.special === 'talk' ? talkLine(s) : fill(opt.result, s.name);
   return { ok: true, state: s, text, delta: diff(before, snap(s)) };
@@ -537,6 +564,8 @@ export function scoreCareer(s: GameState, c: Career): CareerScore | null {
   const fieldPart = c.field ? s.fields[c.field] : clamp(40 - s.bold, 0, 80);
   let score = st * 0.65 + fieldPart * 0.35 + awardBonus(s, c.field);
   if (c.kind === '창업' && s.flags.includes('mentor')) score += 4;
+  /* 단짝의 응원 — 같은 분야를 좋아하는 단짝이 있으면 조금 더 */
+  if (c.field && FRIENDS.some((f) => s.friends[f.id] >= FRIEND_LEVELS[1] && f.fields.includes(c.field!))) score += 3;
   score = Math.round(clamp(score, 0, 100));
   const tier: 1 | 2 | 3 = score >= TIER3 ? 3 : score >= TIER2 ? 2 : 1;
   return { careerId: c.id, score, tier };

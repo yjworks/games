@@ -1,21 +1,23 @@
-import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GameShell } from '../../shared/react/GameShell';
 import { gameById } from '../../shared/registry';
 import { growupTutorial } from './tutorial';
 import { useGrow } from './store';
-import { Character } from './Character';
+import { PixelAvatar } from './PixelAvatar';
+import { WorldEffect, WorldView } from './WorldView';
 import { TOTAL_TURNS, calendar } from './calendar';
 import { CAREERS, careerById } from './careers';
 import {
   FIELD_EMOJI, FIELD_LABEL, HAIR_COLORS, HAIR_STYLES, PLACES, STAT_COLOR, STAT_KEYS, STAT_LABEL, placeById,
 } from './data';
 import {
-  CHARGE_MS, MAX_TOKENS, actStatus, actsOf, bubble, candidates, expression, fill, nextChargeIn, odds, pendingEvent,
+  CHARGE_MS, MAX_TOKENS, actStatus, actsOf, bubble, candidates, expression, fill, josa, nextChargeIn, odds, pendingEvent,
   placeStage, topFields,
 } from './engine';
+import { FRIENDS, FRIEND_LEVELS, FRIEND_MET } from './friends';
 import { Button, LAYER, useButtons } from './input';
 import {
-  Activity, Delta, FieldKey, GameState, Look, Mode, Place, PlaceId, StatKey, TurnReport,
+  Activity, Delta, FieldKey, FriendId, GameState, Look, Mode, Place, PlaceId, StatKey, TurnReport,
 } from './types';
 
 const meta = gameById('growup');
@@ -47,7 +49,7 @@ export default function App() {
 
 /* ══════════════ 공용 조각 ══════════════ */
 
-const NUM = ['①', '②', '③', '④'];
+const NUM = ['1', '2', '3', '4'];
 
 /** 버튼 번호 — 기기의 버튼 ①~④와 같은 자리 */
 function Num({ n }: { n: number }) {
@@ -96,13 +98,15 @@ function DeltaChips({ d }: { d: Delta }) {
   );
 }
 
-/** alert: 높으면 위험(high)인지 낮으면 위험(low)인지. 능력치 막대는 경고하지 않는다 */
-function Bar({ label, value, color, alert }: { label: string; value: number; color: string; alert?: 'high' | 'low' }) {
+/** 칸으로 나뉜 막대(블록 10칸). alert: 높으면 위험(high)인지 낮으면 위험(low)인지 */
+function Bar({ label, value, color, alert, icon }: { label: string; value: number; color: string; alert?: 'high' | 'low'; icon?: string }) {
   const warn = alert === 'high' ? value >= 75 : alert === 'low' ? value < 30 : false;
   return (
     <div className={`gu-bar ${warn ? 'warn' : ''}`}>
-      <span className="gu-bar-label">{label}</span>
-      <span className="gu-bar-track"><span className="gu-bar-fill" style={{ width: `${value}%`, background: color }} /></span>
+      <span className="gu-bar-label">{icon ? `${icon} ` : ''}{label}</span>
+      <span className="gu-bar-track" style={{ ['--bar' as string]: color }}>
+        <span className="gu-bar-fill" style={{ width: `${value}%` }} />
+      </span>
       <span className="gu-bar-num">{Math.round(value)}</span>
     </div>
   );
@@ -111,6 +115,14 @@ function Bar({ label, value, color, alert }: { label: string; value: number; col
 function Stars({ n }: { n: number }) {
   return <span className="gu-stars" aria-label={`${n}등급`}>{'★'.repeat(n)}<i>{'★'.repeat(3 - n)}</i></span>;
 }
+
+/** 친밀도 하트 — 30 친구, 70 단짝 */
+function Hearts({ v }: { v: number }) {
+  const n = v >= FRIEND_LEVELS[1] ? 3 : v >= FRIEND_LEVELS[0] ? 2 : v >= FRIEND_MET ? 1 : 0;
+  return <span className="gu-hearts" aria-label={`친밀도 ${Math.round(v)}`}>{'♥'.repeat(n)}<i>{'♥'.repeat(3 - n)}</i></span>;
+}
+
+const friendTitle = (v: number) => (v >= FRIEND_LEVELS[1] ? '단짝' : v >= FRIEND_LEVELS[0] ? '친구' : v >= FRIEND_MET ? '아는 사이' : '아직 몰라요');
 
 /* ══════════════ 시작 화면 ══════════════ */
 
@@ -134,13 +146,20 @@ function TitleScreen({ onDex }: { onDex: () => void }) {
     else if (b === 4) onDex();
   }, LAYER.screen, 'title', ['한 번에 키우기', '키우기 모드', '모습 바꾸기', '엔딩 도감']);
 
+  const month = new Date().getMonth() + 1;
+  const season = month >= 3 && month <= 5 ? '봄' : month >= 6 && month <= 8 ? '여름' : month >= 9 && month <= 11 ? '가을' : '겨울';
+
   return (
     <div className="gu-title center-scroll">
-      <div className="gu-title-card">
+      <div className="gu-title-world">
+        <WorldView stage={0} season={season} look={look} expr="happy" props={[]} trophies={0} friends={['seoyeon', 'doyun']}
+          at="home" rain={false} bubble={`안녕! 나는 ${name.trim() || '하늘'}`} labels={['집', '학교', '동네', '체험센터']} />
+      </div>
+      <div className="gu-title-card gu-panel">
         <div className="gu-title-hero">
-          <Character look={look} stage={0} expr="happy" size={110} />
+          <div className="gu-title-avatar"><PixelAvatar look={look} stage={0} expr="happy" scale={6} /></div>
           <div>
-            <h2>커서 뭐 될래?</h2>
+            <h2 className="gu-logo">커서 뭐 될래?</h2>
             {meta.lore.map((l) => <p key={l}>{l}</p>)}
           </div>
         </div>
@@ -170,7 +189,7 @@ function TitleScreen({ onDex }: { onDex: () => void }) {
         <div className="gu-four">
           <button className="gu-choice primary" onClick={() => go('classic')}>
             <Num n={1} />
-            <span className="gu-choice-body"><strong>⏩ 한 번에 키우기</strong><small>원하는 만큼 계속. 30~40분이면 졸업.</small></span>
+            <span className="gu-choice-body"><strong>한 번에 키우기</strong><small>원하는 만큼 계속. 30~40분이면 졸업.</small></span>
           </button>
           <button className="gu-choice" onClick={() => go('raise')}>
             <Num n={2} />
@@ -225,6 +244,10 @@ function MainScreen({ game }: { game: GameState }) {
 
   const [pops, setPops] = useState<Pop[]>([]);
   const [placeId, setPlaceId] = useState<PlaceId | null>(null);
+  /* 블록 마을에서 아이가 서 있는 곳 — 장소를 고르면 걸어간 뒤 활동 창이 열린다 */
+  const [at, setAt] = useState<PlaceId>('home');
+  const going = useRef<PlaceId | null>(null);
+  const [effect, setEffect] = useState<WorldEffect | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const raise = game.mode === 'raise';
   const now = useNow(raise);
@@ -267,19 +290,30 @@ function MainScreen({ game }: { game: GameState }) {
 
   const openPlace = (id: PlaceId) => {
     if (noToken) { setToast('⚡ 행동력이 차면 다시 움직일 수 있어요'); return; }
-    setPlaceId(id);
+    if (going.current) return; // 걸어가는 중
+    if (id === at) { setPlaceId(id); return; }
+    going.current = id;
+    setAt(id);
   };
+  const arrived = useCallback(() => {
+    const id = going.current;
+    going.current = null;
+    if (id) setPlaceId(id);
+  }, []);
 
   const doAct = (p: PlaceId, a: string) => {
     const res = act(p, a);
     if (!res.ok) { setToast(res.reason); return; }
     setPlaceId(null);
+    setEffect({ kind: res.report.outcome === 'sick' ? 'sick' : res.report.outcome, key: Date.now() });
     push({ kind: 'result', report: res.report });
   };
 
   const doRest = () => {
     const res = rest();
     if (!res.ok) { setToast(res.reason); return; }
+    setAt('home');
+    setEffect({ kind: 'sick', key: Date.now() });
     push({ kind: 'result', report: res.report });
   };
 
@@ -287,48 +321,78 @@ function MainScreen({ game }: { game: GameState }) {
     if (!ev) return;
     const res = choose(i);
     if (!res.ok) { setToast(res.reason); return; }
+    if (res.delta.mood > 0) setEffect({ kind: 'heart', key: Date.now() });
     push({ kind: 'eventResult', title: fill(ev.title, game.name), emoji: ev.emoji, text: res.text, delta: res.delta });
   };
 
   /* 기본 화면의 버튼: ①~④ = 장소 4곳. 아픈 달에는 어느 버튼이든 쉬기 */
+  const labels = PLACES.map((p) => placeStage(game, p).label);
   useButtons((b) => {
     if (b === 'back') return;
     if (game.sick) { doRest(); return; }
     openPlace(PLACES[b - 1].id);
-  }, LAYER.screen, game.sick ? 'sick' : 'places',
-  game.sick ? ['한 달 쉬기', '한 달 쉬기', '한 달 쉬기', '한 달 쉬기'] : PLACES.map((p) => placeStage(game, p).label));
+  }, LAYER.screen, game.sick ? 'sick' : 'places', game.sick ? ['한 달 쉬기', '한 달 쉬기', '한 달 쉬기', '한 달 쉬기'] : labels);
 
   const place = placeId ? placeById(placeId) ?? null : null;
   const counseled = game.counseledAt >= 0 && game.turn - game.counseledAt <= 12;
+  const props = topFields(game, 2).filter((t) => t.value >= 20).map((t) => t.field);
+  const trophies = game.awards.filter((a) => a.rank !== 'fail').length;
+  const met = FRIENDS.filter((f) => game.friends[f.id] >= FRIEND_MET).map((f) => f.id as FriendId);
 
   return (
     <div className="gu-main">
-      {/* ── 상태 ── */}
-      <section className="gu-status" aria-label="아이 상태">
-        <div className="gu-status-top">
-          <div className={`gu-avatar ${expr}`}>
-            <Character look={game.look} stage={cal.stage} expr={expr} size={92} />
-          </div>
-          <div className="gu-status-info">
-            <div className="gu-when">
-              <strong>{game.name}</strong>
-              <span className="gu-badge">{cal.gradeLabel} · {cal.month}월</span>
-              <span className={`gu-badge season ${cal.season}`}>{cal.season}{cal.vacation ? ' · 방학' : ''}</span>
-            </div>
-            <p className="gu-bubble">{bubble(game)}</p>
-            <div className="gu-wallet">
-              <span>💰 {game.money}만원</span>
-              <span className="gu-progress" title="졸업까지">
-                <span style={{ width: `${(game.turn / TOTAL_TURNS) * 100}%` }} />
-              </span>
-              <span className="gu-left">졸업까지 {TOTAL_TURNS - game.turn}달</span>
-            </div>
-          </div>
+      {/* ── 블록 마을 + 장소 버튼 ①~④ ── */}
+      <section className="gu-town gu-panel" aria-label="블록 마을">
+        <div className="gu-town-head">
+          <span className="gu-badge">{cal.gradeLabel} · {cal.month}월</span>
+          <span className={`gu-badge season ${cal.season}`}>{cal.season}{cal.vacation ? ' · 방학' : ''}</span>
+          <span className="gu-badge">💰 {game.money}만원</span>
+          <span className="gu-progress" title="졸업까지"><span style={{ width: `${(game.turn / TOTAL_TURNS) * 100}%` }} /></span>
+          <span className="gu-left">졸업까지 {TOTAL_TURNS - game.turn}달</span>
         </div>
-        <div className="gu-bars">
-          <Bar label="피로" value={game.fatigue} color="#f0a03c" alert="high" />
-          <Bar label="스트레스" value={game.stress} color="#e0505a" alert="high" />
-          <Bar label="기분" value={game.mood} color="#4fbf6b" alert="low" />
+        <WorldView
+          stage={cal.stage} season={cal.season} look={game.look} expr={expr}
+          props={props} trophies={trophies} friends={met}
+          at={at} onArrive={arrived} effect={effect} rain={game.stress >= 70}
+          bubble={bubble(game)} labels={labels}
+          onPlace={(p) => (game.sick ? doRest() : openPlace(p))}
+        />
+        {game.sick ? (
+          <button className="gu-sickbar" disabled={noToken} onClick={doRest}>
+            🤒 너무 무리했어요. <b>아무 버튼이나 눌러 한 달 쉬기</b>
+          </button>
+        ) : (
+          <div className="gu-place-row">
+            {PLACES.map((p, i) => {
+              const st = placeStage(game, p);
+              const v = game.stageVisits[p.id] ?? 0;
+              return (
+                <button key={p.id} className={`gu-place ${at === p.id ? 'here' : ''}`} style={{ ['--pc' as string]: p.color }}
+                  onClick={() => openPlace(p.id)}>
+                  <Num n={i + 1} />
+                  <span className="gu-place-emoji">{p.emoji}</span>
+                  <span className="gu-place-name">{st.label}</span>
+                  <span className="gu-place-sub">{v > 0 ? `단골 ${v}` : '처음'}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {noToken && <p className="gu-warn">⚡ 행동력이 차면 다시 움직일 수 있어요 · 다음 충전 {hms(wait || CHARGE_MS)}</p>}
+      </section>
+
+      {/* ── 아이 ── */}
+      <section className="gu-status gu-panel" aria-label="아이 상태">
+        <div className="gu-status-top">
+          <div className={`gu-avatar ${expr}`}><PixelAvatar look={game.look} stage={cal.stage} expr={expr} scale={4} /></div>
+          <div className="gu-status-info">
+            <strong className="gu-name">{game.name}</strong>
+            <div className="gu-bars">
+              <Bar label="피로" icon="⚡" value={game.fatigue} color="#f0a03c" alert="high" />
+              <Bar label="스트레스" icon="💢" value={game.stress} color="#e0505a" alert="high" />
+              <Bar label="기분" icon="😊" value={game.mood} color="#4fbf6b" alert="low" />
+            </div>
+          </div>
         </div>
         {raise && (
           <div className="gu-tokens">
@@ -343,42 +407,24 @@ function MainScreen({ game }: { game: GameState }) {
             }}>한 번에 키우기로</button>
           </div>
         )}
-      </section>
-
-      {/* ── 장소 4곳 = 버튼 ①~④ ── */}
-      <section className="gu-places" aria-label="장소">
-        <div className="gu-sec-head">
-          <h3>{game.sick ? '이번 달은 쉬어야 해요' : '이번 달엔 어디로 갈까요?'}</h3>
-          {noToken && <span className="gu-warn">⚡ 행동력이 차면 다시 움직일 수 있어요</span>}
-        </div>
-        {game.sick ? (
-          <div className="gu-sick">
-            <div className="gu-sick-emoji">🤒</div>
-            <p>너무 무리했나 봐요. 한 달 동안 푹 쉬면 피로와 스트레스가 크게 풀려요.</p>
-            <button className="gu-primary" disabled={noToken} onClick={doRest}>아무 버튼이나 눌러 한 달 쉬기</button>
-          </div>
-        ) : (
-          <div className="gu-place-grid">
-            {PLACES.map((p, i) => {
-              const st = placeStage(game, p);
-              const v = game.stageVisits[p.id] ?? 0;
-              return (
-                <button key={p.id} className="gu-place" style={{ ['--pc' as string]: p.color }}
-                  onClick={() => openPlace(p.id)}>
-                  <Num n={i + 1} />
-                  <span className="gu-place-emoji">{p.emoji}</span>
-                  <span className="gu-place-name">{st.label}</span>
-                  <span className="gu-place-acts" aria-hidden="true">{st.acts.map((a) => a.emoji).join(' ')}</span>
-                  <span className="gu-place-sub">{v > 0 ? `단골도 ${v}` : '처음'}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <h3>친구</h3>
+        <ul className="gu-friends">
+          {FRIENDS.map((f) => {
+            const v = game.friends[f.id];
+            const known = v >= FRIEND_MET;
+            return (
+              <li key={f.id} className={known ? '' : 'unknown'}>
+                <span className="gu-friend-name">{known ? `${f.emoji} ${f.name}` : '❔ ???'}</span>
+                <span className="gu-friend-rel">{friendTitle(v)}</span>
+                <Hearts v={v} />
+              </li>
+            );
+          })}
+        </ul>
       </section>
 
       {/* ── 능력치 ── */}
-      <section className="gu-stats" aria-label="능력치">
+      <section className="gu-stats gu-panel" aria-label="능력치">
         <h3>능력치</h3>
         <div className="gu-stat-list">
           {STAT_KEYS.map((k) => <Bar key={k} label={STAT_LABEL[k]} value={game.stats[k]} color={STAT_COLOR[k]} />)}
@@ -391,7 +437,7 @@ function MainScreen({ game }: { game: GameState }) {
           <span className="gu-bold-track"><span className="gu-bold-dot" style={{ left: `${(game.bold + 100) / 2}%` }} /></span>
           <span>도전</span>
         </div>
-        {game.awards.filter((a) => a.rank !== 'fail').length > 0 && (
+        {trophies > 0 && (
           <>
             <h3>수상 이력</h3>
             <ul className="gu-awards">
@@ -451,7 +497,7 @@ function Interests({ game, exact }: { game: GameState; exact: boolean }) {
           {exact ? <strong>{Math.round(t.value)}</strong> : <em>{'♥'.repeat(t.value >= 60 ? 3 : t.value >= 25 ? 2 : 1)}</em>}
         </li>
       ))}
-      {!exact && <li className="gu-muted small">고등학교 진로 상담을 받으면 정확히 알 수 있어요.</li>}
+      {!exact && <li className="gu-muted small">고등학교 진로 상담을 받으면 정확히 알 수 있어요. 관심이 커지면 집 앞에 소품이 생겨요.</li>}
     </ul>
   );
 }
@@ -482,6 +528,7 @@ function ActivitySheet({ game, place, onPick, onClose, onBlocked }: {
 }) {
   const st = placeStage(game, place);
   const acts = actsOf(game, place);
+  const here = FRIENDS.filter((f) => f.place === place.id && game.friends[f.id] >= FRIEND_MET);
 
   const tryPick = (a: Activity) => {
     const s = actStatus(game, place, a);
@@ -500,7 +547,7 @@ function ActivitySheet({ game, place, onPick, onClose, onBlocked }: {
         <span className="gu-sheet-emoji">{place.emoji}</span>
         <div>
           <h2>{st.label}</h2>
-          <p>{st.desc}</p>
+          <p>{st.desc}{here.length ? ` · ${josa(here.map((f) => `${f.emoji}${f.name}`).join(', '), '이가')} 와 있어요` : ''}</p>
         </div>
         <button className="gu-close" onClick={onClose} aria-label="뒤로">✕</button>
       </div>
@@ -635,6 +682,7 @@ function Graduation({ game }: { game: GameState }) {
   const best = [...STAT_KEYS].sort((a, b) => game.stats[b] - game.stats[a]).slice(0, 2);
   const wins = game.awards.filter((a) => a.rank !== 'fail').length;
   const burnout = list.length === 1 && list[0].careerId === 'gap' && game.stress >= 85;
+  const bff = [...FRIENDS].sort((a, b) => game.friends[b.id] - game.friends[a.id])[0];
 
   useButtons((b) => {
     if (b === 'back') return;
@@ -644,13 +692,14 @@ function Graduation({ game }: { game: GameState }) {
 
   return (
     <div className="gu-grad center-scroll">
-      <div className="gu-grad-card">
-        <Character look={game.look} stage={2} expr={burnout ? 'tired' : 'happy'} size={110} />
+      <div className="gu-grad-card gu-panel">
+        <PixelAvatar look={game.look} stage={2} expr={burnout ? 'tired' : 'happy'} scale={6} />
         <h2>🎓 {game.name}, 졸업을 축하해요!</h2>
         <ul className="gu-summary">
           <li>가장 자주 간 곳: <b>{most ? `${placeById(most[0])?.emoji} ${placeById(most[0])?.name} (${most[1]}번)` : '-'}</b></li>
           <li>가장 자란 능력: <b>{best.map((k) => `${STAT_LABEL[k]} ${Math.round(game.stats[k])}`).join(', ')}</b></li>
           <li>수상: <b>{wins}번</b> · 모은 돈: <b>{game.money}만원</b></li>
+          {game.friends[bff.id] >= FRIEND_MET && <li>가장 친한 친구: <b>{bff.emoji} {bff.name} ({friendTitle(game.friends[bff.id])})</b></li>}
         </ul>
         <h3>{burnout ? '너무 지쳐 있어요… 잠시 쉬어 가기로 했어요.' : '어떤 길을 걸어갈까요?'}</h3>
         <div className="gu-cands">
@@ -681,6 +730,7 @@ function EndingScreen({ game, onDex }: { game: GameState; onDex: () => void }) {
   const end = game.ending!;
   const job = careerById(end.careerId)!;
   const wins = game.awards.filter((a) => a.rank !== 'fail');
+  const pals = FRIENDS.filter((f) => game.friends[f.id] >= FRIEND_LEVELS[0]);
 
   useButtons((b) => {
     if (b === 1) reset();
@@ -689,7 +739,7 @@ function EndingScreen({ game, onDex }: { game: GameState; onDex: () => void }) {
 
   return (
     <div className="gu-end center-scroll">
-      <article className="gu-end-card">
+      <article className="gu-end-card gu-panel">
         <div className="gu-end-hero">
           <span className="gu-end-emoji">{job.emoji}</span>
           <div>
@@ -708,6 +758,17 @@ function EndingScreen({ game, onDex }: { game: GameState; onDex: () => void }) {
           <h3>어떻게 될 수 있나요?</h3>
           <p>{job.path}</p>
         </section>
+        {pals.length > 0 && (
+          <section>
+            <h3>친구들의 10년 뒤</h3>
+            <ul className="gu-pals">
+              {pals.map((f) => (
+                <li key={f.id}><b>{f.emoji} {f.name}</b> <span className="gu-friend-rel">{friendTitle(game.friends[f.id])}</span><br />
+                  {f.epilogue[game.friends[f.id] >= FRIEND_LEVELS[1] ? 1 : 0]}</li>
+              ))}
+            </ul>
+          </section>
+        )}
         <section>
           <h3>{game.name}의 12년</h3>
           <div className="gu-stat-list compact">

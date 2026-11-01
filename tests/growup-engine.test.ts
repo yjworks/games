@@ -331,3 +331,60 @@ describe('끝까지 키우기', () => {
     expect(ids).toContain('athlete');
   });
 });
+
+describe('친구', () => {
+  it('같은 분야 활동을 하면 그 친구와 가까워지고, 처음엔 알게 됐다고 알려 준다', () => {
+    const s = { ...make(), money: 10, friends: { ...make().friends, seoyeon: 4 } };
+    const r = doActivity(s, 'center', 'artclass');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.state.friends.seoyeon).toBeGreaterThan(4);
+    expect(r.state.friends.doyun).toBe(0);
+    expect(r.report.lines.some((l) => l.includes('서연'))).toBe(true);
+  });
+
+  it('친밀도가 문턱을 넘으면 그 달엔 친구 사건이 먼저 나온다', () => {
+    const s = { ...make(), friends: { ...make().friends, doyun: 29 } };
+    const r = doActivity(s, 'school', 'soccer');
+    expect(r.ok && r.state.pending).toBe('friend-doyun-1');
+    if (!r.ok) return;
+    const done = resolveEvent(r.state, 0);
+    expect(done.ok && done.state.friends.doyun).toBeGreaterThan(r.state.friends.doyun);
+  });
+
+  it('친구 사건은 단계마다 한 번만', () => {
+    const s = { ...make(), friends: { ...make().friends, doyun: 50 }, eventSeen: { 'friend-doyun-1': 3 } };
+    const r = doActivity(s, 'home', 'rest');
+    expect(r.ok && r.state.pending).not.toBe('friend-doyun-1');
+  });
+
+  it('같은 분야 단짝이 있으면 진로 점수가 조금 오른다', () => {
+    const g = { ...make(), turn: TOTAL_TURNS, pending: null, stats: { know: 40, logic: 40, create: 70, express: 50, body: 30, craft: 50, social: 40 }, fields: { ...make().fields, art: 60 } };
+    const alone = scoreCareer(g, careerById('designer')!)!.score;
+    const withBff = scoreCareer({ ...g, friends: { ...g.friends, seoyeon: 80 } }, careerById('designer')!)!.score;
+    expect(withBff).toBe(alone + 3);
+  });
+});
+
+describe('블록 마을', () => {
+  it('학교급마다 건물 4채가 캔버스 안에 서고, 문 앞 자리는 칸 안에 있다', async () => {
+    const { buildWorld, doorX, COLS, PLACE_SLOT, SLOT_W } = await import('../src/games/growup/world');
+    for (const stage of [0, 1, 2] as const) {
+      const { buildings } = buildWorld(stage);
+      expect(buildings.map((b) => b.place)).toEqual(['home', 'school', 'town', 'center']);
+      for (const b of buildings) expect(b.top).toBeGreaterThanOrEqual(0);
+    }
+    for (const p of ['home', 'school', 'town', 'center'] as const) {
+      const x = doorX(p);
+      expect(x).toBeGreaterThan(PLACE_SLOT[p] * SLOT_W);
+      expect(x).toBeLessThan((PLACE_SLOT[p] + 1) * SLOT_W);
+      expect(x).toBeLessThan(COLS);
+    }
+  });
+  it('학교는 학교급이 오를수록 높아진다', async () => {
+    const { buildWorld } = await import('../src/games/growup/world');
+    const tops = ([0, 1, 2] as const).map((st) => buildWorld(st).buildings.find((b) => b.place === 'school')!.top);
+    expect(tops[0]).toBeGreaterThan(tops[1]);
+    expect(tops[1]).toBeGreaterThan(tops[2]);
+  });
+});

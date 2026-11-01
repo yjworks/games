@@ -5,6 +5,8 @@ export type StatKey = 'know' | 'logic' | 'create' | 'express' | 'body' | 'craft'
 export type FieldKey =
   | 'it' | 'eng' | 'sci' | 'med' | 'art' | 'music' | 'write' | 'food' | 'sport' | 'biz' | 'edu';
 
+export type FriendId = 'minjun' | 'seoyeon' | 'doyun' | 'haeun';
+
 /** 장소는 언제나 4곳 — 버튼 ①~④에 하나씩 대응한다 */
 export type PlaceId = 'home' | 'school' | 'town' | 'center';
 
@@ -96,7 +98,7 @@ export interface Ending {
 }
 
 export interface GameState {
-  v: 2;
+  v: 3;
   name: string;
   look: Look;
   mode: Mode;
@@ -116,6 +118,8 @@ export interface GameState {
   stageVisits: Partial<Record<PlaceId, number>>;
   flags: string[];
   awards: Award[];
+  /** 친구별 친밀도 0~100 */
+  friends: Record<FriendId, number>;
   /** 아파서 이번 달은 쉬어야 한다 */
   sick: boolean;
   /** 고르기를 기다리는 사건 id */

@@ -20,7 +20,7 @@ export type Dex = Record<string, number>;
 
 function loadSave(): GameState | null {
   const s = store.get<GameState | null>(SAVE_KEY, null);
-  if (!s || s.v !== 2 || typeof s.turn !== 'number' || !s.stats) return null;
+  if (!s || s.v !== 3 || typeof s.turn !== 'number' || !s.stats) return null;
   return s;
 }
 

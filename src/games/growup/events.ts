@@ -1,4 +1,5 @@
 import { Calendar } from './calendar';
+import { FRIEND_EVENTS } from './friends';
 import { Effect, GameState } from './types';
 
 export interface EventOption extends Effect {
@@ -252,4 +253,4 @@ export const EVENTS: GameEvent[] = [
   },
 ];
 
-export const eventById = (id: string) => EVENTS.find((e) => e.id === id);
+export const eventById = (id: string) => EVENTS.find((e) => e.id === id) ?? FRIEND_EVENTS.find((e) => e.id === id);
