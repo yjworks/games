@@ -330,6 +330,8 @@ function Playing({ game, flow, press, setBusy, wake }: {
 
   const labels = Object.fromEntries(PLACES.map((p) => [p.id, placeStage(game, p).label])) as Record<PlaceId, string>;
   const goto = useGrow((s) => s.goto);
+  const notebook = useGrow((s) => s.notebookOpen);
+  const setNotebook = useGrow((s) => s.setNotebook);
   const props = topFields(game, 2).filter((t) => t.value >= 20).map((t) => t.field);
   const trophies = game.awards.filter((a) => a.rank !== 'fail').length;
   const met = FRIENDS.filter((f) => game.friends[f.id] >= FRIEND_MET).map((f) => f.id as FriendId);
@@ -350,6 +352,7 @@ function Playing({ game, flow, press, setBusy, wake }: {
           <span className="gu-badge">💰 {game.money}만원</span>
           {raise && <span className="gu-badge" title="행동력">{'⚡'.repeat(game.tokens)}<i className="gu-dim">{'⚡'.repeat(MAX_TOKENS - game.tokens)}</i>{game.tokens < MAX_TOKENS ? ` ${hms(wait || CHARGE_MS)}` : ''}</span>}
           <span className="gu-progress" title="졸업까지"><span style={{ width: `${(Math.min(game.turn, TOTAL_TURNS) / TOTAL_TURNS) * 100}%` }} /></span>
+          <button className="gu-badge gu-hud-btn" onClick={() => setNotebook(true)}>📔 수첩</button>
         </div>
         <WorldView
           stage={cal.stage} season={cal.season} look={game.look} expr={expr}
@@ -362,15 +365,31 @@ function Playing({ game, flow, press, setBusy, wake }: {
         <div className="gu-dialog">
           <Portrait look={game.look} stage={cal.stage} expr={expr} scale={3} className="sm" />
           <div className="gu-dialog-body">
-            <b>{game.name}</b>
+            <b>{game.name} <small>{cal.gradeLabel}</small></b>
             <p>{line}</p>
+            <div className="gu-minibars" aria-label="컨디션">
+              <MiniBar icon="⚡" label="피로" v={game.fatigue} color="#f0a03c" warn={game.fatigue >= 75} />
+              <MiniBar icon="💢" label="스트레스" v={game.stress} color="#e0505a" warn={game.stress >= 75} />
+              <MiniBar icon="😊" label="기분" v={game.mood} color="#4fbf6b" warn={game.mood < 30} />
+            </div>
           </div>
         </div>
         <Command game={game} flow={flow} arrived={arrived} shown={shown} press={onButton} goto={goto} />
       </section>
 
-      <SidePanel game={game} />
+      {notebook && <Notebook game={game} onClose={() => setNotebook(false)} />}
     </div>
+  );
+}
+
+/** 대화창 안 작은 컨디션 막대 */
+function MiniBar({ icon, label, v, color, warn }: { icon: string; label: string; v: number; color: string; warn: boolean }) {
+  return (
+    <span className={`gu-minibar ${warn ? 'warn' : ''}`} title={`${label} ${Math.round(v)}`}>
+      <i>{icon}</i>
+      <span className="gu-bar-track" style={{ ['--bar' as string]: color }}><span className="gu-bar-fill" style={{ width: `${v}%` }} /></span>
+      <b>{Math.round(v)}</b>
+    </span>
   );
 }
 
@@ -401,6 +420,7 @@ function Command({ game, flow, arrived, shown, press, goto }: {
                 <button className="gu-district-head" onClick={() => pressN(i)}><Num n={i + 1} /> {d.emoji} {d.name}</button>
                 <div className="gu-district-places">
                   {d.places.map((id) => <PlaceBtn key={id} game={game} id={id} onClick={() => goto(id)} />)}
+                  {d.id === 'home' && <NotebookBtn />}
                 </div>
               </section>
             ))}
@@ -430,6 +450,7 @@ function Command({ game, flow, arrived, shown, press, goto }: {
         <div className="gu-cmd">
           <div className="gu-cmd-head">
             <h3 className="gu-cmd-title">{place.emoji} {st.label}</h3>
+            {place.district === 'home' && <NotebookBtn small />}
             <button className="gu-back" onClick={() => press('back')}>↩ 뒤로</button>
           </div>
           <p className="gu-cmd-text">{st.desc}{here.length ? ` ${josa(here.map((f) => `${f.emoji}${f.name}`).join(', '), '이가')} 와 있어요.` : ''}</p>
@@ -486,6 +507,19 @@ function Command({ game, flow, arrived, shown, press, goto }: {
     default:
       return null;
   }
+}
+
+/** 내 수첩 열기 — 집에서 */
+function NotebookBtn({ small }: { small?: boolean }) {
+  const setNotebook = useGrow((s) => s.setNotebook);
+  if (small) return <button className="gu-back" onClick={() => setNotebook(true)}>📔 수첩</button>;
+  return (
+    <button className="gu-place notebook" style={{ ['--pc' as string]: '#c9a05b' }} onClick={() => setNotebook(true)}>
+      <span className="gu-place-emoji">📔</span>
+      <span className="gu-place-name">내 수첩</span>
+      <span className="gu-place-sub">능력치·친구·기록</span>
+    </button>
+  );
 }
 
 /** 장소 버튼 — 안 열린 곳은 공사 중 */
@@ -661,15 +695,29 @@ function GraduationView({ game, onPick }: { game: GameState; onPick: (i: number)
   );
 }
 
-/* ── 옆 단: 상태·친구·능력치·기록 ── */
-function SidePanel({ game }: { game: GameState }) {
+/* ── 내 수첩: 상태·능력치·친구·기록 (집에서 연다) ── */
+function Notebook({ game, onClose }: { game: GameState; onClose: () => void }) {
+  useButtons(() => onClose(), LAYER.overlay, 'notebook', ['닫기', '닫기', '닫기', '닫기']);
+  return (
+    <Modal label="내 수첩" onClose={onClose} className="gu-notebook">
+      <div className="gu-sheet-head">
+        <span className="gu-sheet-emoji">📔</span>
+        <div><h2>{game.name}의 수첩</h2><p>능력치 · 친구 · 지난 기록</p></div>
+        <button className="gu-close" onClick={onClose} aria-label="닫기">✕</button>
+      </div>
+      <NotebookBody game={game} />
+    </Modal>
+  );
+}
+
+function NotebookBody({ game }: { game: GameState }) {
   const [tab, setTab] = useState<'stat' | 'friend' | 'log'>('stat');
   const switchClassic = useGrow((s) => s.toClassic);
   const reset = useGrow((s) => s.reset);
   const cal = calendar(Math.min(game.turn, TOTAL_TURNS - 1));
   const counseled = game.counseledAt >= 0 && game.turn - game.counseledAt <= 12;
   return (
-    <aside className="gu-side gu-panel">
+    <div className="gu-side">
       <div className="gu-status-top">
         <Portrait look={game.look} stage={cal.stage} expr={expression(game)} scale={4} className="md" />
         <div className="gu-status-info">
@@ -729,7 +777,7 @@ function SidePanel({ game }: { game: GameState }) {
           <button className="gu-link danger" onClick={() => { if (window.confirm(`${game.name}의 이야기를 지우고 처음부터 시작할까요?`)) reset(); }}>처음부터 다시 키우기</button>
         </div>
       )}
-    </aside>
+    </div>
   );
 }
 

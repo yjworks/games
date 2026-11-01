@@ -52,11 +52,26 @@ function useHour() {
 }
 
 const reduceMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-const camFor = (x: number) => Math.max(0, Math.min(WIDTH - VIEW_W, x * BLOCK - VIEW_W / 2));
+const camFor = (x: number, vw: number) => Math.max(0, Math.min(WIDTH - vw, x * BLOCK - vw / 2));
+
+/** 화면에 보일 마을 폭(px) — 좁은 화면에서는 덜 보여 주고 크게 그린다(픽셀 하나가 약 1.8배 이상) */
+const viewFor = (cssW: number) => (cssW >= 576 ? VIEW_W : Math.max(180, Math.min(VIEW_W, Math.round(cssW / 1.8))));
 
 /** 블록 마을 — 아이가 고른 장소로 걸어가고(화면이 따라간다), 계절·시각·기분이 풍경에 드러난다 */
 export function WorldView(p: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [viewW, setViewW] = useState(VIEW_W);
+  const vwRef = useRef(viewW);
+  vwRef.current = viewW;
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setViewW(viewFor(el.clientWidth)));
+    ro.observe(el);
+    setViewW(viewFor(el.clientWidth));
+    return () => ro.disconnect();
+  }, []);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const signRefs = useRef<Partial<Record<PlaceId, HTMLButtonElement | null>>>({});
   const dotRef = useRef<HTMLSpanElement>(null);
@@ -76,7 +91,7 @@ export function WorldView(p: Props) {
   skyRef.current = { sky, hour };
 
   const kid = useRef({ x: doorX(p.at), target: doorX(p.at), face: 1, walking: false, arrive: false, speed: MIN_SPEED });
-  const cam = useRef(camFor(doorX(p.at)));
+  const cam = useRef(camFor(doorX(p.at), VIEW_W));
   const parts = useRef<Particle[]>([]);
   const cloudOffset = useRef(0);
 
@@ -88,7 +103,7 @@ export function WorldView(p: Props) {
     if (Math.abs(k.target - k.x) < 0.05 || reduceMotion()) {
       k.x = k.target;
       k.walking = false;
-      cam.current = camFor(k.x);
+      cam.current = camFor(k.x, vwRef.current);
       live.current.onArrive?.();
       return;
     }
@@ -148,6 +163,7 @@ export function WorldView(p: Props) {
       const k = kid.current;
       const sc = sceneRef.current;
       const sk = skyRef.current.sky;
+      const VW = vwRef.current;
 
       /* 걷기 */
       if (k.walking) {
@@ -162,29 +178,29 @@ export function WorldView(p: Props) {
         }
       }
       /* 화면이 아이를 따라간다 */
-      const want = camFor(k.x);
+      const want = camFor(k.x, VW);
       cam.current += (want - cam.current) * Math.min(1, step * 8);
       if (Math.abs(want - cam.current) < 0.5) cam.current = want;
       const cx0 = Math.round(cam.current);
 
-      drawSky(ctx, sk, o.season, skyRef.current.hour, VIEW_W);
+      drawSky(ctx, sk, o.season, skyRef.current.hour, VW);
 
       /* 구름 — 하늘에 고정, 천천히 흐른다 */
-      cloudOffset.current = (cloudOffset.current + step * 3) % (VIEW_W + 80);
+      cloudOffset.current = (cloudOffset.current + step * 3) % (VW + 80);
       ctx.fillStyle = sk === 'night' ? 'rgba(80,90,130,0.5)' : sk === 'dusk' ? 'rgba(255,210,200,0.75)' : 'rgba(255,255,255,0.9)';
       for (const [c0, cy, w] of [[20, 14, 34], [140, 26, 26], [230, 10, 40]] as const) {
-        const cx = ((c0 + cloudOffset.current - cx0 * 0.15) % (VIEW_W + 80) + VIEW_W + 80) % (VIEW_W + 80) - 40;
+        const cx = ((c0 + cloudOffset.current - cx0 * 0.15) % (VW + 80) + VW + 80) % (VW + 80) - 40;
         ctx.fillRect(cx, cy, w, 6);
         ctx.fillRect(cx + 6, cy - 4, w - 14, 4);
       }
 
-      ctx.drawImage(sc.base, cx0, 0, VIEW_W, HEIGHT, 0, 0, VIEW_W, HEIGHT);
+      ctx.drawImage(sc.base, cx0, 0, VW, HEIGHT, 0, 0, VW, HEIGHT);
 
       /* 친구들 — 아이 쪽을 본다 */
       for (const f of FRIENDS) {
         if (!o.friends.includes(f.id)) continue;
         const fx = friendX(f.place) * BLOCK - cx0;
-        if (fx < -20 || fx > VIEW_W + 20) continue;
+        if (fx < -20 || fx > VW + 20) continue;
         const bob = Math.floor((t * 1.5 + fx) % 2) === 0 ? 0 : 1;
         const h = personHeight(o.stage);
         drawPerson(ctx, { hair: f.hair, style: f.style, stage: o.stage, expr: 'normal', shirt: f.shirt },
@@ -207,7 +223,7 @@ export function WorldView(p: Props) {
           ctx.fillRect(zx, zy, 4, 1); ctx.fillRect(zx + 2, zy + 1, 1, 1); ctx.fillRect(zx + 1, zy + 2, 1, 1); ctx.fillRect(zx, zy + 3, 4, 1);
         }
         if (bubbleRef.current) {
-          bubbleRef.current.style.left = `${Math.min(80, Math.max(20, (kx / VIEW_W) * 100))}%`;
+          bubbleRef.current.style.left = `${Math.min(80, Math.max(20, (kx / VW) * 100))}%`;
           bubbleRef.current.style.opacity = k.walking ? '0' : '1';
         }
       }
@@ -217,8 +233,8 @@ export function WorldView(p: Props) {
         const el = signRefs.current[pl.id];
         if (!el) continue;
         const sx = (PLACE_SLOT[pl.id] * SLOT_W + 4) * BLOCK - cx0;
-        el.style.left = `${(sx / VIEW_W) * 100}%`;
-        el.style.visibility = sx < -30 || sx > VIEW_W + 30 ? 'hidden' : 'visible';
+        el.style.left = `${(sx / VW) * 100}%`;
+        el.style.visibility = sx < -30 || sx > VW + 30 ? 'hidden' : 'visible';
       }
       if (dotRef.current) dotRef.current.style.left = `${(k.x * BLOCK / WIDTH) * 100}%`;
 
@@ -228,7 +244,7 @@ export function WorldView(p: Props) {
         const R = Math.random;
         const rainy = o.rain;
         weather.push({
-          x: R() * VIEW_W, y: R() * GROUND * BLOCK, vx: rainy ? -8 : o.season === '겨울' ? (R() - 0.5) * 6 : -10 - R() * 8,
+          x: R() * VW, y: R() * GROUND * BLOCK, vx: rainy ? -8 : o.season === '겨울' ? (R() - 0.5) * 6 : -10 - R() * 8,
           vy: rainy ? 140 : o.season === '여름' ? (R() - 0.5) * 6 : 10 + R() * 8, life: 0, max: 99,
           color: rainy ? 'rgba(170,200,255,0.8)' : o.season === '봄' ? '#ffb8d0' : o.season === '가을' ? (R() < 0.5 ? '#e07a30' : '#f2c230') : o.season === '겨울' ? '#ffffff' : '#fff27a',
           size: rainy ? 1 : o.season === '겨울' ? 1 : 2, kind: rainy ? 'drop' : 'dot',
@@ -237,13 +253,13 @@ export function WorldView(p: Props) {
       if (weather.length > want2) weather.length = want2;
       for (const w of weather) {
         w.x += w.vx * step; w.y += w.vy * step;
-        if (w.y > GROUND * BLOCK || w.x < -4 || w.x > VIEW_W + 4) { w.y = -2; w.x = Math.random() * (VIEW_W + 40); }
+        if (w.y > GROUND * BLOCK || w.x < -4 || w.x > VW + 4) { w.y = -2; w.x = Math.random() * (VW + 40); }
         if (o.season === '여름' && !o.rain && Math.floor(t * 3 + w.x) % 3 === 0) continue; // 반딧불 깜빡임
         ctx.fillStyle = w.color;
         if (w.kind === 'drop') ctx.fillRect(w.x, w.y, 1, 3);
         else ctx.fillRect(w.x, w.y, w.size, w.size);
       }
-      if (o.rain) { ctx.fillStyle = 'rgba(40,50,80,0.18)'; ctx.fillRect(0, 0, VIEW_W, HEIGHT); }
+      if (o.rain) { ctx.fillStyle = 'rgba(40,50,80,0.18)'; ctx.fillRect(0, 0, VW, HEIGHT); }
 
       /* 연출 입자 — 마을 좌표로 만들어 화면으로 옮겨 그린다 */
       const ps = parts.current;
@@ -277,9 +293,9 @@ export function WorldView(p: Props) {
       /* 밤·저녁 */
       if (sk !== 'day') {
         ctx.fillStyle = sk === 'night' ? 'rgba(8,12,40,0.5)' : 'rgba(70,40,90,0.18)';
-        ctx.fillRect(0, 0, VIEW_W, HEIGHT);
+        ctx.fillRect(0, 0, VW, HEIGHT);
         ctx.globalAlpha = sk === 'night' ? 1 : 0.6;
-        ctx.drawImage(sc.glow, cx0, 0, VIEW_W, HEIGHT, 0, 0, VIEW_W, HEIGHT);
+        ctx.drawImage(sc.glow, cx0, 0, VW, HEIGHT, 0, 0, VW, HEIGHT);
         ctx.globalAlpha = 1;
       }
     };
@@ -295,8 +311,8 @@ export function WorldView(p: Props) {
   const kidTop = ((GROUND * BLOCK - personHeight(p.stage) - 4) / HEIGHT) * 100;
 
   return (
-    <div className="gu-world">
-      <canvas ref={canvasRef} width={VIEW_W} height={HEIGHT} className="gu-world-canvas"
+    <div className="gu-world" ref={boxRef}>
+      <canvas ref={canvasRef} width={viewW} height={HEIGHT} className="gu-world-canvas" style={{ aspectRatio: `${viewW} / ${HEIGHT}` }}
         role="img" aria-label={`블록 마을 — ${p.season}, ${sky === 'night' ? '밤' : sky === 'dusk' ? '저녁' : '낮'}`} />
       {scene.buildings.map((b) => {
         const pl = PLACES[PLACE_SLOT[b.place]];
