@@ -29,6 +29,9 @@ interface State {
   flow: Flow;
   dex: Dex;
   dexOpen: boolean;
+  /** 내 수첩(능력치·친구·기록) 창 */
+  notebookOpen: boolean;
+  setNotebook: (open: boolean) => void;
   /** 플레이어가 올린 초상 그림 */
   uploads: Uploads;
   setUpload: (key: string, dataUrl: string | null) => void;
@@ -107,6 +110,8 @@ export const useGrow = create<State>()((set, get) => {
     flow: first ? settle(first) : { s: 'town' },
     dex: store.get<Dex>(DEX_KEY, {}),
     dexOpen: false,
+    notebookOpen: false,
+    setNotebook: (notebookOpen) => set({ notebookOpen }),
     uploads: loadUploads(),
     setUpload: (key, url) => set({ uploads: saveUpload(key, url) }),
     toast: null,
