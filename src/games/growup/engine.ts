@@ -653,7 +653,7 @@ export function accrue(prev: GameState, now: number): WakeResult {
       s.tokenAt = s.tokens >= MAX_TOKENS ? now : s.tokenAt + n * CHARGE_MS;
     }
   }
-  /* 오래 비워도 벌점은 없다 — 반갑게 맞이할 뿐(방치 벌점은 교육용에서 뺀다: 로봇 놀이 설계 9절과 같은 원칙) */
+  /* 오래 비워도 벌점은 없다 */
   const missed = now - s.lastSeen >= MISS_MS && !s.ending;
   s.lastSeen = now;
   return { state: s, gained, missed };
