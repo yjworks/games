@@ -9,11 +9,11 @@ import { WorldEffect, WorldView } from './WorldView';
 import { TOTAL_TURNS, calendar } from './calendar';
 import { CAREERS, careerById } from './careers';
 import {
-  FIELD_EMOJI, FIELD_LABEL, HAIR_COLORS, HAIR_STYLES, PLACES, STAT_COLOR, STAT_KEYS, STAT_LABEL, placeById,
+  DISTRICTS, FIELD_EMOJI, FIELD_LABEL, HAIR_COLORS, HAIR_STYLES, PLACES, STAT_COLOR, STAT_KEYS, STAT_LABEL, placeById,
 } from './data';
 import {
   CHARGE_MS, MAX_TOKENS, actStatus, actsOf, bubble, candidates, expression, fill, findAct, josa, nextChargeIn, odds,
-  pendingEvent, placeStage, topFields,
+  openLabel, pendingEvent, placeOpen, placeStage, topFields,
 } from './engine';
 import { RIASEC_INFO, RIASEC_KEYS, careersForType, nearMisses, riasec, topRiasec } from './edu';
 import { Flow, screenModel } from './flow';
@@ -183,7 +183,7 @@ function TitleScreen({ onDex, onPortraits }: { onDex: () => void; onPortraits: (
     <div className="gu-title center-scroll">
       <div className="gu-title-world">
         <WorldView stage={0} season={season} look={look} expr="happy" props={[]} trophies={0} friends={['seoyeon', 'doyun']}
-          at="home" rain={false} bubble={`안녕! 나는 ${name.trim() || '하늘'}`} labels={['집', '학교', '동네', '체험센터']} />
+          at="room" grade={0} rain={false} bubble={`안녕! 나는 ${name.trim() || '하늘'}`} labels={{}} />
       </div>
       <div className="gu-title-card gu-panel">
         <div className="gu-title-hero">
@@ -268,9 +268,9 @@ function Playing({ game, flow, press, setBusy, wake }: {
   const model = screenModel(flow, game);
 
   /* 아이가 서 있는 곳 — 장소를 고르면 걸어가고, 도착해야 활동 목록이 열린다 */
-  const [at, setAt] = useState<PlaceId>('home');
-  const [arrived, setArrived] = useState<PlaceId | null>('home');
-  const walkTo = flow.s === 'place' ? flow.place : (flow.s === 'month' || flow.s === 'result') ? flow.report.place ?? 'home' : null;
+  const [at, setAt] = useState<PlaceId>('room');
+  const [arrived, setArrived] = useState<PlaceId | null>('room');
+  const walkTo = flow.s === 'place' ? flow.place : (flow.s === 'month' || flow.s === 'result') ? flow.report.place ?? 'room' : null;
   useEffect(() => {
     if (walkTo && walkTo !== at) { setArrived(null); setAt(walkTo); setBusy(true); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -328,7 +328,8 @@ function Playing({ game, flow, press, setBusy, wake }: {
   const wait = nextChargeIn(game, now);
   useEffect(() => { if (raise && game.tokens < MAX_TOKENS && wait <= 0) wake(); }, [raise, wait, game.tokens, wake]);
 
-  const labels = PLACES.map((p) => placeStage(game, p).label);
+  const labels = Object.fromEntries(PLACES.map((p) => [p.id, placeStage(game, p).label])) as Record<PlaceId, string>;
+  const goto = useGrow((s) => s.goto);
   const props = topFields(game, 2).filter((t) => t.value >= 20).map((t) => t.field);
   const trophies = game.awards.filter((a) => a.rank !== 'fail').length;
   const met = FRIENDS.filter((f) => game.friends[f.id] >= FRIEND_MET).map((f) => f.id as FriendId);
@@ -354,8 +355,8 @@ function Playing({ game, flow, press, setBusy, wake }: {
           stage={cal.stage} season={cal.season} look={game.look} expr={expr}
           props={props} trophies={trophies} friends={met}
           at={at} onArrive={onArrive} effect={effect} rain={game.stress >= 70}
-          labels={labels}
-          onPlace={(p) => { if (flow.s === 'town') press((PLACES.findIndex((x) => x.id === p) + 1) as 1 | 2 | 3 | 4); }}
+          labels={labels} grade={cal.grade}
+          onPlace={(p) => { if (flow.s === 'town' || flow.s === 'district') goto(p); }}
         />
         {/* 대화창 — 초상과 아이의 한마디 */}
         <div className="gu-dialog">
@@ -365,7 +366,7 @@ function Playing({ game, flow, press, setBusy, wake }: {
             <p>{line}</p>
           </div>
         </div>
-        <Command game={game} flow={flow} arrived={arrived} shown={shown} press={onButton} />
+        <Command game={game} flow={flow} arrived={arrived} shown={shown} press={onButton} goto={goto} />
       </section>
 
       <SidePanel game={game} />
@@ -374,8 +375,9 @@ function Playing({ game, flow, press, setBusy, wake }: {
 }
 
 /* ── 명령 패널 — 지금 버튼 ①~④가 무엇인지 ── */
-function Command({ game, flow, arrived, shown, press }: {
+function Command({ game, flow, arrived, shown, press, goto }: {
   game: GameState; flow: Flow; arrived: PlaceId | null; shown: number; press: (b: 1 | 2 | 3 | 4 | 'back') => void;
+  goto: (p: PlaceId) => void;
 }) {
   const pressN = (i: number) => press((i + 1) as 1 | 2 | 3 | 4);
   switch (flow.s) {
@@ -389,24 +391,36 @@ function Command({ game, flow, arrived, shown, press }: {
           </div>
         );
       }
+      /* 웹에서는 장소를 바로 누른다. 구역 머리(①~④)는 버튼으로 고를 때 쓴다 */
       return (
         <div className="gu-cmd">
           <h3 className="gu-cmd-title">이번 달엔 어디로 갈까요?</h3>
-          <div className="gu-place-row">
-            {PLACES.map((p, i) => {
-              const v = game.stageVisits[p.id] ?? 0;
-              return (
-                <button key={p.id} className="gu-place" style={{ ['--pc' as string]: p.color }} onClick={() => pressN(i)}>
-                  <Num n={i + 1} />
-                  <span className="gu-place-emoji">{p.emoji}</span>
-                  <span className="gu-place-name">{placeStage(game, p).label}</span>
-                  <span className="gu-place-sub">{v > 0 ? `단골 ${v}` : '처음'}</span>
-                </button>
-              );
-            })}
+          <div className="gu-districts">
+            {DISTRICTS.map((d, i) => (
+              <section key={d.id} className="gu-district" style={{ ['--pc' as string]: d.color }}>
+                <button className="gu-district-head" onClick={() => pressN(i)}><Num n={i + 1} /> {d.emoji} {d.name}</button>
+                <div className="gu-district-places">
+                  {d.places.map((id) => <PlaceBtn key={id} game={game} id={id} onClick={() => goto(id)} />)}
+                </div>
+              </section>
+            ))}
           </div>
         </div>
       );
+    case 'district': {
+      const d = DISTRICTS.find((x) => x.id === flow.district)!;
+      return (
+        <div className="gu-cmd">
+          <div className="gu-cmd-head">
+            <h3 className="gu-cmd-title">{d.emoji} {d.name} — 어디로 갈까요?</h3>
+            <button className="gu-back" onClick={() => press('back')}>↩ 뒤로</button>
+          </div>
+          <div className="gu-district-places big">
+            {d.places.map((id, i) => <PlaceBtn key={id} n={i + 1} game={game} id={id} onClick={() => pressN(i)} />)}
+          </div>
+        </div>
+      );
+    }
     case 'place': {
       const place = placeById(flow.place)!;
       const st = placeStage(game, place);
@@ -472,6 +486,21 @@ function Command({ game, flow, arrived, shown, press }: {
     default:
       return null;
   }
+}
+
+/** 장소 버튼 — 안 열린 곳은 공사 중 */
+function PlaceBtn({ game, id, n, onClick }: { game: GameState; id: PlaceId; n?: number; onClick: () => void }) {
+  const p = placeById(id)!;
+  const open = placeOpen(game, p);
+  const v = game.stageVisits[id] ?? 0;
+  return (
+    <button className={`gu-place ${open ? '' : 'closed'}`} style={{ ['--pc' as string]: p.color }} aria-disabled={!open} onClick={onClick}>
+      {n && <Num n={n} />}
+      <span className="gu-place-emoji">{open ? p.emoji : '🚧'}</span>
+      <span className="gu-place-name">{open ? placeStage(game, p).label : p.name}</span>
+      <span className="gu-place-sub">{open ? (v > 0 ? `단골 ${v}` : '처음') : openLabel(p)}</span>
+    </button>
+  );
 }
 
 /** 활동 카드에 붙는 예상 효과 */

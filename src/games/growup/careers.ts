@@ -287,7 +287,7 @@ const RAW: RawCareer[] = [
     ],
   },
   {
-    id: 'trainer', title: '트레이너·코치', emoji: '🏋️', kind: '취업', field: 'sport', minField: 25,
+    id: 'trainer', title: '트레이너·코치', emoji: '🏋️', kind: '취업', field: 'sport', minField: 32,
     weights: { body: 0.5, social: 0.3, know: 0.2 },
     info: '사람들의 몸 상태에 맞춰 운동을 가르치고 선수의 경기력을 끌어올립니다.',
     path: '체육학·스포츠과학 전공, 생활스포츠지도사 같은 자격, 선수 경력 등을 바탕으로 일합니다.',

@@ -27,7 +27,7 @@ export const FRIEND_MET = 5;
 
 export const FRIENDS: Friend[] = [
   {
-    id: 'minjun', name: '민준', emoji: '🤖', place: 'center', fields: ['it', 'eng'],
+    id: 'minjun', name: '민준', emoji: '🤖', place: 'academy', fields: ['it', 'eng'],
     hair: '#2b2b33', style: 0, shirt: '#3f7fd0',
     intro: '뭐든 뜯어 보고 다시 조립하는 아이.',
     epilogue: [
@@ -36,7 +36,7 @@ export const FRIENDS: Friend[] = [
     ],
   },
   {
-    id: 'seoyeon', name: '서연', emoji: '🎨', place: 'school', fields: ['art', 'music'],
+    id: 'seoyeon', name: '서연', emoji: '🎨', place: 'classroom', fields: ['art', 'music'],
     hair: '#6a2f2f', style: 1, shirt: '#d0508a',
     intro: '스케치북을 늘 끼고 다니고, 노래도 잘 부른다.',
     epilogue: [
@@ -45,7 +45,7 @@ export const FRIENDS: Friend[] = [
     ],
   },
   {
-    id: 'doyun', name: '도윤', emoji: '⚽', place: 'school', fields: ['sport'],
+    id: 'doyun', name: '도윤', emoji: '⚽', place: 'field', fields: ['sport'],
     hair: '#4a3020', style: 0, shirt: '#e0a030',
     intro: '쉬는 시간 종이 치면 제일 먼저 운동장으로 뛰어나간다.',
     epilogue: [
@@ -54,7 +54,7 @@ export const FRIENDS: Friend[] = [
     ],
   },
   {
-    id: 'haeun', name: '하은', emoji: '📚', place: 'town', fields: ['write', 'edu'],
+    id: 'haeun', name: '하은', emoji: '📚', place: 'library', fields: ['write', 'edu'],
     hair: '#1f2a40', style: 2, shirt: '#3fa070',
     intro: '도서관 창가 자리의 주인. 이야기 공책을 몇 권째 쓰고 있다.',
     epilogue: [

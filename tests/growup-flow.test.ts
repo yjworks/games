@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { newGame, TOTAL_TURNS } from '../src/games/growup/engine';
-import { Flow, press, screenModel, settle } from '../src/games/growup/flow';
+import { Flow, goto, press, screenModel, settle } from '../src/games/growup/flow';
 import { makeQuiz, riasec, topRiasec, careersForType, nearMisses, careerNeeds, yearTips } from '../src/games/growup/edu';
 import { CAREERS, careerById } from '../src/games/growup/careers';
 import { piboFace, packRows, PIBO_W, PIBO_H } from '../src/games/growup/pibo';
@@ -30,8 +30,8 @@ function playByButtons(seed: number) {
     else {
       const ok = m.choices.map((c, i) => (c.enabled ? i : -1)).filter((i) => i >= 0);
       /* 지치면 집에서 쉰다(장소 ①, 활동 ①) */
-      if (flow.s === 'town' && (game.fatigue > 65 || game.stress > 65)) b = 1;
-      else if (flow.s === 'place' && flow.place === 'home' && (game.fatigue > 65 || game.stress > 65)) b = 1;
+      const tired = game.fatigue > 65 || game.stress > 65;
+      if (tired && (flow.s === 'town' || (flow.s === 'district' && flow.district === 'home') || (flow.s === 'place' && flow.place === 'room'))) b = 1;
       else b = ((ok.length ? ok[Math.floor(r() * ok.length)] : 0) + 1) as 1 | 2 | 3 | 4;
     }
     const step = press(flow, game, b);
@@ -49,23 +49,33 @@ describe('흐름 — 버튼만으로', () => {
       expect(game.turn).toBe(TOTAL_TURNS);
       expect(game.ending).not.toBeNull();
       expect(game.history).toHaveLength(12);
-      for (const k of ['town', 'place', 'month', 'result', 'review', 'graduation']) expect(seen.has(k)).toBe(true);
+      for (const k of ['town', 'district', 'place', 'month', 'result', 'review', 'graduation']) expect(seen.has(k)).toBe(true);
     }
   });
 
   it('장소에서 뒤로 가면 마을로, 잠긴 활동은 고를 수 없다', () => {
     const g = make();
     let st = press({ s: 'town' }, g, 2);
-    expect(st.flow).toEqual({ s: 'place', place: 'school' });
-    expect(press(st.flow, st.game, 'back').flow).toEqual({ s: 'town' });
+    expect(st.flow).toEqual({ s: 'district', district: 'school' });
+    /* 동아리방(중1부터)은 아직 공사 중 */
+    expect(press(st.flow, st.game, 3).toast).toBeTruthy();
+    st = press(st.flow, st.game, 1);
+    expect(st.flow).toEqual({ s: 'place', place: 'classroom' });
+    expect(press(st.flow, st.game, 'back').flow).toEqual({ s: 'district', district: 'school' });
     st = press(st.flow, st.game, 4); // 학예회 무대 — 잠김
     expect(st.flow.s).toBe('place');
     expect(st.toast).toBeTruthy();
   });
 
+  it('화면에서 장소를 바로 누르면 구역을 거치지 않는다', () => {
+    const g = make();
+    expect(goto({ s: 'town' }, g, 'library').flow).toEqual({ s: 'place', place: 'library' });
+    expect(goto({ s: 'town' }, g, 'maker').toast).toBeTruthy();
+  });
+
   it('한 달을 하면 4주 기록이 나오고, 아무 버튼이나 누르면 결과로 간다', () => {
     const g = make();
-    const a = press({ s: 'place', place: 'school' }, g, 1);
+    const a = press({ s: 'place', place: 'classroom' }, g, 1);
     expect(a.flow.s).toBe('month');
     if (a.flow.s !== 'month') return;
     expect(a.flow.report.weeks).toHaveLength(4);
@@ -75,7 +85,7 @@ describe('흐름 — 버튼만으로', () => {
 
   it('학년이 끝나면 돌아보기를 해야 다음으로 간다', () => {
     const g = { ...make(), turn: 11 };
-    const a = press({ s: 'place', place: 'home' }, g, 1);
+    const a = press({ s: 'place', place: 'room' }, g, 1);
     const res = press(a.flow, a.game, 1);
     expect(res.game.reviewPending).toBe(true);
     const next = press(res.flow, res.game, 1);
@@ -127,7 +137,7 @@ describe('교육 장치', () => {
   });
 
   it('돌아보기 조언 — 아팠으면 쉬라고, 돈을 더 썼으면 돌아보라고', () => {
-    const tips = yearTips({ income: 5, spend: 9, acts: {}, places: { home: 3 }, rests: 0, greats: 0, fails: 0, sick: 2, quizRight: 0, quizTotal: 0 }, make());
+    const tips = yearTips({ income: 5, spend: 9, acts: {}, places: { room: 3 }, rests: 0, greats: 0, fails: 0, sick: 2, quizRight: 0, quizTotal: 0 }, make());
     expect(tips.some((t) => t.includes('아파서'))).toBe(true);
     expect(tips.some((t) => t.includes('쓴 돈'))).toBe(true);
   });

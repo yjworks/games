@@ -1,4 +1,4 @@
-import { TOTAL_TURNS, calendar, whenLabel } from './calendar';
+import { TOTAL_TURNS, calendar, gradeLabel, whenLabel } from './calendar';
 import { CAREERS, Career, careerById } from './careers';
 import { ALLOWANCE, FIELD_KEYS, FIELD_LABEL, PLACES, STAT_KEYS, placeById } from './data';
 
@@ -121,7 +121,14 @@ export function newGame({ name, look, mode, seed, now = Date.now() }: NewGameOpt
   return s;
 }
 
-/* ── 장소와 활동 — 장소는 늘 4곳, 활동은 학교급마다 4개 ── */
+/* ── 장소와 활동 — 장소 14곳(학년에 따라 열린다), 활동은 장소마다 4개 ── */
+export function placeOpen(s: GameState, p: Place): boolean {
+  return calendar(Math.min(s.turn, TOTAL_TURNS - 1)).grade >= p.from;
+}
+
+/** 아직 안 열린 장소의 안내 — '중1부터' */
+export const openLabel = (p: Place) => `${gradeLabel(p.from)}부터`;
+
 export function placeStage(s: GameState, p: Place): PlaceStage {
   return p.stages[calendar(s.turn).stage];
 }
@@ -288,6 +295,7 @@ export function doActivity(prev: GameState, placeId: PlaceId, actId: string): Ac
   const place = placeById(placeId);
   const act = place ? actsOf(prev, place).find((a) => a.id === actId) : undefined;
   if (!place || !act) return { ok: false, reason: '지금은 할 수 없는 활동이에요' };
+  if (!placeOpen(prev, place)) return { ok: false, reason: `${place.name}은(는) ${openLabel(place)} 갈 수 있어요` };
   const st = actStatus(prev, place, act);
   if (!st.ok) return { ok: false, reason: st.reason ?? '지금은 할 수 없어요' };
 
@@ -479,7 +487,13 @@ function endMonth(s: GameState, lines: string[]): Pick<TurnReport, 'exam' | 'yea
   if (s.turn < TOTAL_TURNS && calendar(s.turn).stage !== cal.stage) {
     s.stageVisits = {};
     const who = calendar(s.turn).stage === 1 ? '중학생' : '고등학생';
-    lines.push(`${who}이 됐다! 장소마다 할 수 있는 일이 바뀌었다.`);
+    lines.push(`${who}이 됐다! 교실과 내 방에서 할 수 있는 일이 바뀌었다.`);
+  }
+  /* 학년이 오르면 공사 중이던 곳이 열린다 */
+  if (s.turn < TOTAL_TURNS && s.turn % 12 === 0) {
+    const g = calendar(s.turn).grade;
+    const opened = PLACES.filter((p) => p.from === g);
+    if (opened.length) lines.push(`🚧 공사가 끝났다! 새로 갈 수 있는 곳: ${opened.map((p) => `${p.emoji} ${p.name}`).join(', ')}`);
   }
 
   /* 다음 달 사건 */

@@ -7,8 +7,14 @@ export type FieldKey =
 
 export type FriendId = 'minjun' | 'seoyeon' | 'doyun' | 'haeun';
 
-/** 장소는 언제나 4곳 — 버튼 ①~④에 하나씩 대응한다 */
-export type PlaceId = 'home' | 'school' | 'town' | 'center';
+/** 구역 4개 — 버튼 ①~④에 하나씩. 구역마다 장소가 2~4곳 */
+export type DistrictId = 'home' | 'school' | 'town' | 'city';
+
+export type PlaceId =
+  | 'room' | 'kitchen'
+  | 'classroom' | 'field' | 'club' | 'counsel'
+  | 'library' | 'park' | 'market' | 'welfare'
+  | 'academy' | 'maker' | 'media' | 'parttime';
 
 /** 0 초등 · 1 중등 · 2 고등 */
 export type Stage = 0 | 1 | 2;
@@ -56,11 +62,22 @@ export type Four<T> = [T, T, T, T];
 
 export interface Place {
   id: PlaceId;
+  district: DistrictId;
   name: string;
   emoji: string;
   color: string;
+  /** 열리는 학년(0=초1 … 11=고3). 그 전에는 마을에 공사 중으로 보인다 */
+  from: number;
   /** 학교급별 이름·설명·활동 4개 */
   stages: [PlaceStage, PlaceStage, PlaceStage];
+}
+
+export interface District {
+  id: DistrictId;
+  name: string;
+  emoji: string;
+  color: string;
+  places: PlaceId[];
 }
 
 export interface PlaceStage {

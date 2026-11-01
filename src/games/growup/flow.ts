@@ -1,24 +1,26 @@
 import { TOTAL_TURNS, calendar } from './calendar';
 import { careerById } from './careers';
-import { PLACES, placeById } from './data';
+import { DISTRICTS, placeById } from './data';
 import {
   Expression, actStatus, actsOf, answerQuiz, candidates, doActivity, expression, fill, findAct, finish,
-  pendingEvent, placeStage, reflect, resolveEvent, restSick,
+  openLabel, pendingEvent, placeOpen, placeStage, reflect, resolveEvent, restSick,
 } from './engine';
 import type { Button } from './input';
-import { Delta, GameState, PlaceId, Stage, TurnReport } from './types';
+import { Delta, DistrictId, GameState, PlaceId, Stage, TurnReport } from './types';
 
 /**
  * 진행 흐름 — 화면과 상관없는 상태 기계.
  * 웹 화면, 파이브레인(240×320), 파이보(128×64)가 모두 같은 흐름을 쓴다:
  *   상태(Flow) + 버튼(①~④·뒤로) → 다음 상태.  화면은 screenModel() 로 그린다.
  *
- * 한 달:  town(장소) → place(활동) → month(4주 진행) → result
+ * 한 달:  town(구역) → district(장소) → place(활동) → month(4주 진행) → result
+ *         (화면을 누르면 town 에서 바로 place 로 갈 수도 있다 — goto())
  *         → [review(학년 돌아보기)] → [quiz | event → eventResult] → town …
  * 졸업:   graduation(진로 고르기) → ending
  */
 export type Flow =
   | { s: 'town' }
+  | { s: 'district'; district: DistrictId }
   | { s: 'place'; place: PlaceId }
   | { s: 'month'; report: TurnReport }
   | { s: 'result'; report: TurnReport }
@@ -62,10 +64,26 @@ export function press(flow: Flow, game: GameState, b: Button): Step {
         return r.ok ? { flow: { s: 'month', report: r.report }, game: r.state, fx: { kind: 'month', report: r.report } } : same(flow, game, r.reason);
       }
       if (game.mode === 'raise' && game.tokens <= 0) return same(flow, game, '⚡ 행동력이 차면 다시 움직일 수 있어요');
-      return same({ s: 'place', place: PLACES[n - 1].id }, game);
+      const d = DISTRICTS[n - 1];
+      const open = d.places.filter((id) => placeOpen(game, placeById(id)!));
+      /* 열린 곳이 하나뿐이면 바로 그곳으로 */
+      if (open.length === 1) return same({ s: 'place', place: open[0] }, game);
+      return same({ s: 'district', district: d.id }, game);
+    }
+    case 'district': {
+      if (b === 'back') return same({ s: 'town' }, game);
+      const id = DISTRICTS.find((d) => d.id === flow.district)!.places[n - 1];
+      if (!id) return same(flow, game);
+      const pl = placeById(id)!;
+      if (!placeOpen(game, pl)) return same(flow, game, `${pl.name}은(는) ${openLabel(pl)} 갈 수 있어요`);
+      return same({ s: 'place', place: id }, game);
     }
     case 'place': {
-      if (b === 'back') return same({ s: 'town' }, game);
+      if (b === 'back') {
+        const d = placeById(flow.place)!.district;
+        const open = DISTRICTS.find((x) => x.id === d)!.places.filter((id) => placeOpen(game, placeById(id)!));
+        return same(open.length > 1 ? { s: 'district', district: d } : { s: 'town' }, game);
+      }
       const place = placeById(flow.place)!;
       const act = actsOf(game, place)[n - 1];
       const st = actStatus(game, place, act);
@@ -120,6 +138,16 @@ export function press(flow: Flow, game: GameState, b: Button): Step {
   }
 }
 
+/** 화면에서 장소를 바로 눌렀을 때(마을 지도·간판) — 구역을 거치지 않는다 */
+export function goto(flow: Flow, game: GameState, place: PlaceId): Step {
+  if (flow.s !== 'town' && flow.s !== 'district' && flow.s !== 'place') return same(flow, game);
+  if (game.sick) return press({ s: 'town' }, game, 1);
+  if (game.mode === 'raise' && game.tokens <= 0) return same(flow, game, '⚡ 행동력이 차면 다시 움직일 수 있어요');
+  const pl = placeById(place)!;
+  if (!placeOpen(game, pl)) return same(flow, game, `${pl.name}은(는) ${openLabel(pl)} 갈 수 있어요`);
+  return same({ s: 'place', place }, game);
+}
+
 /* ── 화면 모델 — 기기 화면이 그리는 최소한의 정보 ── */
 export interface Choice { label: string; emoji?: string; enabled: boolean; note?: string }
 
@@ -153,8 +181,19 @@ export function screenModel(flow: Flow, g: GameState): ScreenModel {
       if (g.sick) return { ...base, title: '아파요', lines: ['너무 무리했어요. 이번 달은 쉬어요.'], choices: [], anyKey: true };
       return {
         ...base, title: '어디로 갈까요?', lines: [],
-        choices: PLACES.map((p) => ({ label: placeStage(g, p).label, emoji: p.emoji, enabled: true })),
+        choices: DISTRICTS.map((d) => ({ label: d.name, emoji: d.emoji, enabled: true })),
       };
+    case 'district': {
+      const d = DISTRICTS.find((x) => x.id === flow.district)!;
+      return {
+        ...base, title: `${d.emoji} ${d.name}`, lines: [], back: true,
+        choices: d.places.map((id) => {
+          const pl = placeById(id)!;
+          const open = placeOpen(g, pl);
+          return { label: open ? placeStage(g, pl).label : pl.name, emoji: open ? pl.emoji : '🚧', enabled: open, note: open ? undefined : openLabel(pl) };
+        }),
+      };
+    }
     case 'place': {
       const p = placeById(flow.place)!;
       return {

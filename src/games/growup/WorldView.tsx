@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Expression } from './engine';
 import { FRIENDS } from './friends';
-import { StaticScene, Sky, renderStatic, sceneKey, skyOf } from './render';
+import { StaticScene, Sky, drawSky, renderStatic, sceneKey, skyOf } from './render';
 import { PERSON_W, drawPerson, personHeight } from './sprites';
 import { FieldKey, FriendId, Look, PlaceId, Stage } from './types';
-import { BLOCK, COLS, FRIEND_X, GROUND, HEIGHT, PLACE_SLOT, Season, WIDTH, doorX } from './world';
-import { HAIR_COLORS } from './data';
+import { BLOCK, GROUND, HEIGHT, PLACE_SLOT, SLOT_W, Season, VIEW_W, WIDTH, doorX, friendX } from './world';
+import { DISTRICTS, HAIR_COLORS, PLACES } from './data';
+import { gradeLabel } from './calendar';
 
 export type WorldEffect = { kind: 'great' | 'ok' | 'fail' | 'sick' | 'heart'; key: number };
 
 interface Props {
   stage: Stage;
+  /** 학년(0~11) — 공사 중이던 곳이 열린다 */
+  grade: number;
   season: Season;
   look: Look;
   expr: Expression;
@@ -28,16 +31,16 @@ interface Props {
   rain: boolean;
   /** 아이 머리 위 말풍선(없으면 안 띄운다) */
   bubble?: string;
-  /** 장소 이름(학교급마다 다르다) — 버튼 ①~④ */
-  labels: string[];
+  /** 장소 이름(학교급마다 다르다) */
+  labels: Partial<Record<PlaceId, string>>;
   onPlace?: (p: PlaceId) => void;
 }
 
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; max: number; color: string; size: number; kind: 'dot' | 'drop' | 'spark' | 'heart' }
 
-const PLACES: PlaceId[] = ['home', 'school', 'town', 'center'];
-const NUM = ['1', '2', '3', '4'];
-const SPEED = 30; // 칸/초
+/** 걷는 데 길어야 이만큼(초) — 마을 끝에서 끝까지도 오래 기다리지 않게 */
+const WALK_MAX_S = 1.1;
+const MIN_SPEED = 30; // 칸/초
 
 function useHour() {
   const [hour, setHour] = useState(() => new Date().getHours());
@@ -49,29 +52,31 @@ function useHour() {
 }
 
 const reduceMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+const camFor = (x: number) => Math.max(0, Math.min(WIDTH - VIEW_W, x * BLOCK - VIEW_W / 2));
 
-/** 블록 마을 — 아이가 고른 장소로 걸어가고, 계절·시각·기분이 풍경에 드러난다 */
+/** 블록 마을 — 아이가 고른 장소로 걸어가고(화면이 따라간다), 계절·시각·기분이 풍경에 드러난다 */
 export function WorldView(p: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const signRefs = useRef<Partial<Record<PlaceId, HTMLButtonElement | null>>>({});
+  const dotRef = useRef<HTMLSpanElement>(null);
   const hour = useHour();
   const sky: Sky = skyOf(hour);
 
-  const scene: StaticScene = useMemo(
-    () => renderStatic({ stage: p.stage, season: p.season, sky, hour, props: p.props, trophies: p.trophies }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sceneKey({ stage: p.stage, season: p.season, sky, hour, props: p.props, trophies: p.trophies })],
-  );
+  const opts = { stage: p.stage, grade: p.grade, season: p.season, sky, hour, props: p.props, trophies: p.trophies };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const scene: StaticScene = useMemo(() => renderStatic(opts), [sceneKey(opts)]);
 
   /* 그리기에 쓰는 값은 ref 로 — 매 프레임 React 를 거치지 않는다 */
   const live = useRef(p);
   live.current = p;
   const sceneRef = useRef(scene);
   sceneRef.current = scene;
-  const skyRef = useRef(sky);
-  skyRef.current = sky;
+  const skyRef = useRef({ sky, hour });
+  skyRef.current = { sky, hour };
 
-  const kid = useRef({ x: doorX(p.at), target: doorX(p.at), face: 1, walking: false, arrive: false });
+  const kid = useRef({ x: doorX(p.at), target: doorX(p.at), face: 1, walking: false, arrive: false, speed: MIN_SPEED });
+  const cam = useRef(camFor(doorX(p.at)));
   const parts = useRef<Particle[]>([]);
   const cloudOffset = useRef(0);
 
@@ -83,12 +88,14 @@ export function WorldView(p: Props) {
     if (Math.abs(k.target - k.x) < 0.05 || reduceMotion()) {
       k.x = k.target;
       k.walking = false;
+      cam.current = camFor(k.x);
       live.current.onArrive?.();
       return;
     }
     k.walking = true;
     k.arrive = true;
     k.face = k.target > k.x ? 1 : -1;
+    k.speed = Math.max(MIN_SPEED, Math.abs(k.target - k.x) / WALK_MAX_S);
   }, [p.at]);
 
   /* 결과 연출 */
@@ -140,12 +147,12 @@ export function WorldView(p: Props) {
       const o = live.current;
       const k = kid.current;
       const sc = sceneRef.current;
-      const sk = skyRef.current;
+      const sk = skyRef.current.sky;
 
       /* 걷기 */
       if (k.walking) {
         const d = k.target - k.x;
-        const mv = Math.sign(d) * SPEED * step;
+        const mv = Math.sign(d) * k.speed * step;
         if (Math.abs(mv) >= Math.abs(d)) {
           k.x = k.target;
           k.walking = false;
@@ -154,73 +161,91 @@ export function WorldView(p: Props) {
           k.x += mv;
         }
       }
+      /* 화면이 아이를 따라간다 */
+      const want = camFor(k.x);
+      cam.current += (want - cam.current) * Math.min(1, step * 8);
+      if (Math.abs(want - cam.current) < 0.5) cam.current = want;
+      const cx0 = Math.round(cam.current);
 
-      ctx.drawImage(sc.base, 0, 0);
+      drawSky(ctx, sk, o.season, skyRef.current.hour, VIEW_W);
 
-      /* 구름 */
-      cloudOffset.current = (cloudOffset.current + step * 3) % (WIDTH + 80);
+      /* 구름 — 하늘에 고정, 천천히 흐른다 */
+      cloudOffset.current = (cloudOffset.current + step * 3) % (VIEW_W + 80);
       ctx.fillStyle = sk === 'night' ? 'rgba(80,90,130,0.5)' : sk === 'dusk' ? 'rgba(255,210,200,0.75)' : 'rgba(255,255,255,0.9)';
-      for (const [cx0, cy, w] of [[20, 14, 34], [140, 26, 26], [230, 10, 40]] as const) {
-        const cx = ((cx0 + cloudOffset.current) % (WIDTH + 80)) - 40;
+      for (const [c0, cy, w] of [[20, 14, 34], [140, 26, 26], [230, 10, 40]] as const) {
+        const cx = ((c0 + cloudOffset.current - cx0 * 0.15) % (VIEW_W + 80) + VIEW_W + 80) % (VIEW_W + 80) - 40;
         ctx.fillRect(cx, cy, w, 6);
         ctx.fillRect(cx + 6, cy - 4, w - 14, 4);
       }
 
+      ctx.drawImage(sc.base, cx0, 0, VIEW_W, HEIGHT, 0, 0, VIEW_W, HEIGHT);
+
       /* 친구들 — 아이 쪽을 본다 */
       for (const f of FRIENDS) {
         if (!o.friends.includes(f.id)) continue;
-        const fx = FRIEND_X[f.id] * BLOCK;
+        const fx = friendX(f.place) * BLOCK - cx0;
+        if (fx < -20 || fx > VIEW_W + 20) continue;
         const bob = Math.floor((t * 1.5 + fx) % 2) === 0 ? 0 : 1;
         const h = personHeight(o.stage);
         drawPerson(ctx, { hair: f.hair, style: f.style, stage: o.stage, expr: 'normal', shirt: f.shirt },
-          fx - PERSON_W / 2, GROUND * BLOCK - h + bob, 1, k.x * BLOCK < fx);
+          fx - PERSON_W / 2, GROUND * BLOCK - h + bob, 1, k.x * BLOCK - cx0 < fx);
       }
 
       /* 아이 */
+      const kx = k.x * BLOCK - cx0;
       {
         const h = personHeight(o.stage);
         const walkFrame = k.walking && Math.floor(t * 8) % 2 ? 1 : 0;
         const bob = !k.walking && o.expr === 'happy' && Math.floor(t * 2) % 2 ? -1 : 0;
         drawPerson(ctx, { hair: HAIR_COLORS[o.look.hair % HAIR_COLORS.length], style: o.look.style, stage: o.stage, expr: o.expr, frame: walkFrame },
-          k.x * BLOCK - PERSON_W / 2, GROUND * BLOCK - h + bob, 1, k.face < 0);
+          kx - PERSON_W / 2, GROUND * BLOCK - h + bob, 1, k.face < 0);
         /* 피곤하면 Z */
         if ((o.expr === 'tired' || o.expr === 'sick') && !k.walking) {
           const zy = GROUND * BLOCK - h - 6 - Math.floor((t * 4) % 6);
           ctx.fillStyle = '#ffffff';
-          const zx = k.x * BLOCK + 6;
+          const zx = kx + 6;
           ctx.fillRect(zx, zy, 4, 1); ctx.fillRect(zx + 2, zy + 1, 1, 1); ctx.fillRect(zx + 1, zy + 2, 1, 1); ctx.fillRect(zx, zy + 3, 4, 1);
         }
         if (bubbleRef.current) {
-          /* 말풍선이 화면 밖으로 나가지 않게 가장자리에서 멈춘다 */
-          bubbleRef.current.style.left = `${Math.min(80, Math.max(20, (k.x / COLS) * 100))}%`;
+          bubbleRef.current.style.left = `${Math.min(80, Math.max(20, (kx / VIEW_W) * 100))}%`;
           bubbleRef.current.style.opacity = k.walking ? '0' : '1';
         }
       }
 
-      /* 계절·날씨 */
-      const want = o.rain ? 50 : o.season === '겨울' ? 40 : o.season === '여름' ? (sk === 'night' ? 10 : 0) : 10;
-      while (weather.length < want) {
+      /* 간판과 미니맵도 화면을 따라 옮긴다 */
+      for (const pl of PLACES) {
+        const el = signRefs.current[pl.id];
+        if (!el) continue;
+        const sx = (PLACE_SLOT[pl.id] * SLOT_W + 4) * BLOCK - cx0;
+        el.style.left = `${(sx / VIEW_W) * 100}%`;
+        el.style.visibility = sx < -30 || sx > VIEW_W + 30 ? 'hidden' : 'visible';
+      }
+      if (dotRef.current) dotRef.current.style.left = `${(k.x * BLOCK / WIDTH) * 100}%`;
+
+      /* 계절·날씨 — 화면 좌표 */
+      const want2 = o.rain ? 50 : o.season === '겨울' ? 40 : o.season === '여름' ? (sk === 'night' ? 10 : 0) : 10;
+      while (weather.length < want2) {
         const R = Math.random;
         const rainy = o.rain;
         weather.push({
-          x: R() * WIDTH, y: R() * GROUND * BLOCK, vx: rainy ? -8 : o.season === '겨울' ? (R() - 0.5) * 6 : -10 - R() * 8,
+          x: R() * VIEW_W, y: R() * GROUND * BLOCK, vx: rainy ? -8 : o.season === '겨울' ? (R() - 0.5) * 6 : -10 - R() * 8,
           vy: rainy ? 140 : o.season === '여름' ? (R() - 0.5) * 6 : 10 + R() * 8, life: 0, max: 99,
           color: rainy ? 'rgba(170,200,255,0.8)' : o.season === '봄' ? '#ffb8d0' : o.season === '가을' ? (R() < 0.5 ? '#e07a30' : '#f2c230') : o.season === '겨울' ? '#ffffff' : '#fff27a',
           size: rainy ? 1 : o.season === '겨울' ? 1 : 2, kind: rainy ? 'drop' : 'dot',
         });
       }
-      if (weather.length > want) weather.length = want;
+      if (weather.length > want2) weather.length = want2;
       for (const w of weather) {
         w.x += w.vx * step; w.y += w.vy * step;
-        if (w.y > GROUND * BLOCK || w.x < -4 || w.x > WIDTH + 4) { w.y = -2; w.x = Math.random() * (WIDTH + 40); }
+        if (w.y > GROUND * BLOCK || w.x < -4 || w.x > VIEW_W + 4) { w.y = -2; w.x = Math.random() * (VIEW_W + 40); }
         if (o.season === '여름' && !o.rain && Math.floor(t * 3 + w.x) % 3 === 0) continue; // 반딧불 깜빡임
         ctx.fillStyle = w.color;
         if (w.kind === 'drop') ctx.fillRect(w.x, w.y, 1, 3);
         else ctx.fillRect(w.x, w.y, w.size, w.size);
       }
-      if (o.rain) { ctx.fillStyle = 'rgba(40,50,80,0.18)'; ctx.fillRect(0, 0, WIDTH, HEIGHT); }
+      if (o.rain) { ctx.fillStyle = 'rgba(40,50,80,0.18)'; ctx.fillRect(0, 0, VIEW_W, HEIGHT); }
 
-      /* 연출 입자 */
+      /* 연출 입자 — 마을 좌표로 만들어 화면으로 옮겨 그린다 */
       const ps = parts.current;
       for (let i = ps.length - 1; i >= 0; i--) {
         const q = ps[i];
@@ -228,33 +253,33 @@ export function WorldView(p: Props) {
         if (q.life >= q.max) { ps.splice(i, 1); continue; }
         q.x += q.vx * step; q.y += q.vy * step;
         if (q.kind === 'drop' && q.y > GROUND * BLOCK) { q.y = GROUND * BLOCK - personHeight(o.stage) - 14; }
+        const qx = q.x - cx0;
         ctx.globalAlpha = 1 - q.life / q.max;
         ctx.fillStyle = q.color;
         if (q.kind === 'heart') {
-          ctx.fillRect(q.x, q.y + 1, 5, 2); ctx.fillRect(q.x + 1, q.y, 1, 1); ctx.fillRect(q.x + 3, q.y, 1, 1);
-          ctx.fillRect(q.x + 1, q.y + 3, 3, 1); ctx.fillRect(q.x + 2, q.y + 4, 1, 1);
+          ctx.fillRect(qx, q.y + 1, 5, 2); ctx.fillRect(qx + 1, q.y, 1, 1); ctx.fillRect(qx + 3, q.y, 1, 1);
+          ctx.fillRect(qx + 1, q.y + 3, 3, 1); ctx.fillRect(qx + 2, q.y + 4, 1, 1);
         } else if (q.kind === 'spark') {
-          ctx.fillRect(q.x, q.y, q.size, q.size);
-          if (q.size > 1) { ctx.fillRect(q.x - 1, q.y + 0.5, 4, 1); }
+          ctx.fillRect(qx, q.y, q.size, q.size);
+          if (q.size > 1) { ctx.fillRect(qx - 1, q.y + 0.5, 4, 1); }
         } else {
-          ctx.fillRect(q.x, q.y, 1, 3);
+          ctx.fillRect(qx, q.y, 1, 3);
         }
         ctx.globalAlpha = 1;
       }
       /* 실패하면 머리 위에 먹구름 */
       if (ps.some((q) => q.kind === 'drop')) {
-        const cx = k.x * BLOCK;
         const top = GROUND * BLOCK - personHeight(o.stage) - 18;
         ctx.fillStyle = '#6a7080';
-        ctx.fillRect(cx - 9, top, 18, 5); ctx.fillRect(cx - 5, top - 3, 10, 3);
+        ctx.fillRect(kx - 9, top, 18, 5); ctx.fillRect(kx - 5, top - 3, 10, 3);
       }
 
       /* 밤·저녁 */
       if (sk !== 'day') {
         ctx.fillStyle = sk === 'night' ? 'rgba(8,12,40,0.5)' : 'rgba(70,40,90,0.18)';
-        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+        ctx.fillRect(0, 0, VIEW_W, HEIGHT);
         ctx.globalAlpha = sk === 'night' ? 1 : 0.6;
-        ctx.drawImage(sc.glow, 0, 0);
+        ctx.drawImage(sc.glow, cx0, 0, VIEW_W, HEIGHT, 0, 0, VIEW_W, HEIGHT);
         ctx.globalAlpha = 1;
       }
     };
@@ -271,19 +296,27 @@ export function WorldView(p: Props) {
 
   return (
     <div className="gu-world">
-      <canvas ref={canvasRef} width={WIDTH} height={HEIGHT} className="gu-world-canvas"
+      <canvas ref={canvasRef} width={VIEW_W} height={HEIGHT} className="gu-world-canvas"
         role="img" aria-label={`블록 마을 — ${p.season}, ${sky === 'night' ? '밤' : sky === 'dusk' ? '저녁' : '낮'}`} />
       {scene.buildings.map((b) => {
-        const i = PLACE_SLOT[b.place];
+        const pl = PLACES[PLACE_SLOT[b.place]];
         return (
-          <button key={b.place} className="gu-world-sign" type="button"
-            style={{ left: `${((i * 8 + 4) / COLS) * 100}%`, top: `${(Math.max(18, b.top * BLOCK - 3) / HEIGHT) * 100}%` }}
-            onClick={() => p.onPlace?.(PLACES[i])} tabIndex={-1} aria-hidden="true">
-            <b>{NUM[i]}</b>{p.labels[i]}
+          <button key={b.place} ref={(el) => { signRefs.current[b.place] = el; }}
+            className={`gu-world-sign ${b.open ? '' : 'closed'}`} type="button"
+            style={{ top: `${(Math.max(18, b.top * BLOCK - 3) / HEIGHT) * 100}%` }}
+            onClick={() => b.open && p.onPlace?.(b.place)} tabIndex={-1} aria-hidden="true">
+            {b.open ? <>{pl.emoji} {p.labels[b.place] ?? pl.name}</> : <>🚧 {gradeLabel(pl.from)}부터</>}
           </button>
         );
       })}
       {p.bubble && <div ref={bubbleRef} className="gu-world-bubble" style={{ bottom: `${100 - kidTop}%` }}>{p.bubble}</div>}
+      {/* 미니맵 — 구역 넷과 지금 아이 자리 */}
+      <div className="gu-minimap" aria-hidden="true">
+        {DISTRICTS.map((d) => (
+          <span key={d.id} style={{ flex: d.places.length, background: d.color }}>{d.emoji} {d.name}</span>
+        ))}
+        <span ref={dotRef} className="gu-minimap-dot" />
+      </div>
     </div>
   );
 }

@@ -915,3 +915,60 @@
   .gu-report-riasec { grid-template-columns: 1fr; }
   .gu-riasec { max-width: 220px; margin: 0 auto; }
 }
+
+/* ══ 구역 4개 × 장소 14곳 ══ */
+.gu-districts { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.gu-district {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--pc) 16%, var(--gu-ink));
+}
+.gu-district-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 4px;
+  font-size: 0.86rem;
+  font-weight: 900;
+  color: var(--gu-text);
+  text-align: left;
+}
+.gu-district-head .gu-num { width: 22px; height: 22px; font-size: 0.8rem; }
+.gu-district-places { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.gu-district-places .gu-place { min-height: 70px; padding: 6px 2px; }
+.gu-district-places.big { grid-template-columns: repeat(2, 1fr); }
+.gu-district-places.big .gu-place { min-height: 96px; padding-top: 20px; }
+.gu-place.closed { background: repeating-linear-gradient(135deg, #3a3446 0 8px, #2e2a38 8px 16px); color: var(--gu-sub); }
+.gu-place.closed .gu-place-sub { color: #ffc23d; }
+.gu-world-sign.closed { background: #ffc23d; border-color: #7a5a10; color: #3a2a00; }
+.gu-minimap {
+  position: relative;
+  display: flex;
+  height: 16px;
+  border-top: 3px solid var(--gu-ink);
+  font-size: 0.6rem;
+  font-weight: 900;
+  color: rgba(0, 0, 0, 0.7);
+}
+.gu-minimap span:not(.gu-minimap-dot) { display: grid; place-items: center; overflow: hidden; white-space: nowrap; }
+.gu-minimap-dot {
+  position: absolute;
+  top: -5px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  background: #fff;
+  border: 2px solid var(--gu-ink);
+  transform: rotate(45deg);
+}
+
+@media (min-width: 640px) {
+  .gu-districts { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 380px) {
+  .gu-district-places { grid-template-columns: repeat(2, 1fr); }
+}

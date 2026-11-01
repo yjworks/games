@@ -4,10 +4,10 @@ import { clearProgress, setProgress } from '../../shared/progress';
 import { sfx } from '../../shared/sound';
 import { careerById } from './careers';
 import { NewGameOpts, WakeResult, accrue, expression, fill, newGame, pendingEvent, progressLabel, toClassic } from './engine';
-import { Flow, press as step, settle } from './flow';
+import { Flow, Step, goto as gotoPlace, press as step, settle } from './flow';
 import type { Button } from './input';
 import { emit } from './bridge';
-import { GameState } from './types';
+import { GameState, PlaceId } from './types';
 import { Uploads, loadUploads, saveUpload } from './portraits';
 
 const store = createStore('growup');
@@ -38,6 +38,8 @@ interface State {
   start: (opts: Omit<NewGameOpts, 'seed' | 'now'>) => void;
   /** 버튼 ①~④·뒤로 — 모든 진행은 이 하나로 한다 */
   press: (b: Button) => void;
+  /** 화면에서 장소를 바로 눌렀을 때 */
+  goto: (place: PlaceId) => void;
   setBusy: (v: boolean) => void;
   setDex: (open: boolean) => void;
   /** 키우기 모드: 지난 시간만큼 행동력을 채운다 */
@@ -60,6 +62,46 @@ export const useGrow = create<State>()((set, get) => {
     set({ toast: { text, key: Date.now() } });
   }
 
+  function apply(flow: Flow, game: GameState, r: Step) {
+    if (r.toast) { sfx.alert(); toast(r.toast); }
+    if (r.game !== game) save(r.game);
+    set({ flow: r.flow });
+    const fx = r.fx;
+    if (!fx) { if (r.flow !== flow && !r.toast) sfx.tap(); return; }
+    switch (fx.kind) {
+      case 'month': {
+        const o = fx.report.outcome;
+        if (o === 'great') sfx.win(); else if (o === 'fail') sfx.lose(); else if (o === 'sick') sfx.undo(); else sfx.place();
+        emit({ type: 'turn', when: fx.report.when, place: fx.report.place, act: fx.report.act, outcome: o, expression: expression(r.game) });
+        const ev = pendingEvent(r.game);
+        if (ev) emit({ type: 'event', id: ev.id, title: fill(ev.title, r.game.name) });
+        break;
+      }
+      case 'quiz':
+        if (fx.correct) sfx.levelUp(); else sfx.lose();
+        break;
+      case 'choice':
+        sfx.tap();
+        break;
+      case 'finish': {
+        const tier = r.game.ending?.tier ?? 1;
+        const dex = { ...get().dex };
+        dex[fx.careerId] = Math.max(dex[fx.careerId] ?? 0, tier);
+        store.set(DEX_KEY, dex);
+        set({ dex });
+        sfx.win();
+        emit({ type: 'ending', careerId: fx.careerId, title: careerById(fx.careerId)?.title ?? fx.careerId, tier });
+        break;
+      }
+      case 'newGame':
+        get().reset();
+        break;
+      case 'dex':
+        set({ dexOpen: true });
+        break;
+    }
+  }
+
   return {
     game: first,
     flow: first ? settle(first) : { s: 'town' },
@@ -77,49 +119,17 @@ export const useGrow = create<State>()((set, get) => {
       save(game);
     },
 
+    goto: (place) => {
+      const { game, flow, busy } = get();
+      if (!game || busy) return;
+      apply(flow, game, gotoPlace(flow, game, place));
+    },
+
     press: (b) => {
       const { game, flow, busy } = get();
       if (!game || busy) return;
-      const r = step(flow, game, b);
-      if (r.toast) { sfx.alert(); toast(r.toast); }
-      if (r.game !== game) save(r.game);
-      set({ flow: r.flow });
-      const fx = r.fx;
-      if (!fx) { if (r.flow !== flow && !r.toast) sfx.tap(); return; }
-      switch (fx.kind) {
-        case 'month': {
-          const o = fx.report.outcome;
-          if (o === 'great') sfx.win(); else if (o === 'fail') sfx.lose(); else if (o === 'sick') sfx.undo(); else sfx.place();
-          emit({ type: 'turn', when: fx.report.when, place: fx.report.place, act: fx.report.act, outcome: o, expression: expression(r.game) });
-          const ev = pendingEvent(r.game);
-          if (ev) emit({ type: 'event', id: ev.id, title: fill(ev.title, r.game.name) });
-          break;
-        }
-        case 'quiz':
-          if (fx.correct) sfx.levelUp(); else sfx.lose();
-          break;
-        case 'choice':
-          sfx.tap();
-          break;
-        case 'finish': {
-          const tier = r.game.ending?.tier ?? 1;
-          const dex = { ...get().dex };
-          dex[fx.careerId] = Math.max(dex[fx.careerId] ?? 0, tier);
-          store.set(DEX_KEY, dex);
-          set({ dex });
-          sfx.win();
-          emit({ type: 'ending', careerId: fx.careerId, title: careerById(fx.careerId)?.title ?? fx.careerId, tier });
-          break;
-        }
-        case 'newGame':
-          get().reset();
-          break;
-        case 'dex':
-          set({ dexOpen: true });
-          break;
-      }
+      apply(flow, game, step(flow, game, b));
     },
-
     setBusy: (busy) => set({ busy }),
     setDex: (dexOpen) => set({ dexOpen }),
 

@@ -149,6 +149,10 @@ function paintBlock(b: B, season: Season, lit: boolean, variant: number): HTMLCa
       x.fillStyle = '#6e7178'; x.fillRect(0, 9, BLOCK, 1);
       break;
     case B.Snow: fill('#f4f8ff'); noise(['#e4ecf8', '#ffffff'], 0.3); break;
+    case B.Water:
+      if (season === '겨울') { fill('#cfe6f4'); noise(['#e4f2fa', '#b8d8ec'], 0.3); }
+      else { fill('#3f7fd8'); x.fillStyle = '#6aa4ec'; x.fillRect(0, 0, BLOCK, 2); x.fillRect(variant ? 2 : 5, 5, 3, 1); }
+      break;
     default: break;
   }
   return c;
@@ -171,6 +175,36 @@ const SKY: Record<Sky, Record<Season, [string, string]>> = {
 
 export function skyColors(sky: Sky, season: Season) { return SKY[sky][season]; }
 
+/** 하늘 — 화면(320×180)에 고정. 마을이 옆으로 흘러도 해·달·별은 그대로다 */
+export function drawSky(ctx: CanvasRenderingContext2D, sky: Sky, season: Season, hour: number, w: number) {
+  const [top, bottom] = SKY[sky][season];
+  const grad = ctx.createLinearGradient(0, 0, 0, GROUND * BLOCK);
+  grad.addColorStop(0, top);
+  grad.addColorStop(1, bottom);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, GROUND * BLOCK);
+  if (sky === 'night') {
+    const r = rng(424242);
+    for (let k = 0; k < 40; k++) {
+      ctx.fillStyle = r() < 0.2 ? '#fff6c0' : '#ffffff';
+      ctx.fillRect(Math.floor(r() * w), Math.floor(r() * 90), 1, 1);
+    }
+  }
+  /* 해·달 — 시각에 따라 하늘을 가로지른다 */
+  const t = sky === 'night' ? ((hour + 5) % 24) / 10 : (hour - 6) / 12;
+  const sx = 20 + Math.max(0, Math.min(1, t)) * (w - 50);
+  const sy = 18 + Math.abs(0.5 - Math.max(0, Math.min(1, t))) * 50;
+  if (sky === 'night') {
+    ctx.fillStyle = '#f4f0dc'; ctx.fillRect(sx, sy, 12, 12);
+    ctx.fillStyle = '#d8d4c0'; ctx.fillRect(sx + 3, sy + 3, 3, 3); ctx.fillRect(sx + 7, sy + 7, 2, 2);
+  } else {
+    ctx.fillStyle = sky === 'dusk' ? '#ff9a50' : '#ffe680';
+    ctx.fillRect(sx - 2, sy - 2, 18, 18);
+    ctx.fillStyle = sky === 'dusk' ? '#ffc070' : '#fff6c0';
+    ctx.fillRect(sx, sy, 14, 14);
+  }
+}
+
 export interface StaticScene {
   base: HTMLCanvasElement;
   /** 밤에 켜지는 불빛(창문·가로등) — 어두운 막을 덮은 뒤 위에 얹는다 */
@@ -181,6 +215,8 @@ export interface StaticScene {
 
 export interface SceneOpts {
   stage: Stage;
+  /** 학년(0~11) — 공사 중이던 곳이 열린다 */
+  grade: number;
   season: Season;
   sky: Sky;
   hour: number;
@@ -190,44 +226,17 @@ export interface SceneOpts {
 }
 
 export function sceneKey(o: SceneOpts) {
-  return `${o.stage}|${o.season}|${o.sky}|${o.hour}|${o.props.join(',')}|${o.trophies}`;
+  return `${o.stage}|${o.grade}|${o.season}|${o.sky}|${o.hour}|${o.props.join(',')}|${o.trophies}`;
 }
 
 export function renderStatic(o: SceneOpts): StaticScene {
-  const { grid, buildings } = buildWorld(o.stage);
+  const { grid, buildings } = buildWorld(o.stage, o.grade);
   const base = mkCanvas(WIDTH, HEIGHT);
   const ctx = base.getContext('2d')!;
   ctx.imageSmoothingEnabled = false;
 
-  /* 하늘 */
-  const [top, bottom] = SKY[o.sky][o.season];
-  const grad = ctx.createLinearGradient(0, 0, 0, GROUND * BLOCK);
-  grad.addColorStop(0, top);
-  grad.addColorStop(1, bottom);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, WIDTH, GROUND * BLOCK);
-
+  /* 하늘·해·달은 화면에 고정해서 drawSky 가 그린다 — 여기는 땅과 건물만(하늘 자리는 투명) */
   const r = rng(424242);
-  if (o.sky === 'night') {
-    for (let k = 0; k < 60; k++) {
-      ctx.fillStyle = r() < 0.2 ? '#fff6c0' : '#ffffff';
-      ctx.fillRect(Math.floor(r() * WIDTH), Math.floor(r() * 90), 1, 1);
-    }
-  }
-
-  /* 해·달 — 시각에 따라 하늘을 가로지른다 */
-  const t = o.sky === 'night' ? ((o.hour + 5) % 24) / 10 : (o.hour - 6) / 12;
-  const sx = 20 + Math.max(0, Math.min(1, t)) * (WIDTH - 50);
-  const sy = 18 + Math.abs(0.5 - Math.max(0, Math.min(1, t))) * 50;
-  if (o.sky === 'night') {
-    ctx.fillStyle = '#f4f0dc'; ctx.fillRect(sx, sy, 12, 12);
-    ctx.fillStyle = '#d8d4c0'; ctx.fillRect(sx + 3, sy + 3, 3, 3); ctx.fillRect(sx + 7, sy + 7, 2, 2);
-  } else {
-    ctx.fillStyle = o.sky === 'dusk' ? '#ff9a50' : '#ffe680';
-    ctx.fillRect(sx - 2, sy - 2, 18, 18);
-    ctx.fillStyle = o.sky === 'dusk' ? '#ffc070' : '#fff6c0';
-    ctx.fillRect(sx, sy, 14, 14);
-  }
 
   /* 먼 언덕 — 블록 계단 실루엣 */
   const hill = o.sky === 'night' ? '#1a2440' : o.sky === 'dusk' ? '#6a5a7a'
@@ -242,7 +251,7 @@ export function renderStatic(o: SceneOpts): StaticScene {
   /* 언덕 위 나무 — 계절 따라 벚꽃·초록·단풍·눈 */
   const leaf = LEAF[o.season];
   const dim = o.sky === 'night' ? 'rgba(10,16,40,0.55)' : o.sky === 'dusk' ? 'rgba(60,40,80,0.3)' : 'rgba(255,255,255,0.18)';
-  for (const tx of [3.5, 11.6, 19.3, 27.8, 30.6]) {
+  for (let tx = 3.5; tx < COLS; tx += 5.3 + (Math.floor(tx) % 3)) {
     const bx = Math.round(tx * BLOCK);
     const by = (GROUND - 1) * BLOCK - 6;
     ctx.fillStyle = '#6a4a2a'; ctx.fillRect(bx + 3, by - 2, 3, 10);
