@@ -317,7 +317,7 @@ function Playing({ game, flow, press, setBusy, wake }: {
     if (!raise) return;
     const run = () => {
       const r = wake();
-      if (r?.missed) toastSet({ toast: { text: fill('오랜만이야! {name:이가} 많이 보고 싶어 했어요.', r.state.name), key: Date.now() } });
+      if (r?.missed) toastSet({ toast: { text: fill('어서 와! {name:이가} 반갑게 손을 흔들어요.', r.state.name), key: Date.now() } });
       else if (r && r.gained > 0) toastSet({ toast: { text: `⚡ 행동력 ${r.gained} 충전!`, key: Date.now() } });
     };
     run();

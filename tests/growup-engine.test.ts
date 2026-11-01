@@ -244,11 +244,12 @@ describe('키우기 모드', () => {
     expect(accrue(s, CHARGE_MS * 10).state.tokens).toBe(MAX_TOKENS);
   });
 
-  it('하루 넘게 안 오면 보고 싶어 한다', () => {
+  it('하루 넘게 안 와도 벌점은 없다 — 반갑게 맞기만 한다', () => {
     const s = make('raise', 1, 0);
     const r = accrue(s, MISS_MS + 1);
     expect(r.missed).toBe(true);
-    expect(r.state.mood).toBeLessThan(s.mood);
+    expect(r.state.mood).toBe(s.mood);
+    expect(r.state.fatigue).toBe(s.fatigue);
     expect(accrue(s, 1000).missed).toBe(false);
   });
 

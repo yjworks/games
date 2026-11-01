@@ -16,7 +16,7 @@ export { TOTAL_TURNS };
 /* ── 키우기 모드: 4시간마다 행동 1번, 최대 4번까지 모인다 ── */
 export const CHARGE_MS = 4 * 60 * 60 * 1000;
 export const MAX_TOKENS = 4;
-/** 이만큼 안 들르면 보고 싶어 한다 */
+/** 이만큼 안 들르면 반갑게 맞는다 */
 export const MISS_MS = 24 * 60 * 60 * 1000;
 
 /** 사건이 나올 확률(정해진 사건 제외) */
@@ -624,7 +624,7 @@ export function talkLine(s: GameState): string {
 /* ── 키우기 모드 ── */
 export interface WakeResult { state: GameState; gained: number; missed: boolean }
 
-/** 지난 시간만큼 행동력을 채운다. 오래 비웠으면 기분이 조금 가라앉는다 */
+/** 지난 시간만큼 행동력을 채운다. 오래 비웠으면 missed 로 알려 반갑게 맞는다(벌점 없음) */
 export function accrue(prev: GameState, now: number): WakeResult {
   if (prev.mode !== 'raise') return { state: prev, gained: 0, missed: false };
   const s = clone(prev);
@@ -639,8 +639,8 @@ export function accrue(prev: GameState, now: number): WakeResult {
       s.tokenAt = s.tokens >= MAX_TOKENS ? now : s.tokenAt + n * CHARGE_MS;
     }
   }
+  /* 오래 비워도 벌점은 없다 — 반갑게 맞이할 뿐(방치 벌점은 교육용에서 뺀다: 로봇 놀이 설계 9절과 같은 원칙) */
   const missed = now - s.lastSeen >= MISS_MS && !s.ending;
-  if (missed) { s.mood = clamp(s.mood - 10, 0, 100); }
   s.lastSeen = now;
   return { state: s, gained, missed };
 }
