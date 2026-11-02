@@ -87,8 +87,10 @@ npm run preview
 ## 배포
 
 GitHub Pages는 꺼져 있습니다(`gh-pages` 브랜치는 예전 배포본이라 쓰지 않습니다).
-블로그 저장소(`yjworks/yjworks.github.io`)의 워크플로가 이 저장소의 `main`을 30분마다 확인해 빌드하고
-Cloudflare Pages(`dibrain.dev/games/`)에 올립니다. 이 저장소의 `ci.yml`은 타입 검사·테스트·빌드만 봅니다.
+블로그 저장소(`yjworks/yjworks.github.io`)의 `hugo.yml`이 빌드해 Cloudflare Pages(`dibrain.dev/games/`)에 올립니다.
+이 저장소의 `ci.yml`은 타입 검사·테스트·빌드를 보고, `main`에서 통과하면 `hugo.yml`을 바로 실행시킵니다
+(저장소 secret `DEPLOY_TOKEN` — 블로그 저장소 하나만, Actions: Read and write 권한의 fine-grained 토큰. 없으면 건너뜀).
+블로그 저장소의 30분 예약 점검은 보조입니다.
 `base`가 상대 경로(`./`)라서 계정 이름이나 저장소 이름이 바뀌어도 그대로 동작합니다.
 서비스 워커의 경로도 전부 상대 경로입니다.
 

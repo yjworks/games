@@ -219,7 +219,7 @@ function TitleScreen({ onDex, onPortraits }: { onDex: () => void; onPortraits: (
 
         <div className="gu-four">
           <ChoiceBtn n={1} tone="primary" label="한 번에 키우기" sub="원하는 만큼 계속. 30~40분이면 졸업." onClick={() => go('classic')} />
-          <ChoiceBtn n={2} emoji="🌱" label="키우기 모드" sub={`4시간마다 행동 1번(최대 ${MAX_TOKENS}번).`} onClick={() => go('raise')} />
+          <ChoiceBtn n={2} emoji="🌱" label="키우기 모드" sub={`4시간마다 ⚡ 기운 1개(최대 ${MAX_TOKENS}개).`} onClick={() => go('raise')} />
           <ChoiceBtn n={3} emoji="✨" label="모습 바꾸기" sub="머리색·머리 모양을 차례로." onClick={nextLook} />
           <ChoiceBtn n={4} emoji="📖" label="직업 도감" sub={`${seen} / ${CAREERS.length} 직업`} onClick={onDex} />
         </div>
