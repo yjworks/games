@@ -52,8 +52,8 @@ export const GAMES: GameMeta[] = [
   },
   {
     id: 'growup',
-    title: '꿈자람 마을',
-    subtitle: 'DREAMGROW TOWN · 진로 육성',
+    title: '꿈자람',
+    subtitle: 'DREAMGROW · 진로 육성',
     emoji: '🌱',
     desc: '블록 마을에서 초1부터 고3까지 12년. 장소 14곳을 돌며 활동을 골라 키우고 친구를 사귀며, 졸업 때 직업 29가지 중 하나로 갑니다. 진로 리포트와 직업 퀴즈.',
     controls: '클릭 · 숫자키 1~4',

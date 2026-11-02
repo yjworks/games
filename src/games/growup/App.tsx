@@ -190,8 +190,8 @@ function TitleScreen({ onDex, onPortraits }: { onDex: () => void; onPortraits: (
         <div className="gu-title-hero">
           <Portrait look={look} stage={0} expr="happy" scale={5} className="lg" />
           <div>
-            <h2 className="gu-logo">꿈자람 마을</h2>
-            <p className="gu-logo-sub">DREAMGROW TOWN</p>
+            <h2 className="gu-logo">꿈자람</h2>
+            <p className="gu-logo-sub">DREAMGROW</p>
             {meta.lore.map((l) => <p key={l}>{l}</p>)}
           </div>
         </div>
