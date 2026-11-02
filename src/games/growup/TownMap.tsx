@@ -21,8 +21,10 @@ interface Props {
   trophies: number;
   friends: FriendId[];
   rain: boolean;
-  /** 아이가 가야 할 곳. 바뀌면 길을 따라 걸어가 문으로 들어간다 */
+  /** 아이가 있는 곳(또는 가야 할 곳) */
   at: PlaceId;
+  /** 늘어날 때마다 at 으로 걸어가 문으로 들어간다 — 방금 나온 곳을 다시 골라도 들어가게 */
+  trip?: number;
   /** 처음 그릴 때 아이가 이 장소 안에 있으면 문에서 걸어 나온다 */
   emergeFrom?: PlaceId | null;
   /** 문으로 들어갔을 때 */
@@ -77,28 +79,34 @@ export function TownMap(p: Props) {
   const kid = useRef({ ...feet(LAYOUT.lots[p.emergeFrom ?? p.at].stand), face: 1, place: p.emergeFrom ?? p.at });
   const phase = useRef<Phase>(p.emergeFrom ? { k: 'exit', place: p.emergeFrom, t: 0 } : { k: 'idle' });
 
-  /* 갈 곳이 바뀌면 길을 찾아 걷는다 */
-  useEffect(() => {
+  /** 나오는 중에 받은 길 — 다 나온 뒤에 출발한다 */
+  const pending = useRef(false);
+  const startWalk = (to: PlaceId) => {
     const k = kid.current;
-    const ph = phase.current;
-    if (ph.k === 'exit') return; // 나오는 중이면 나온 뒤에 처리
-    if (ph.k === 'inside') { phase.current = { k: 'exit', place: ph.place, t: 0 }; return; }
-    startWalk(p.at);
-    function startWalk(to: PlaceId) {
-      const from = LAYOUT.lots[k.place].stand;
-      const target = LAYOUT.lots[to].stand;
-      if (reduceMotion()) {
-        Object.assign(k, feet(target), { place: to });
-        phase.current = { k: 'inside', place: to };
-        live.current.onEnter?.(to);
-        return;
-      }
-      if (from.x === target.x && from.y === target.y) { phase.current = { k: 'enter', place: to, t: 0 }; return; }
-      const pts = findPath(LAYOUT, from, target).map(feet);
-      phase.current = { k: 'walk', pts, t: 0, dur: Math.min(MAX_WALK_S, pts.length * STEP_S), to };
+    const from = LAYOUT.lots[k.place].stand;
+    const target = LAYOUT.lots[to].stand;
+    if (reduceMotion()) {
+      Object.assign(k, feet(target), { place: to });
+      phase.current = { k: 'inside', place: to };
+      live.current.onEnter?.(to);
+      return;
     }
+    if (from.x === target.x && from.y === target.y) { phase.current = { k: 'enter', place: to, t: 0 }; return; }
+    const pts = findPath(LAYOUT, from, target).map(feet);
+    phase.current = { k: 'walk', pts, t: 0, dur: Math.min(MAX_WALK_S, pts.length * STEP_S), to };
+  };
+
+  /* 길 요청(trip)이 오면 걷는다. 처음 그릴 때의 값은 이미 지난 요청이다 */
+  const lastTrip = useRef(p.trip ?? 0);
+  useEffect(() => {
+    if ((p.trip ?? 0) === lastTrip.current) return;
+    lastTrip.current = p.trip ?? 0;
+    const ph = phase.current;
+    if (ph.k === 'exit') { pending.current = true; return; }
+    if (ph.k === 'inside') { phase.current = { k: 'exit', place: ph.place, t: 0 }; pending.current = true; return; }
+    startWalk(p.at);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [p.at]);
+  }, [p.trip]);
 
   useEffect(() => {
     const cv = canvasRef.current;
@@ -168,11 +176,8 @@ export function TownMap(p: Props) {
         k.place = ph.place;
         if (f >= 1) {
           phase.current = { k: 'idle' };
-          /* 나오는 동안 다른 곳이 골라졌으면 이제 출발 */
-          if (o.at !== ph.place) {
-            const pts = findPath(LAYOUT, lot.stand, LAYOUT.lots[o.at].stand).map(feet);
-            phase.current = { k: 'walk', pts, t: 0, dur: Math.min(MAX_WALK_S, pts.length * STEP_S), to: o.at };
-          }
+          /* 나오는 동안 갈 곳이 골라졌으면 이제 출발(방금 나온 곳이면 바로 다시 들어간다) */
+          if (pending.current) { pending.current = false; startWalk(o.at); }
         }
       } else if (ph.k === 'inside') {
         kidAlpha = 0;
