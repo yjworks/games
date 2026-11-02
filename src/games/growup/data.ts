@@ -3,7 +3,7 @@ import { Activity, District, DistrictId, FieldKey, Four, Place, PlaceStage, Stat
 export const STAT_KEYS: StatKey[] = ['know', 'logic', 'create', 'express', 'body', 'craft', 'social'];
 
 export const STAT_LABEL: Record<StatKey, string> = {
-  know: '지식', logic: '논리', create: '창의', express: '표현', body: '체력', craft: '손재주', social: '사교',
+  know: '공부', logic: '생각', create: '상상', express: '말하기', body: '체력', craft: '만들기', social: '사귀기',
 };
 
 export const STAT_COLOR: Record<StatKey, string> = {
@@ -14,8 +14,8 @@ export const STAT_COLOR: Record<StatKey, string> = {
 export const FIELD_KEYS: FieldKey[] = ['it', 'eng', 'sci', 'med', 'art', 'music', 'write', 'food', 'sport', 'biz', 'edu'];
 
 export const FIELD_LABEL: Record<FieldKey, string> = {
-  it: 'IT·코딩', eng: '공학·로봇', sci: '과학·연구', med: '의료·돌봄', art: '미술·디자인', music: '음악·공연',
-  write: '글·미디어', food: '요리', sport: '스포츠', biz: '경영·장사', edu: '교육·상담',
+  it: '컴퓨터·코딩', eng: '기계·로봇', sci: '과학', med: '병원·돌봄', art: '미술·디자인', music: '음악·공연',
+  write: '글·영상', food: '요리', sport: '운동', biz: '가게·장사', edu: '가르치기·돕기',
 };
 
 export const FIELD_EMOJI: Record<FieldKey, string> = {

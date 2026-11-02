@@ -45,7 +45,7 @@ export default function App() {
       tutorial={growupTutorial}
       actions={<>
         <button className="db-btn shell-btn" onClick={() => setPortraits(true)} aria-label="초상 바꾸기" title="초상 바꾸기">🖼️</button>
-        <button className="db-btn shell-btn" onClick={() => setDex(true)} aria-label="엔딩 도감" title="엔딩 도감">📖</button>
+        <button className="db-btn shell-btn" onClick={() => setDex(true)} aria-label="직업 도감" title="직업 도감">📖</button>
       </>}
     >
       <div className="gu-root">
@@ -103,7 +103,7 @@ function DeltaChips({ d }: { d: Delta }) {
   for (const [k, v] of Object.entries(d.fields) as [FieldKey, number][]) {
     if (v > 0.5) chips.push({ key: k, text: `${FIELD_EMOJI[k]} ${FIELD_LABEL[k]} 관심↑`, tone: 'field' });
   }
-  const cond: [string, number, boolean][] = [['피로', d.fatigue, false], ['스트레스', d.stress, false], ['기분', d.mood, true]];
+  const cond: [string, number, boolean][] = [['피곤', d.fatigue, false], ['짜증', d.stress, false], ['기분', d.mood, true]];
   for (const [name, v, goodUp] of cond) {
     if (Math.abs(v) >= 1) chips.push({ key: name, text: `${name} ${signed(v)}`, tone: (v > 0) === goodUp ? 'up' : 'down' });
   }
@@ -132,7 +132,7 @@ function Stars({ n }: { n: number }) {
 
 function Hearts({ v }: { v: number }) {
   const n = v >= FRIEND_LEVELS[1] ? 3 : v >= FRIEND_LEVELS[0] ? 2 : v >= FRIEND_MET ? 1 : 0;
-  return <span className="gu-hearts" aria-label={`친밀도 ${Math.round(v)}`}>{'♥'.repeat(n)}<i>{'♥'.repeat(3 - n)}</i></span>;
+  return <span className="gu-hearts" aria-label={`친한 정도 ${Math.round(v)}`}>{'♥'.repeat(n)}<i>{'♥'.repeat(3 - n)}</i></span>;
 }
 
 const friendTitle = (v: number) => (v >= FRIEND_LEVELS[1] ? '단짝' : v >= FRIEND_LEVELS[0] ? '친구' : v >= FRIEND_MET ? '아는 사이' : '아직 몰라요');
@@ -175,7 +175,7 @@ function TitleScreen({ onDex, onPortraits }: { onDex: () => void; onPortraits: (
     else if (b === 2) go('raise');
     else if (b === 3) nextLook();
     else if (b === 4) onDex();
-  }, LAYER.screen, 'title', ['한 번에 키우기', '키우기 모드', '모습 바꾸기', '엔딩 도감']);
+  }, LAYER.screen, 'title', ['한 번에 키우기', '키우기 모드', '모습 바꾸기', '직업 도감']);
 
   const month = new Date().getMonth() + 1;
   const season = month >= 3 && month <= 5 ? '봄' : month >= 6 && month <= 8 ? '여름' : month >= 9 && month <= 11 ? '가을' : '겨울';
@@ -190,8 +190,8 @@ function TitleScreen({ onDex, onPortraits }: { onDex: () => void; onPortraits: (
         <div className="gu-title-hero">
           <Portrait look={look} stage={0} expr="happy" scale={5} className="lg" />
           <div>
-            <h2 className="gu-logo">꿈자람</h2>
-            <p className="gu-logo-sub">DREAMGROW</p>
+            <h2 className="gu-logo">꿈마을</h2>
+            <p className="gu-logo-sub">DREAM TOWN</p>
             {meta.lore.map((l) => <p key={l}>{l}</p>)}
           </div>
         </div>
@@ -221,7 +221,7 @@ function TitleScreen({ onDex, onPortraits }: { onDex: () => void; onPortraits: (
           <ChoiceBtn n={1} tone="primary" label="한 번에 키우기" sub="원하는 만큼 계속. 30~40분이면 졸업." onClick={() => go('classic')} />
           <ChoiceBtn n={2} emoji="🌱" label="키우기 모드" sub={`4시간마다 행동 1번(최대 ${MAX_TOKENS}번).`} onClick={() => go('raise')} />
           <ChoiceBtn n={3} emoji="✨" label="모습 바꾸기" sub="머리색·머리 모양을 차례로." onClick={nextLook} />
-          <ChoiceBtn n={4} emoji="📖" label="엔딩 도감" sub={`${seen} / ${CAREERS.length} 직업`} onClick={onDex} />
+          <ChoiceBtn n={4} emoji="📖" label="직업 도감" sub={`${seen} / ${CAREERS.length} 직업`} onClick={onDex} />
         </div>
       </div>
     </div>
@@ -339,7 +339,7 @@ function Playing({ game, flow, press, setBusy, wake }: {
     const run = () => {
       const r = wake();
       if (r?.missed) toastSet({ toast: { text: fill('어서 와! {name:이가} 반갑게 손을 흔들어요.', r.state.name), key: Date.now() } });
-      else if (r && r.gained > 0) toastSet({ toast: { text: `⚡ 행동력 ${r.gained} 충전!`, key: Date.now() } });
+      else if (r && r.gained > 0) toastSet({ toast: { text: `⚡ 기운 ${r.gained}개 충전!`, key: Date.now() } });
     };
     run();
     const onVis = () => { if (document.visibilityState === 'visible') run(); };
@@ -371,7 +371,7 @@ function Playing({ game, flow, press, setBusy, wake }: {
           <span className="gu-badge">{model.hud.when}</span>
           <span className={`gu-badge season ${cal.season}`}>{cal.season}{cal.vacation ? ' · 방학' : ''}</span>
           <span className="gu-badge">💰 {game.money}만원</span>
-          {raise && <span className="gu-badge" title="행동력">{'⚡'.repeat(game.tokens)}<i className="gu-dim">{'⚡'.repeat(MAX_TOKENS - game.tokens)}</i>{game.tokens < MAX_TOKENS ? ` ${hms(wait || CHARGE_MS)}` : ''}</span>}
+          {raise && <span className="gu-badge" title="기운">{'⚡'.repeat(game.tokens)}<i className="gu-dim">{'⚡'.repeat(MAX_TOKENS - game.tokens)}</i>{game.tokens < MAX_TOKENS ? ` ${hms(wait || CHARGE_MS)}` : ''}</span>}
           <span className="gu-progress" title="졸업까지"><span style={{ width: `${(Math.min(game.turn, TOTAL_TURNS) / TOTAL_TURNS) * 100}%` }} /></span>
           <button className="gu-badge gu-hud-btn" onClick={() => setNotebook(true)}>📔 수첩</button>
           <button className="gu-badge gu-hud-btn" onClick={() => setMenu(true)} aria-label="메뉴">☰</button>
@@ -402,9 +402,9 @@ function Playing({ game, flow, press, setBusy, wake }: {
           <div className="gu-dialog-body">
             <b>{game.name} <small>{cal.gradeLabel}</small></b>
             <p>{line}</p>
-            <div className="gu-minibars" aria-label="컨디션">
-              <MiniBar icon="⚡" label="피로" v={game.fatigue} color="#f0a03c" warn={game.fatigue >= 75} />
-              <MiniBar icon="💢" label="스트레스" v={game.stress} color="#e0505a" warn={game.stress >= 75} />
+            <div className="gu-minibars" aria-label="몸 상태">
+              <MiniBar icon="⚡" label="피곤" v={game.fatigue} color="#f0a03c" warn={game.fatigue >= 75} />
+              <MiniBar icon="💢" label="짜증" v={game.stress} color="#e0505a" warn={game.stress >= 75} />
               <MiniBar icon="😊" label="기분" v={game.mood} color="#4fbf6b" warn={game.mood < 30} />
             </div>
           </div>
@@ -553,7 +553,7 @@ function NotebookBtn({ small }: { small?: boolean }) {
     <button className="gu-place notebook" style={{ ['--pc' as string]: '#c9a05b' }} onClick={() => setNotebook(true)}>
       <span className="gu-place-emoji">📔</span>
       <span className="gu-place-name">내 수첩</span>
-      <span className="gu-place-sub">능력치·친구·기록</span>
+      <span className="gu-place-sub">실력·친구·기록</span>
     </button>
   );
 }
@@ -568,7 +568,7 @@ function PlaceBtn({ game, id, n, onClick }: { game: GameState; id: PlaceId; n?: 
       {n && <Num n={n} />}
       <span className="gu-place-emoji">{open ? p.emoji : '🚧'}</span>
       <span className="gu-place-name">{open ? placeStage(game, p).label : p.name}</span>
-      <span className="gu-place-sub">{open ? (v > 0 ? `단골 ${v}` : '처음') : openLabel(p)}</span>
+      <span className="gu-place-sub">{open ? (v > 0 ? `${v}번 옴` : '처음') : openLabel(p)}</span>
     </button>
   );
 }
@@ -580,10 +580,10 @@ function effectHints(a: Activity): { text: string; tone: 'up' | 'down' | 'field'
   for (const [k, v] of Object.entries(a.fields ?? {}) as [FieldKey, number][]) if (v >= 2) out.push({ text: `${FIELD_EMOJI[k]}${FIELD_LABEL[k]}`, tone: 'field' });
   if (a.special === 'topField') out.push({ text: '💡 가장 큰 관심사↑↑', tone: 'field' });
   if (a.special === 'randomField') out.push({ text: '💡 새로운 관심사', tone: 'field' });
-  if (a.special === 'counsel') out.push({ text: '🗺️ 흥미 유형 확인', tone: 'field' });
+  if (a.special === 'counsel') out.push({ text: '🗺️ 내 관심 유형 보기', tone: 'field' });
   if (a.contest) out.push({ text: '🏆 대회', tone: 'neutral' });
-  if (a.fatigue) out.push({ text: `피로${a.fatigue > 0 ? '+' : ''}${a.fatigue}`, tone: a.fatigue > 0 ? 'down' : 'up' });
-  if (a.stress) out.push({ text: `스트레스${a.stress > 0 ? '+' : ''}${a.stress}`, tone: a.stress > 0 ? 'down' : 'up' });
+  if (a.fatigue) out.push({ text: `피곤${a.fatigue > 0 ? '+' : ''}${a.fatigue}`, tone: a.fatigue > 0 ? 'down' : 'up' });
+  if (a.stress) out.push({ text: `짜증${a.stress > 0 ? '+' : ''}${a.stress}`, tone: a.stress > 0 ? 'down' : 'up' });
   if (a.mood && a.mood > 0) out.push({ text: `기분+${a.mood}`, tone: 'up' });
   if (a.money && a.money > 0) out.push({ text: `💰+${a.money}`, tone: 'up' });
   if (a.cost) out.push({ text: `💰-${a.cost}`, tone: 'down' });
@@ -665,7 +665,7 @@ function RiasecMini({ game }: { game: GameState }) {
   const [a, b] = topRiasec(game);
   return (
     <div className="gu-cmd-box">
-      <strong>🗺️ 상담 결과 — 지금 내 흥미 유형</strong>
+      <strong>🗺️ 상담 결과 — 지금 내 관심 유형</strong>
       <span>{RIASEC_INFO[a].name}({a}) · {RIASEC_INFO[b].name}({b})</span>
       <small>{RIASEC_INFO[a].desc}</small>
       <small>어울리는 직업: {careersForType([a, b], 3).map((c) => `${c.emoji}${c.title}`).join(', ')}</small>
@@ -777,7 +777,7 @@ function Notebook({ game, onClose }: { game: GameState; onClose: () => void }) {
     <Modal label="내 수첩" onClose={onClose} className="gu-notebook">
       <div className="gu-sheet-head">
         <span className="gu-sheet-emoji">📔</span>
-        <div><h2>{game.name}의 수첩</h2><p>능력치 · 친구 · 지난 기록</p></div>
+        <div><h2>{game.name}의 수첩</h2><p>실력 · 친구 · 지난 기록</p></div>
         <button className="gu-close" onClick={onClose} aria-label="닫기">✕</button>
       </div>
       <NotebookBody game={game} />
@@ -798,14 +798,14 @@ function NotebookBody({ game }: { game: GameState }) {
         <div className="gu-status-info">
           <strong className="gu-name">{game.name} <small>{cal.gradeLabel}</small></strong>
           <div className="gu-bars">
-            <Bar label="피로" icon="⚡" value={game.fatigue} color="#f0a03c" alert="high" />
-            <Bar label="스트레스" icon="💢" value={game.stress} color="#e0505a" alert="high" />
+            <Bar label="피곤" icon="⚡" value={game.fatigue} color="#f0a03c" alert="high" />
+            <Bar label="짜증" icon="💢" value={game.stress} color="#e0505a" alert="high" />
             <Bar label="기분" icon="😊" value={game.mood} color="#4fbf6b" alert="low" />
           </div>
         </div>
       </div>
       <div className="gu-tabs" role="tablist">
-        {([['stat', '능력치'], ['friend', '친구'], ['log', '기록']] as const).map(([k, l]) => (
+        {([['stat', '실력'], ['friend', '친구'], ['log', '기록']] as const).map(([k, l]) => (
           <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>
         ))}
       </div>
@@ -867,7 +867,7 @@ function Interests({ game, exact }: { game: GameState; exact: boolean }) {
           {exact ? <strong>{Math.round(t.value)}</strong> : <em>{'♥'.repeat(t.value >= 60 ? 3 : t.value >= 25 ? 2 : 1)}</em>}
         </li>
       ))}
-      {!exact && <li className="gu-muted small">고등학교 진로 상담을 받으면 정확한 숫자와 흥미 유형을 알 수 있어요.</li>}
+      {!exact && <li className="gu-muted small">고등학교 진로상담실에 가면 정확한 숫자와 관심 유형을 알 수 있어요.</li>}
     </ul>
   );
 }
@@ -883,7 +883,7 @@ function RiasecChart({ game }: { game: GameState }) {
   };
   const poly = RIASEC_KEYS.map((k, i) => pt(i, Math.max(0.05, r[k] / 100)).join(',')).join(' ');
   return (
-    <svg viewBox="0 0 200 190" className="gu-riasec" role="img" aria-label="진로흥미 유형 그래프">
+    <svg viewBox="0 0 200 190" className="gu-riasec" role="img" aria-label="관심 유형 그래프">
       {[0.33, 0.66, 1].map((s) => <polygon key={s} points={RIASEC_KEYS.map((_, i) => pt(i, s).join(',')).join(' ')} className="grid" />)}
       {RIASEC_KEYS.map((_, i) => <line key={i} x1={100} y1={95} x2={pt(i, 1)[0]} y2={pt(i, 1)[1]} className="grid" />)}
       <polygon points={poly} className="value" />
@@ -907,7 +907,7 @@ function EndingScreen({ game }: { game: GameState }) {
   const quizR = game.history.reduce((s, y) => s + y.quizRight, 0) + game.year.quizRight;
   const quizT = game.history.reduce((s, y) => s + y.quizTotal, 0) + game.year.quizTotal;
 
-  useButtons((btn) => { if (btn === 1 || btn === 2) press(btn); }, LAYER.screen, 'ending', ['새로 키우기', '엔딩 도감']);
+  useButtons((btn) => { if (btn === 1 || btn === 2) press(btn); }, LAYER.screen, 'ending', ['새로 키우기', '직업 도감']);
 
   return (
     <div className="gu-end center-scroll">
@@ -933,16 +933,16 @@ function EndingScreen({ game }: { game: GameState }) {
         </section>
 
         <section className="gu-report">
-          <h3>📋 {game.name}의 진로 리포트</h3>
+          <h3>📋 {game.name}의 꿈 보고서</h3>
           <div className="gu-report-riasec">
             <RiasecChart game={game} />
             <div>
-              <p><b>흥미 유형: {RIASEC_INFO[a].name}·{RIASEC_INFO[b].name}</b></p>
+              <p><b>관심 유형: {RIASEC_INFO[a].name}·{RIASEC_INFO[b].name}</b></p>
               <p className="gu-muted">{RIASEC_INFO[a].desc}</p>
-              <p className="gu-muted small">게임 속 활동으로 계산한 간이 유형이에요. 실제 진로흥미검사는 커리어넷 같은 곳에서 해 볼 수 있어요.</p>
+              <p className="gu-muted small">게임 속 활동으로 어림한 결과예요. 진짜 검사는 커리어넷에서 해 볼 수 있어요.</p>
             </div>
           </div>
-          <p><b>이 유형과 어울리는 직업</b></p>
+          <p><b>이 유형에 어울리는 직업</b></p>
           <div className="gu-chips">{fits.map((c) => <span key={c.id} className="gu-chip field">{c.emoji} {c.title}</span>)}</div>
           {misses.length > 0 && (
             <>
@@ -979,7 +979,7 @@ function EndingScreen({ game }: { game: GameState }) {
         </section>
         <div className="gu-four two">
           <ChoiceBtn n={1} tone="primary" label="새로 키우기" onClick={() => press(1)} />
-          <ChoiceBtn n={2} emoji="📖" label="엔딩 도감" onClick={() => press(2)} />
+          <ChoiceBtn n={2} emoji="📖" label="직업 도감" onClick={() => press(2)} />
         </div>
       </article>
     </div>
@@ -997,10 +997,10 @@ function DexView({ onClose }: { onClose: () => void }) {
   useButtons((b) => { if (pick && b === 'back') setPick(null); else onClose(); }, LAYER.overlay, 'dex', ['닫기', '닫기', '닫기', '닫기']);
 
   return (
-    <Modal label="엔딩 도감" onClose={onClose} className="gu-dex">
+    <Modal label="직업 도감" onClose={onClose} className="gu-dex">
       <div className="gu-sheet-head">
         <span className="gu-sheet-emoji">📖</span>
-        <div><h2>엔딩 도감</h2><p>{seen} / {CAREERS.length} 직업을 만났어요 · 아무 버튼이나 눌러 닫기</p></div>
+        <div><h2>직업 도감</h2><p>{seen} / {CAREERS.length} 직업을 만났어요 · 아무 버튼이나 눌러 닫기</p></div>
         <button className="gu-close" onClick={onClose} aria-label="닫기">✕</button>
       </div>
       {job ? (
@@ -1011,7 +1011,7 @@ function DexView({ onClose }: { onClose: () => void }) {
           </div>
           <p>{job.info}</p>
           <p className="gu-muted">{job.path}</p>
-          <p className="gu-muted">흥미 유형: {job.riasec.map((r) => RIASEC_INFO[r].name).join('·')} · 관련 과목: {job.subjects.join('·')}</p>
+          <p className="gu-muted">관심 유형: {job.riasec.map((r) => RIASEC_INFO[r].name).join('·')} · 관련 과목: {job.subjects.join('·')}</p>
           <button className="gu-ghost" onClick={() => setPick(null)}>← 목록</button>
         </div>
       ) : (
