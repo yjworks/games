@@ -132,7 +132,7 @@ describe('교육 장치', () => {
   it('모자란 것을 알려 준다', () => {
     const g = { ...make(), fields: { ...make().fields, med: 20 } };
     const needs = careerNeeds(g, careerById('doctor')!);
-    expect(needs.some((n) => n.includes('의료'))).toBe(true);
+    expect(needs.some((n) => n.includes('병원'))).toBe(true);
     expect(nearMisses(g).length).toBeGreaterThanOrEqual(0);
   });
 

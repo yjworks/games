@@ -63,7 +63,7 @@ export function press(flow: Flow, game: GameState, b: Button): Step {
         const r = restSick(game);
         return r.ok ? { flow: { s: 'month', report: r.report }, game: r.state, fx: { kind: 'month', report: r.report } } : same(flow, game, r.reason);
       }
-      if (game.mode === 'raise' && game.tokens <= 0) return same(flow, game, '⚡ 행동력이 차면 다시 움직일 수 있어요');
+      if (game.mode === 'raise' && game.tokens <= 0) return same(flow, game, '⚡ 기운이 차면 다시 움직일 수 있어요');
       const d = DISTRICTS[n - 1];
       const open = d.places.filter((id) => placeOpen(game, placeById(id)!));
       /* 열린 곳이 하나뿐이면 바로 그곳으로 */
@@ -142,7 +142,7 @@ export function press(flow: Flow, game: GameState, b: Button): Step {
 export function goto(flow: Flow, game: GameState, place: PlaceId): Step {
   if (flow.s !== 'town' && flow.s !== 'district' && flow.s !== 'place') return same(flow, game);
   if (game.sick) return press({ s: 'town' }, game, 1);
-  if (game.mode === 'raise' && game.tokens <= 0) return same(flow, game, '⚡ 행동력이 차면 다시 움직일 수 있어요');
+  if (game.mode === 'raise' && game.tokens <= 0) return same(flow, game, '⚡ 기운이 차면 다시 움직일 수 있어요');
   const pl = placeById(place)!;
   if (!placeOpen(game, pl)) return same(flow, game, `${pl.name}은(는) ${openLabel(pl)} 갈 수 있어요`);
   return same({ s: 'place', place }, game);
@@ -242,7 +242,7 @@ export function screenModel(flow: Flow, g: GameState): ScreenModel {
       const j = careerById(g.ending!.careerId)!;
       return {
         ...base, title: j.title, lines: [j.epilogue[g.ending!.tier - 1]],
-        choices: [{ label: '새로 키우기', enabled: true }, { label: '엔딩 도감', enabled: true }],
+        choices: [{ label: '새로 키우기', enabled: true }, { label: '직업 도감', enabled: true }],
       };
     }
   }

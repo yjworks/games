@@ -147,7 +147,7 @@ export function actStatus(s: GameState, p: Place, a: Activity): ActStatus {
   if (a.lock) {
     const v = s.stageVisits[p.id] ?? 0;
     const lacks: string[] = [];
-    if (v < a.lock.visits) lacks.push(`단골도 ${v}/${a.lock.visits}`);
+    if (v < a.lock.visits) lacks.push(`${a.lock.visits}번 오면 열려요 (${v}/${a.lock.visits})`);
     if (a.lock.stat && s.stats[a.lock.stat] < (a.lock.min ?? 0)) {
       lacks.push(`${statLabel(a.lock.stat)} ${a.lock.min} 이상`);
     }
@@ -159,7 +159,7 @@ export function actStatus(s: GameState, p: Place, a: Activity): ActStatus {
 }
 
 const STAT_NAMES: Record<StatKey, string> = {
-  know: '지식', logic: '논리', create: '창의', express: '표현', body: '체력', craft: '손재주', social: '사교',
+  know: '공부', logic: '생각', create: '상상', express: '말하기', body: '체력', craft: '만들기', social: '사귀기',
 };
 const statLabel = (k: StatKey) => STAT_NAMES[k];
 
@@ -284,7 +284,7 @@ function blocked(s: GameState): string | null {
   if (s.reviewPending) return '먼저 한 해를 돌아봐요';
   if (s.pending) return '먼저 일어난 일을 골라 주세요';
   if (s.quiz) return '먼저 퀴즈를 풀어 주세요';
-  if (s.mode === 'raise' && s.tokens <= 0) return '행동력이 다시 찰 때까지 기다려요';
+  if (s.mode === 'raise' && s.tokens <= 0) return '⚡ 기운이 다시 찰 때까지 기다려요';
   return null;
 }
 
@@ -382,8 +382,8 @@ export function doActivity(prev: GameState, placeId: PlaceId, actId: string): Ac
   const lockAct = actsOf(s, place).find((a) => a.lock && a.lock.visits === v);
   if (lockAct) {
     const now = actStatus(s, place, lockAct);
-    lines.push(now.ok ? `${place.name} 단골이 됐다! 이제 “${lockAct.name}”도 할 수 있다.`
-      : `${place.name} 단골이 됐다! “${lockAct.name}” 조건: ${now.reason}`);
+    lines.push(now.ok ? `${place.name}에 자주 왔더니 “${lockAct.name}”도 할 수 있게 됐다!`
+      : `${place.name}에 자주 왔다! “${lockAct.name}” 하려면: ${now.reason}`);
   }
 
   const report = endMonth(s, lines);

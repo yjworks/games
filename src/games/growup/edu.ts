@@ -15,12 +15,12 @@ import { FieldKey, GameState, Quiz, StatKey, YearStats } from './types';
 export const RIASEC_KEYS: Riasec[] = ['R', 'I', 'A', 'S', 'E', 'C'];
 
 export const RIASEC_INFO: Record<Riasec, { name: string; desc: string }> = {
-  R: { name: '현실형', desc: '몸과 손, 도구와 기계로 직접 만들고 움직이는 것을 좋아해요.' },
-  I: { name: '탐구형', desc: '왜 그런지 궁금해하고, 관찰하고 실험해서 알아내는 것을 좋아해요.' },
+  R: { name: '만들기형', desc: '몸과 손, 도구와 기계로 직접 만들고 움직이는 것을 좋아해요.' },
+  I: { name: '궁금이형', desc: '왜 그런지 궁금해하고, 관찰하고 실험해서 알아내는 것을 좋아해요.' },
   A: { name: '예술형', desc: '그림·음악·글처럼 나만의 방식으로 표현하는 것을 좋아해요.' },
-  S: { name: '사회형', desc: '사람을 돕고 가르치고 함께하는 것을 좋아해요.' },
-  E: { name: '진취형', desc: '앞장서서 이끌고 설득하고 새 일을 벌이는 것을 좋아해요.' },
-  C: { name: '관습형', desc: '계획을 세우고 꼼꼼하게 정리하며 차근차근 해내는 것을 좋아해요.' },
+  S: { name: '돕기형', desc: '사람을 돕고 가르치고 함께하는 것을 좋아해요.' },
+  E: { name: '이끌기형', desc: '앞장서서 친구들을 이끌고 새 일을 벌이는 것을 좋아해요.' },
+  C: { name: '정리형', desc: '계획을 세우고 꼼꼼하게 정리하며 차근차근 해내는 것을 좋아해요.' },
 };
 
 /**
@@ -119,7 +119,7 @@ export function quizExplain(q: Quiz): string {
   return `${c.emoji} ${c.title} — ${c.info} 관련 과목: ${c.subjects.join('·')}.`;
 }
 
-/** '논리예요' / '지식이에요' */
+/** '공부예요' / '체력이에요' */
 function ieyo(word: string): string {
   const ch = word.charCodeAt(word.length - 1);
   const batchim = ch >= 0xac00 && ch <= 0xd7a3 && (ch - 0xac00) % 28 !== 0;
@@ -130,8 +130,8 @@ function ieyo(word: string): string {
 export function yearTips(y: YearStats, s: GameState): string[] {
   const tips: { p: number; t: string }[] = [];
   const months = Object.values(y.places).reduce((a, b) => a + (b ?? 0), 0) + y.sick;
-  if (y.sick > 0) tips.push({ p: 10, t: `아파서 ${y.sick}달을 쉬었어요. 피로나 스트레스가 70을 넘기 전에 미리 쉬면 아프지 않아요.` });
-  if (y.fails >= 4) tips.push({ p: 8, t: `실패가 ${y.fails}번 있었어요. 지치고 스트레스가 높을 때는 실패가 많아져요 — 컨디션 관리도 실력이에요.` });
+  if (y.sick > 0) tips.push({ p: 10, t: `아파서 ${y.sick}달을 쉬었어요. 피곤이나 짜증이 70을 넘기 전에 미리 쉬면 아프지 않아요.` });
+  if (y.fails >= 4) tips.push({ p: 8, t: `실패가 ${y.fails}번 있었어요. 지치고 짜증이 날 때는 실패가 많아져요 — 몸과 마음을 돌보는 것도 실력이에요.` });
   if (y.rests === 0 && months >= 10) tips.push({ p: 6, t: '한 해 동안 한 번도 쉬지 않았어요. 쉬는 것도 계획의 일부예요.' });
   const top = Object.entries(y.places).sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))[0];
   if (top && (top[1] ?? 0) >= 9) {
@@ -166,7 +166,7 @@ export function careerNeeds(s: GameState, c: Career): string[] {
     const main = (Object.entries(c.weights) as [StatKey, number][]).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k]) => STAT_LABEL[k]);
     needs.push(`${main.join('·')} 능력 더`);
   }
-  if (c.id === 'civil' && s.stats.know < 60) needs.push(`지식 ${Math.ceil(60 - s.stats.know)} 더`);
+  if (c.id === 'civil' && s.stats.know < 60) needs.push(`공부 ${Math.ceil(60 - s.stats.know)} 더`);
   if (c.id === 'athlete' && s.stats.body < 60) needs.push(`체력 ${Math.ceil(60 - s.stats.body)} 더`);
   return needs;
 }
