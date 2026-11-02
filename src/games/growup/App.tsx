@@ -275,6 +275,8 @@ function Playing({ game, flow, press, setBusy, wake }: {
   const [at, setAt] = useState<PlaceId>('room');
   const [inside, setInside] = useState<PlaceId | null>(null);
   const [emerge, setEmerge] = useState<PlaceId | null>(null);
+  /** 장소로 갈 때마다 하나씩 — 지도가 이 값이 바뀌면 걸어간다 */
+  const [trip, setTrip] = useState(0);
   const stageRef = useRef<HTMLElement>(null);
   /* 게임을 시작하면 맨 위로 */
   useEffect(() => { stageRef.current?.closest('.gu-root')?.scrollTo({ top: 0 }); }, []);
@@ -282,6 +284,7 @@ function Playing({ game, flow, press, setBusy, wake }: {
     if (placeFlow) {
       if (inside !== placeFlow) {
         setAt(placeFlow);
+        setTrip((n) => n + 1);
         setBusy(true);
         /* 아래 목록에서 골랐으면 지도가 보이게 올려서 걸어가는 모습을 보여 준다 */
         const box = stageRef.current?.querySelector('.gu-scene');
@@ -294,6 +297,13 @@ function Playing({ game, flow, press, setBusy, wake }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placeFlow]);
   const onEnter = (pl: PlaceId) => { setInside(pl); setBusy(false); };
+  /* 안전장치: 연출이 어떤 이유로 끝나지 않아도 몇 초 뒤에는 장소에 들어가 있게 */
+  useEffect(() => {
+    if (!placeFlow || inside === placeFlow) return;
+    const id = window.setTimeout(() => onEnter(placeFlow), 4000);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placeFlow, inside, trip]);
   const arrived = inside;
 
   /* 4주 연출 — 한 주씩 펼치고, 그 주 결과를 마을에도 보인다 */
@@ -391,7 +401,7 @@ function Playing({ game, flow, press, setBusy, wake }: {
               stage={cal.stage} season={cal.season} look={game.look} expr={expr}
               open={PLACES.filter((pl) => placeOpen(game, pl)).map((pl) => pl.id)}
               labels={labels} props={props} trophies={trophies} friends={met} rain={game.stress >= 70}
-              at={at} emergeFrom={emerge} onEnter={onEnter}
+              at={at} trip={trip} emergeFrom={emerge} onEnter={onEnter}
               onPlace={(pl) => { if (flow.s === 'town' || flow.s === 'district') goto(pl); }}
             />
           </div>
