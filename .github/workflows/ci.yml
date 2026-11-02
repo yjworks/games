@@ -1,8 +1,11 @@
 name: Test and build
 
 # 배포는 여기서 하지 않는다. dibrain.dev 전체(/games/ 포함)는 블로그 저장소(yjworks/yjworks.github.io)의
-# 워크플로가 이 저장소의 main 을 30분마다 확인해 빌드하고 Cloudflare Pages 에 올린다.
-# 이 워크플로는 push 마다 타입 검사·테스트·빌드가 깨지지 않았는지만 본다.
+# hugo.yml 이 빌드해 Cloudflare Pages 에 올린다.
+# 이 워크플로는 push 마다 타입 검사·테스트·빌드가 깨지지 않았는지 보고,
+# main 에서 통과하면 hugo.yml 을 바로 실행시킨다(30분 점검은 이게 빠졌을 때의 보조).
+# 실행시키려면 저장소 secret DEPLOY_TOKEN 이 있어야 한다 — 블로그 저장소 하나만, Actions: Read and write 권한의
+# fine-grained 토큰. 없으면 이 단계는 건너뛴다.
 
 on:
   push:
@@ -29,3 +32,22 @@ jobs:
           npm test
       - name: Build
         run: npm run build
+
+  deploy:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-request
+      cancel-in-progress: true
+    steps:
+      - name: Ask dibrain.dev to redeploy
+        env:
+          GH_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::DEPLOY_TOKEN 이 없어 배포 요청을 건너뜀 — 블로그 저장소의 30분 점검이 올린다"
+            exit 0
+          fi
+          gh workflow run hugo.yml --repo yjworks/yjworks.github.io --ref main -f hub_only=true
+          echo "hugo.yml 실행 요청함 (games ${GITHUB_SHA::7})"
