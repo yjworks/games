@@ -38,8 +38,10 @@ interface Props {
   focus?: boolean;
 }
 
-/** 장소 화면에서 보이는 폭(px) — 건물 하나와 양옆 조금 */
-const FOCUS_W = 168;
+/** 장소 화면 — 건물 하나와 양옆 조금만, 위쪽 하늘과 땅속은 잘라 크게 보여 준다 */
+const FOCUS_W = 128;
+const FOCUS_Y = 16;
+const FOCUS_H = 124;
 
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; max: number; color: string; size: number; kind: 'dot' | 'drop' | 'spark' | 'heart' }
 
@@ -170,6 +172,8 @@ export function WorldView(p: Props) {
       const sc = sceneRef.current;
       const sk = skyRef.current.sky;
       const VW = vwRef.current;
+      const Y0 = o.focus ? FOCUS_Y : 0;
+      const VH = o.focus ? FOCUS_H : HEIGHT;
 
       /* 걷기 */
       if (k.walking) {
@@ -200,6 +204,8 @@ export function WorldView(p: Props) {
         ctx.fillRect(cx + 6, cy - 4, w - 14, 4);
       }
 
+      ctx.save();
+      ctx.translate(0, -Y0);
       ctx.drawImage(sc.base, cx0, 0, VW, HEIGHT, 0, 0, VW, HEIGHT);
 
       /* 친구들 — 아이 쪽을 본다 */
@@ -234,6 +240,8 @@ export function WorldView(p: Props) {
         }
       }
 
+      ctx.restore();
+
       /* 간판과 미니맵도 화면을 따라 옮긴다 */
       for (const pl of PLACES) {
         const el = signRefs.current[pl.id];
@@ -265,7 +273,10 @@ export function WorldView(p: Props) {
         if (w.kind === 'drop') ctx.fillRect(w.x, w.y, 1, 3);
         else ctx.fillRect(w.x, w.y, w.size, w.size);
       }
-      if (o.rain) { ctx.fillStyle = 'rgba(40,50,80,0.18)'; ctx.fillRect(0, 0, VW, HEIGHT); }
+      if (o.rain) { ctx.fillStyle = 'rgba(40,50,80,0.18)'; ctx.fillRect(0, 0, VW, VH); }
+
+      ctx.save();
+      ctx.translate(0, -Y0);
 
       /* 연출 입자 — 마을 좌표로 만들어 화면으로 옮겨 그린다 */
       const ps = parts.current;
@@ -295,13 +306,14 @@ export function WorldView(p: Props) {
         ctx.fillStyle = '#6a7080';
         ctx.fillRect(kx - 9, top, 18, 5); ctx.fillRect(kx - 5, top - 3, 10, 3);
       }
+      ctx.restore();
 
       /* 밤·저녁 */
       if (sk !== 'day') {
         ctx.fillStyle = sk === 'night' ? 'rgba(8,12,40,0.5)' : 'rgba(70,40,90,0.18)';
-        ctx.fillRect(0, 0, VW, HEIGHT);
+        ctx.fillRect(0, 0, VW, VH);
         ctx.globalAlpha = sk === 'night' ? 1 : 0.6;
-        ctx.drawImage(sc.glow, cx0, 0, VW, HEIGHT, 0, 0, VW, HEIGHT);
+        ctx.drawImage(sc.glow, cx0, Y0, VW, VH, 0, 0, VW, VH);
         ctx.globalAlpha = 1;
       }
     };
@@ -314,18 +326,20 @@ export function WorldView(p: Props) {
     return () => { cancelAnimationFrame(raf); document.removeEventListener('visibilitychange', onVis); };
   }, []);
 
-  const kidTop = ((GROUND * BLOCK - personHeight(p.stage) - 4) / HEIGHT) * 100;
+  const y0 = p.focus ? FOCUS_Y : 0;
+  const vh = p.focus ? FOCUS_H : HEIGHT;
+  const kidTop = ((GROUND * BLOCK - personHeight(p.stage) - 4 - y0) / vh) * 100;
 
   return (
     <div className="gu-world" ref={boxRef}>
-      <canvas ref={canvasRef} width={viewW} height={HEIGHT} className="gu-world-canvas" style={{ aspectRatio: `${viewW} / ${HEIGHT}` }}
+      <canvas ref={canvasRef} width={viewW} height={vh} className="gu-world-canvas" style={{ aspectRatio: `${viewW} / ${vh}` }}
         role="img" aria-label={`블록 마을 — ${p.season}, ${sky === 'night' ? '밤' : sky === 'dusk' ? '저녁' : '낮'}`} />
       {scene.buildings.map((b) => {
         const pl = PLACES[PLACE_SLOT[b.place]];
         return (
           <button key={b.place} ref={(el) => { signRefs.current[b.place] = el; }}
             className={`gu-world-sign ${b.open ? '' : 'closed'}`} type="button"
-            style={{ top: `${(Math.max(18, b.top * BLOCK - 3) / HEIGHT) * 100}%` }}
+            style={{ top: `${(Math.max(p.focus ? 4 : 18, b.top * BLOCK - 3 - y0) / vh) * 100}%` }}
             onClick={() => b.open && p.onPlace?.(b.place)} tabIndex={-1} aria-hidden="true">
             {b.open ? <>{pl.emoji} {p.labels[b.place] ?? pl.name}</> : <>🚧 {gradeLabel(pl.from)}부터</>}
           </button>
