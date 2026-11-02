@@ -6,6 +6,7 @@ import { useGrow } from './store';
 import { Portrait } from './Portrait';
 import { PixelAvatar } from './PixelAvatar';
 import { WorldEffect, WorldView } from './WorldView';
+import { TownMap } from './TownMap';
 import { TOTAL_TURNS, calendar } from './calendar';
 import { CAREERS, careerById } from './careers';
 import {
@@ -182,8 +183,8 @@ function TitleScreen({ onDex, onPortraits }: { onDex: () => void; onPortraits: (
   return (
     <div className="gu-title center-scroll">
       <div className="gu-title-world">
-        <WorldView stage={0} season={season} look={look} expr="happy" props={[]} trophies={0} friends={['seoyeon', 'doyun']}
-          at="room" grade={0} rain={false} bubble={`안녕! 나는 ${name.trim() || '하늘'}`} labels={{}} />
+        <TownMap stage={0} season={season} look={look} expr="happy" props={[]} trophies={0} friends={['seoyeon', 'doyun']}
+          open={PLACES.filter((pl) => pl.from === 0).map((pl) => pl.id)} at="room" rain={false} labels={{}} />
       </div>
       <div className="gu-title-card gu-panel">
         <div className="gu-title-hero">
@@ -267,15 +268,32 @@ function Playing({ game, flow, press, setBusy, wake }: {
   const expr = expression(game);
   const model = screenModel(flow, game);
 
-  /* 아이가 서 있는 곳 — 장소를 고르면 걸어가고, 도착해야 활동 목록이 열린다 */
+  /* 마을 지도에서 장소를 고르면 거리를 따라 걸어가 문으로 들어가고(장소 화면),
+     장소 일이 끝나면 문에서 걸어 나와 지도로 돌아온다 */
+  const placeFlow = flow.s === 'place' ? flow.place : (flow.s === 'month' || flow.s === 'result') ? flow.report.place ?? null : null;
   const [at, setAt] = useState<PlaceId>('room');
-  const [arrived, setArrived] = useState<PlaceId | null>('room');
-  const walkTo = flow.s === 'place' ? flow.place : (flow.s === 'month' || flow.s === 'result') ? flow.report.place ?? 'room' : null;
+  const [inside, setInside] = useState<PlaceId | null>(null);
+  const [emerge, setEmerge] = useState<PlaceId | null>(null);
+  const stageRef = useRef<HTMLElement>(null);
+  /* 게임을 시작하면 맨 위로 */
+  useEffect(() => { stageRef.current?.closest('.gu-root')?.scrollTo({ top: 0 }); }, []);
   useEffect(() => {
-    if (walkTo && walkTo !== at) { setArrived(null); setAt(walkTo); setBusy(true); }
+    if (placeFlow) {
+      if (inside !== placeFlow) {
+        setAt(placeFlow);
+        setBusy(true);
+        /* 아래 목록에서 골랐으면 지도가 보이게 올려서 걸어가는 모습을 보여 준다 */
+        const box = stageRef.current?.querySelector('.gu-scene');
+        if (box && box.getBoundingClientRect().top < 0) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    } else if (inside) {
+      setEmerge(inside);
+      setInside(null);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walkTo]);
-  const onArrive = () => { setArrived(at); setBusy(false); };
+  }, [placeFlow]);
+  const onEnter = (pl: PlaceId) => { setInside(pl); setBusy(false); };
+  const arrived = inside;
 
   /* 4주 연출 — 한 주씩 펼치고, 그 주 결과를 마을에도 보인다 */
   const [shown, setShown] = useState(4);
@@ -345,7 +363,7 @@ function Playing({ game, flow, press, setBusy, wake }: {
 
   return (
     <div className="gu-main">
-      <section className="gu-stage gu-panel" aria-label="블록 마을">
+      <section className="gu-stage gu-panel" aria-label="블록 마을" ref={stageRef}>
         <div className="gu-hud">
           <span className="gu-badge">{model.hud.when}</span>
           <span className={`gu-badge season ${cal.season}`}>{cal.season}{cal.vacation ? ' · 방학' : ''}</span>
@@ -354,13 +372,26 @@ function Playing({ game, flow, press, setBusy, wake }: {
           <span className="gu-progress" title="졸업까지"><span style={{ width: `${(Math.min(game.turn, TOTAL_TURNS) / TOTAL_TURNS) * 100}%` }} /></span>
           <button className="gu-badge gu-hud-btn" onClick={() => setNotebook(true)}>📔 수첩</button>
         </div>
-        <WorldView
-          stage={cal.stage} season={cal.season} look={game.look} expr={expr}
-          props={props} trophies={trophies} friends={met}
-          at={at} onArrive={onArrive} effect={effect} rain={game.stress >= 70}
-          labels={labels} grade={cal.grade}
-          onPlace={(p) => { if (flow.s === 'town' || flow.s === 'district') goto(p); }}
-        />
+        {inside && placeFlow === inside ? (
+          <div className="gu-scene" key={`scene-${inside}`}>
+            <WorldView focus
+              stage={cal.stage} season={cal.season} look={game.look} expr={expr}
+              props={props} trophies={trophies} friends={met}
+              at={inside} effect={effect} rain={game.stress >= 70}
+              labels={labels} grade={cal.grade}
+            />
+          </div>
+        ) : (
+          <div className="gu-scene" key={`map-${emerge ?? ''}`}>
+            <TownMap
+              stage={cal.stage} season={cal.season} look={game.look} expr={expr}
+              open={PLACES.filter((pl) => placeOpen(game, pl)).map((pl) => pl.id)}
+              labels={labels} props={props} trophies={trophies} friends={met} rain={game.stress >= 70}
+              at={at} emergeFrom={emerge} onEnter={onEnter}
+              onPlace={(pl) => { if (flow.s === 'town' || flow.s === 'district') goto(pl); }}
+            />
+          </div>
+        )}
         {/* 대화창 — 초상과 아이의 한마디 */}
         <div className="gu-dialog">
           <Portrait look={game.look} stage={cal.stage} expr={expr} scale={3} className="sm" />

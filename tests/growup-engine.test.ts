@@ -407,3 +407,32 @@ describe('블록 마을', () => {
     expect(tops[1]).toBeGreaterThan(tops[2]);
   });
 });
+
+describe('위에서 본 마을 지도', () => {
+  it('14곳이 겹치지 않고 지도 안에 있으며, 어느 곳에서 어느 곳으로든 거리를 따라 갈 수 있다', async () => {
+    const { buildTown, findPath, MAP_W, MAP_H } = await import('../src/games/growup/towntop');
+    const t = buildTown();
+    const lots = Object.values(t.lots);
+    expect(lots).toHaveLength(14);
+    const seen = new Set<string>();
+    for (const l of lots) {
+      expect(l.x).toBeGreaterThanOrEqual(0);
+      expect(l.x + l.w).toBeLessThanOrEqual(MAP_W);
+      expect(l.y + l.h).toBeLessThan(MAP_H);
+      for (let y = l.y; y < l.y + l.h; y++) for (let x = l.x; x < l.x + l.w; x++) {
+        const k = `${x},${y}`;
+        expect(seen.has(k)).toBe(false);
+        seen.add(k);
+      }
+    }
+    for (const a of lots) for (const b of lots) {
+      const path = findPath(t, a.stand, b.stand);
+      expect(path[0]).toEqual(a.stand);
+      expect(path[path.length - 1]).toEqual(b.stand);
+      /* 한 걸음씩 — 건너뛰지 않는다 */
+      for (let i = 1; i < path.length; i++) {
+        expect(Math.abs(path[i].x - path[i - 1].x) + Math.abs(path[i].y - path[i - 1].y)).toBe(1);
+      }
+    }
+  });
+});
