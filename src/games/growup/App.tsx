@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { GameShell } from '../../shared/react/GameShell';
-import { gameById } from '../../shared/registry';
+import { HUB_HREF, gameById } from '../../shared/registry';
 import { growupTutorial } from './tutorial';
 import { useGrow } from './store';
 import { Portrait } from './Portrait';
@@ -190,7 +190,8 @@ function TitleScreen({ onDex, onPortraits }: { onDex: () => void; onPortraits: (
         <div className="gu-title-hero">
           <Portrait look={look} stage={0} expr="happy" scale={5} className="lg" />
           <div>
-            <h2 className="gu-logo">커서 뭐 될래?</h2>
+            <h2 className="gu-logo">꿈자람 마을</h2>
+            <p className="gu-logo-sub">DREAMGROW TOWN</p>
             {meta.lore.map((l) => <p key={l}>{l}</p>)}
           </div>
         </div>
@@ -322,8 +323,10 @@ function Playing({ game, flow, press, setBusy, wake }: {
 
   /* 버튼 — 4주 연출 중 첫 버튼은 연출을 건너뛴다 */
   const revealing = flow.s === 'month' && shown < (flow.report.weeks?.length ?? 0);
+  const [menu, setMenu] = useState(false);
   const onButton = (b: 1 | 2 | 3 | 4 | 'back') => {
     if (revealing) { setShown(4); return; }
+    if (flow.s === 'town' && b === 'back') { setMenu(true); return; }
     if (flow.s === 'place' && arrived !== flow.place) return;
     press(b);
   };
@@ -371,6 +374,7 @@ function Playing({ game, flow, press, setBusy, wake }: {
           {raise && <span className="gu-badge" title="행동력">{'⚡'.repeat(game.tokens)}<i className="gu-dim">{'⚡'.repeat(MAX_TOKENS - game.tokens)}</i>{game.tokens < MAX_TOKENS ? ` ${hms(wait || CHARGE_MS)}` : ''}</span>}
           <span className="gu-progress" title="졸업까지"><span style={{ width: `${(Math.min(game.turn, TOTAL_TURNS) / TOTAL_TURNS) * 100}%` }} /></span>
           <button className="gu-badge gu-hud-btn" onClick={() => setNotebook(true)}>📔 수첩</button>
+          <button className="gu-badge gu-hud-btn" onClick={() => setMenu(true)} aria-label="메뉴">☰</button>
         </div>
         {inside && placeFlow === inside ? (
           <div className="gu-scene" key={`scene-${inside}`}>
@@ -409,6 +413,7 @@ function Playing({ game, flow, press, setBusy, wake }: {
       </section>
 
       {notebook && <Notebook game={game} onClose={() => setNotebook(false)} />}
+      {menu && <GameMenu game={game} onClose={() => setMenu(false)} />}
     </div>
   );
 }
@@ -723,6 +728,45 @@ function GraduationView({ game, onPick }: { game: GameState; onPick: (i: number)
         })}
       </div>
     </div>
+  );
+}
+
+/* ── 메뉴: 계속하기 · 그만하기(저장돼 있다) · 처음부터 ── */
+function GameMenu({ game, onClose }: { game: GameState; onClose: () => void }) {
+  const reset = useGrow((s) => s.reset);
+  const [sure, setSure] = useState(false);
+  const leave = () => { window.location.href = HUB_HREF; };
+  useButtons((b) => {
+    if (sure) { if (b === 2) reset(); else setSure(false); return; }
+    if (b === 1 || b === 'back') onClose();
+    else if (b === 2) leave();
+    else if (b === 3) setSure(true);
+  }, LAYER.overlay, sure ? 'menu-reset' : 'menu', sure ? ['아니요', '네, 지울게요'] : ['계속하기', '그만하기', '처음부터 다시']);
+  const cal = calendar(game.turn);
+  return (
+    <Modal label="메뉴" onClose={onClose} className="gu-menu">
+      <div className="gu-sheet-head">
+        <span className="gu-sheet-emoji">{sure ? '⚠️' : '⏸'}</span>
+        <div>
+          <h2>{sure ? '처음부터 다시 할까요?' : '잠깐 쉬기'}</h2>
+          <p>{sure ? `${game.name}의 ${cal.gradeLabel}까지 이야기가 지워져요.` : `${game.name} · ${cal.gradeLabel} — 자동으로 저장돼 있어요. 다음에 이어서 해요.`}</p>
+        </div>
+      </div>
+      <div className="gu-four gu-menu-list">
+        {sure ? (
+          <>
+            <ChoiceBtn n={1} emoji="↩️" label="아니요" onClick={() => setSure(false)} />
+            <ChoiceBtn n={2} emoji="🗑️" label="네, 지울게요" tone="danger" onClick={reset} />
+          </>
+        ) : (
+          <>
+            <ChoiceBtn n={1} emoji="▶️" label="계속하기" tone="primary" onClick={onClose} />
+            <ChoiceBtn n={2} emoji="🚪" label="그만하기" sub="게임 목록으로 · 저장돼 있어요" onClick={leave} />
+            <ChoiceBtn n={3} emoji="🔄" label="처음부터 다시" sub="지금 이야기를 지우고 새로 키워요" onClick={() => setSure(true)} />
+          </>
+        )}
+      </div>
+    </Modal>
   );
 }
 
