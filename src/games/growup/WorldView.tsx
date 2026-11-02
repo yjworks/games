@@ -34,7 +34,12 @@ interface Props {
   /** 장소 이름(학교급마다 다르다) */
   labels: Partial<Record<PlaceId, string>>;
   onPlace?: (p: PlaceId) => void;
+  /** 장소 화면 — at 한 곳만 크게 보여 주고, 아이가 옆에서 걸어 들어온다 */
+  focus?: boolean;
 }
+
+/** 장소 화면에서 보이는 폭(px) — 건물 하나와 양옆 조금 */
+const FOCUS_W = 168;
 
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; max: number; color: string; size: number; kind: 'dot' | 'drop' | 'spark' | 'heart' }
 
@@ -61,15 +66,16 @@ const viewFor = (cssW: number) => (cssW >= 576 ? VIEW_W : Math.max(180, Math.min
 export function WorldView(p: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
-  const [viewW, setViewW] = useState(VIEW_W);
+  const [viewW, setViewW] = useState(p.focus ? FOCUS_W : VIEW_W);
   const vwRef = useRef(viewW);
   vwRef.current = viewW;
   useEffect(() => {
     const el = boxRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => setViewW(viewFor(el.clientWidth)));
+    const pick = () => setViewW(live.current.focus ? FOCUS_W : viewFor(el.clientWidth));
+    const ro = new ResizeObserver(pick);
     ro.observe(el);
-    setViewW(viewFor(el.clientWidth));
+    pick();
     return () => ro.disconnect();
   }, []);
   const bubbleRef = useRef<HTMLDivElement>(null);
@@ -90,8 +96,8 @@ export function WorldView(p: Props) {
   const skyRef = useRef({ sky, hour });
   skyRef.current = { sky, hour };
 
-  const kid = useRef({ x: doorX(p.at), target: doorX(p.at), face: 1, walking: false, arrive: false, speed: MIN_SPEED });
-  const cam = useRef(camFor(doorX(p.at), VIEW_W));
+  const kid = useRef({ x: p.focus ? doorX(p.at) - 9 : doorX(p.at), target: doorX(p.at), face: 1, walking: !!p.focus, arrive: !!p.focus, speed: 12 });
+  const cam = useRef(camFor(doorX(p.at), p.focus ? FOCUS_W : VIEW_W));
   const parts = useRef<Particle[]>([]);
   const cloudOffset = useRef(0);
 
@@ -110,7 +116,7 @@ export function WorldView(p: Props) {
     k.walking = true;
     k.arrive = true;
     k.face = k.target > k.x ? 1 : -1;
-    k.speed = Math.max(MIN_SPEED, Math.abs(k.target - k.x) / WALK_MAX_S);
+    k.speed = live.current.focus ? 15 : Math.max(MIN_SPEED, Math.abs(k.target - k.x) / WALK_MAX_S);
   }, [p.at]);
 
   /* 결과 연출 */
@@ -178,7 +184,7 @@ export function WorldView(p: Props) {
         }
       }
       /* 화면이 아이를 따라간다 */
-      const want = camFor(k.x, VW);
+      const want = camFor(o.focus ? doorX(o.at) : k.x, VW);
       cam.current += (want - cam.current) * Math.min(1, step * 8);
       if (Math.abs(want - cam.current) < 0.5) cam.current = want;
       const cx0 = Math.round(cam.current);
@@ -234,7 +240,7 @@ export function WorldView(p: Props) {
         if (!el) continue;
         const sx = (PLACE_SLOT[pl.id] * SLOT_W + 4) * BLOCK - cx0;
         el.style.left = `${(sx / VW) * 100}%`;
-        el.style.visibility = sx < -30 || sx > VW + 30 ? 'hidden' : 'visible';
+        el.style.visibility = (o.focus && pl.id !== o.at) || sx < -30 || sx > VW + 30 ? 'hidden' : 'visible';
       }
       if (dotRef.current) dotRef.current.style.left = `${(k.x * BLOCK / WIDTH) * 100}%`;
 
@@ -327,7 +333,7 @@ export function WorldView(p: Props) {
       })}
       {p.bubble && <div ref={bubbleRef} className="gu-world-bubble" style={{ bottom: `${100 - kidTop}%` }}>{p.bubble}</div>}
       {/* 미니맵 — 구역 넷과 지금 아이 자리 */}
-      <div className="gu-minimap" aria-hidden="true">
+      <div className="gu-minimap" aria-hidden="true" hidden={p.focus}>
         {DISTRICTS.map((d) => (
           <span key={d.id} style={{ flex: d.places.length, background: d.color }}>{d.emoji} {d.name}</span>
         ))}
