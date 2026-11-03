@@ -1,0 +1,204 @@
+name: Deploy blog.dibrain.dev and dibrain.dev (Cloudflare Pages)
+
+# 사이트 두 개를 Cloudflare Pages 에 올린다. 둘 다 정적 파일뿐이고 서버 코드(Functions)는 없다.
+#
+#  blog.dibrain.dev  ← 이 저장소의 Hugo 블로그                     (프로젝트 dibrain-blog)
+#  dibrain.dev       ← 첫 화면(hub/) + 다른 저장소 네 곳을 모은 것  (프로젝트 dibrain-hub)
+#                        /tools/    yjworks/tools     (npm run build → dist)
+#                        /games/    yjworks/games     (npm run build → dist)
+#                        /kids-lab/ yjworks/kids-lab  (정적 파일 그대로)
+#                        /ai-shot/  yjworks/ai-shot   (정적 파일 그대로)
+#                        /clip-box/ yjworks/clip-box  (정적 파일 그대로)
+#                        /snap-box/ yjworks/snap-box  (정적 파일 그대로)
+#
+# 언제 도나
+#  - 이 저장소 push, Actions 에서 수동 실행 → 블로그와 dibrain.dev 를 모두 올린다.
+#  - 다른 저장소의 CI 가 main 통과 후 부를 때(workflow_dispatch, hub_only=true) → dibrain.dev 만.
+#    부르는 쪽에는 이 저장소 하나만, Actions: Read and write 권한의 fine-grained 토큰이 있어야 한다.
+#  - 30분마다(schedule) → dibrain.dev 만. GitHub 예약 실행은 붐비면 밀리거나 빠지므로 보조로만 쓴다.
+#  dibrain.dev 만 올리는 경우에는 각 저장소 최신 커밋이 마지막 배포(deploy.txt)와 같으면 건너뛴다.
+# GitHub Pages 는 쓰지 않는다(2026-09-26 Cloudflare 로 옮김).
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+    inputs:
+      hub_only:
+        description: "dibrain.dev 만 올림(블로그는 건너뜀). 다른 저장소 CI 가 부를 때 true"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "7,37 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "site"
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # 'true' 면 블로그 배포를 건너뛰고, 바뀐 게 없으면 통째로 건너뛴다
+      HUB_ONLY: ${{ github.event_name == 'schedule' || inputs.hub_only == true }}
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Find the commit of each source
+        id: sources
+        run: |
+          set -euo pipefail
+          head() { git ls-remote "https://github.com/yjworks/$1" HEAD | cut -f1; }
+          {
+            echo "blog=${GITHUB_SHA}"
+            echo "tools=$(head tools)"
+            echo "games=$(head games)"
+            echo "kids_lab=$(head kids-lab)"
+            echo "ai_shot=$(head ai-shot)"
+            echo "clip_box=$(head clip-box)"
+            echo "snap_box=$(head snap-box)"
+          } > sources.txt
+          cat sources.txt
+          cat sources.txt >> "$GITHUB_OUTPUT"
+          skip=false
+          if [ "$HUB_ONLY" = "true" ]; then
+            live=$(curl -fsSL --retry 3 --max-time 20 https://dibrain-hub.pages.dev/deploy.txt || true)
+            [ "$live" = "$(cat sources.txt)" ] && skip=true
+          fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+          echo "event=${{ github.event_name }} hub_only=$HUB_ONLY skip=$skip"
+
+      - name: Install latest Hugo extended
+        if: steps.sources.outputs.skip != 'true'
+        env:
+          # 토큰 없이 부르면 공용 runner IP 의 한도(시간당 60번)에 걸려 403 으로 실패할 수 있다
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG=$(curl -fsSL --retry 3 -H "Authorization: Bearer ${GH_TOKEN}" \
+            https://api.github.com/repos/gohugoio/hugo/releases/latest | jq -r .tag_name)
+          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then echo "::error::Hugo 최신 버전을 못 찾음"; exit 1; fi
+          VER=${TAG#v}
+          echo "Installing Hugo extended ${VER}"
+          curl -fsSL --retry 3 -o /tmp/hugo.deb "https://github.com/gohugoio/hugo/releases/download/${TAG}/hugo_extended_${VER}_linux-amd64.deb"
+          sudo dpkg -i /tmp/hugo.deb
+          hugo version
+
+      - name: Build blog for blog.dibrain.dev
+        if: steps.sources.outputs.skip != 'true'
+        env:
+          HUGO_ENVIRONMENT: production
+          HUGO_ENV: production
+          TZ: Asia/Seoul
+        run: hugo --gc --minify --baseURL "https://blog.dibrain.dev/" --destination public-blog
+
+      - name: Deploy blog to Cloudflare Pages
+        # 블로그는 이 저장소 push·수동 실행 때만 올린다(다른 저장소 때문에 돌 때는 건너뜀)
+        if: steps.sources.outputs.skip != 'true' && env.HUB_ONLY != 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 pages project create dibrain-blog --production-branch main || true
+          npx --yes wrangler@4 pages deploy public-blog --project-name dibrain-blog --branch main --commit-dirty=true
+
+      - name: Build and deploy draft preview (preview.dibrain-blog.pages.dev)
+        # 운영자 검토용 미리보기. 초안(draft: true)까지 넣고 --environment preview 로 만들어
+        # 모든 페이지가 noindex 이고 광고·GA 가 빠진다. 같은 프로젝트의 preview 브랜치로 올라가 운영 주소와 섞이지 않는다.
+        if: steps.sources.outputs.skip != 'true' && env.HUB_ONLY != 'true'
+        env:
+          TZ: Asia/Seoul
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          hugo --gc --minify --buildDrafts --environment preview --baseURL "https://preview.dibrain-blog.pages.dev/" --destination public-preview
+          printf '/*\n  X-Robots-Tag: noindex, nofollow\n' > public-preview/_headers
+          npx --yes wrangler@4 pages deploy public-preview --project-name dibrain-blog --branch preview --commit-dirty=true
+
+      - name: Check out the app and tool repositories
+        if: steps.sources.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          fetch() {   # 저장소 이름, 커밋 — 그 커밋만 얕게 받는다
+            mkdir -p "_src/$1" && cd "_src/$1"
+            git init -q && git remote add origin "https://github.com/yjworks/$1"
+            git fetch -q --depth 1 origin "$2" && git checkout -q FETCH_HEAD
+            cd - >/dev/null
+          }
+          fetch tools    "${{ steps.sources.outputs.tools }}"
+          fetch games    "${{ steps.sources.outputs.games }}"
+          fetch kids-lab "${{ steps.sources.outputs.kids_lab }}"
+          fetch ai-shot  "${{ steps.sources.outputs.ai_shot }}"
+          fetch clip-box "${{ steps.sources.outputs.clip_box }}"
+          fetch snap-box "${{ steps.sources.outputs.snap_box }}"
+
+      - uses: actions/setup-node@v4
+        if: steps.sources.outputs.skip != 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            _src/tools/package-lock.json
+            _src/games/package-lock.json
+
+      - name: Build tools and games
+        if: steps.sources.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          (cd _src/tools && npm ci && npm run build)
+          (cd _src/games && npm ci && npm run build)
+
+      - name: Assemble dibrain.dev
+        if: steps.sources.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          # 첫 화면. 도구 목록은 방금 만든 tools 빌드의 registry.json 을 쓴다.
+          HUB_TOOLS_REGISTRY=_src/tools/dist/registry.json python3 scripts/build_hub.py public-blog site
+          cp -r _src/tools/dist site/tools
+          cp -r _src/games/dist site/games
+          copy() {   # 원본 폴더, 대상 폴더, 빼는 이름들 — 정적 앱을 개발용 파일만 빼고 복사
+            local src=$1 dst=$2; shift 2
+            mkdir -p "$dst"
+            tar -C "$src" $(printf -- '--exclude=./%s ' "$@") -cf - . | tar -C "$dst" -xf -
+          }
+          copy _src/kids-lab site/kids-lab .git .github tests README.md
+          copy _src/ai-shot  site/ai-shot  .git .github tools DEVELOP.md README.md wrangler.toml _headers
+          copy _src/clip-box site/clip-box .git .github design docs README.md
+          copy _src/snap-box site/snap-box .git .github design docs README.md
+          cat > site/_headers <<'EOF'
+          # 브라우저로 직접 열어도 한글이 깨지지 않게
+          /*.js
+            Content-Type: text/javascript; charset=utf-8
+          /*.mjs
+            Content-Type: text/javascript; charset=utf-8
+          /*.css
+            Content-Type: text/css; charset=utf-8
+          # 빌드 때 이름에 해시가 붙는 파일은 바뀌지 않으니 오래 둔다
+          /tools/assets/*
+            Cache-Control: public, max-age=31536000, immutable
+          /games/assets/*
+            Cache-Control: public, max-age=31536000, immutable
+          EOF
+          cp sources.txt site/deploy.txt
+          echo "files: $(find site -type f | wc -l)"
+          find site -type f -size +25M -print | sed 's/^/too large for Cloudflare Pages: /' | tee /dev/stderr | (! grep -q .)
+
+      - name: Deploy dibrain.dev to Cloudflare Pages
+        if: steps.sources.outputs.skip != 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 pages project create dibrain-hub --production-branch main || true
+          npx --yes wrangler@4 pages deploy site --project-name dibrain-hub --branch main --commit-dirty=true
