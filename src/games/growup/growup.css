@@ -806,7 +806,7 @@
 .gu-tips { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; line-height: 1.5; }
 
 /* 옆 단 */
-.gu-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.gu-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
 .gu-tabs button {
   min-height: 38px;
   border: 3px solid var(--gu-ink);
@@ -1062,3 +1062,33 @@
 .gu-menu .gu-menu-list { margin-top: 12px; grid-template-columns: 1fr; }
 .gu-choice.danger { background: #a8323a; }
 .gu-choice.danger small { color: rgba(255, 255, 255, 0.85); }
+
+/* 읽을거리 */
+.gu-read {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 2px solid #c9a46a;
+  border-radius: 4px;
+  background: #fbf3e2;
+  color: #3a2a14;
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+.gu-read p { margin: 0; }
+.gu-read-head { display: flex; flex-direction: column; gap: 2px; }
+.gu-read-kind { font-size: 0.7rem; font-weight: 900; letter-spacing: 0.04em; color: #8a6a3a; }
+.gu-read-head b { font-size: 0.98rem; font-weight: 900; }
+.gu-read-rows { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 0; }
+.gu-read-rows dt { font-weight: 900; }
+.gu-read-rows dd { margin: 0; color: #5a4a30; }
+.gu-read-rows.hanja dt { font-size: 1.3rem; line-height: 1.2; font-family: 'Noto Serif KR', 'Batang', serif; }
+.gu-shelf { display: flex; flex-direction: column; gap: 10px; }
+.gu-shelf h3 small { color: var(--gu-sub); font-weight: 700; }
+.gu-shelf-item { border-radius: 3px; background: var(--gu-ink); padding: 6px 10px; font-size: 0.84rem; }
+.gu-shelf-item + .gu-shelf-item { margin-top: 4px; }
+.gu-shelf-item summary { cursor: pointer; font-weight: 800; }
+.gu-shelf-item p { margin: 6px 0 2px; color: var(--gu-sub); line-height: 1.5; }
+.gu-shelf-item .gu-read-rows { margin-top: 6px; }
+.gu-shelf-item .gu-read-rows dd { color: var(--gu-sub); }

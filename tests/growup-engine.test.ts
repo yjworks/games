@@ -84,8 +84,8 @@ describe('새 게임', () => {
   it('같은 씨앗이면 같은 아이가 나온다', () => {
     expect(make('classic', 7)).toEqual(make('classic', 7));
   });
-  it('장소 14곳이 구역 4개에 나뉘고, 구역마다 많아야 4곳·장소마다 활동 4개 — 버튼 4개로 다 고를 수 있다', () => {
-    expect(PLACES).toHaveLength(14);
+  it('장소 15곳이 구역 4개에 나뉘고, 구역마다 많아야 4곳·장소마다 활동 4개 — 버튼 4개로 다 고를 수 있다', () => {
+    expect(PLACES).toHaveLength(15);
     expect(DISTRICTS).toHaveLength(4);
     expect(DISTRICTS.flatMap((d) => d.places).sort()).toEqual(PLACES.map((p) => p.id).sort());
     for (const d of DISTRICTS) {
@@ -409,11 +409,11 @@ describe('블록 마을', () => {
 });
 
 describe('위에서 본 마을 지도', () => {
-  it('14곳이 겹치지 않고 지도 안에 있으며, 어느 곳에서 어느 곳으로든 거리를 따라 갈 수 있다', async () => {
+  it('15곳이 겹치지 않고 지도 안에 있으며, 어느 곳에서 어느 곳으로든 거리를 따라 갈 수 있다', async () => {
     const { buildTown, findPath, MAP_W, MAP_H } = await import('../src/games/growup/towntop');
     const t = buildTown();
     const lots = Object.values(t.lots);
-    expect(lots).toHaveLength(14);
+    expect(lots).toHaveLength(15);
     const seen = new Set<string>();
     for (const l of lots) {
       expect(l.x).toBeGreaterThanOrEqual(0);

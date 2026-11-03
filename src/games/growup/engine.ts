@@ -5,7 +5,8 @@ import { ALLOWANCE, FIELD_KEYS, FIELD_LABEL, PLACES, STAT_KEYS, placeById } from
 
 import { EVENTS, GameEvent, eventById } from './events';
 import { FRIENDS, FRIEND_EVENTS, FRIEND_LEVELS, FRIEND_MET } from './friends';
-import { makeQuiz, quizExplain, yearTips } from './edu';
+import { makeQuiz, makeWordQuiz, quizExplain, wordQuizReady, yearTips } from './edu';
+import { pickReading } from './reading';
 import {
   Activity, Award, CareerScore, Delta, Effect, ExamResult, FieldKey, Four, GameState, Look, Mode,
   Outcome, Place, PlaceId, PlaceStage, StatKey, TurnReport, WeekLog, YearStats, YearSummary,
@@ -23,6 +24,8 @@ export const MISS_MS = 24 * 60 * 60 * 1000;
 const EVENT_CHANCE = 0.3;
 /** 무작위 사건 자리에 직업 퀴즈가 대신 나올 확률(초3부터) */
 const QUIZ_CHANCE = 0.35;
+/** 퀴즈 가운데 낱말 퀴즈의 몫 */
+const WORD_QUIZ_SHARE = 0.5;
 /** 같은 사건이 다시 나오기까지의 최소 간격(달) */
 const EVENT_COOLDOWN = 14;
 
@@ -101,6 +104,7 @@ export function newGame({ name, look, mode, seed, now = Date.now() }: NewGameOpt
     reviewPending: false,
     quiz: null,
     known: [],
+    read: [],
     sick: false,
     pending: null,
     eventSeen: {},
@@ -386,12 +390,16 @@ export function doActivity(prev: GameState, placeId: PlaceId, actId: string): Ac
       : `${place.name}에 자주 왔다! “${lockAct.name}” 하려면: ${now.reason}`);
   }
 
+  /* 읽을거리 — 그곳에서 한 달 보내며 하나 읽는다 */
+  const rd = pickReading(s.read ?? [], placeId, act.id, () => next(s));
+  if (rd && !(s.read ?? []).includes(rd.id)) s.read = [...(s.read ?? []), rd.id];
+
   const report = endMonth(s, lines);
   return {
     ok: true,
     state: s,
     report: {
-      when, place: placeId, act: actId, outcome, weeks,
+      when, place: placeId, act: actId, outcome, weeks, reading: rd?.id,
       delta: diff(before, snap(s)),
       lines,
       counsel,
@@ -516,9 +524,11 @@ function pickEvent(s: GameState): string | null {
   const fe = FRIEND_EVENTS.find((e) => s.friends[e.friend] >= FRIEND_LEVELS[e.level] && s.eventSeen[e.id] === undefined);
   if (fe) { s.eventSeen[fe.id] = s.turn; return fe.id; }
   if (next(s) >= EVENT_CHANCE) return null;
-  /* 직업 퀴즈 — 사건 대신 */
-  if (cal.grade >= 2 && next(s) < QUIZ_CHANCE) {
-    s.quiz = makeQuiz(s, () => next(s));
+  /* 퀴즈 — 사건 대신. 읽은 낱말이 있으면 낱말 퀴즈도 섞어 낸다(직업 퀴즈는 초2부터) */
+  const words = wordQuizReady(s);
+  if ((cal.grade >= 2 || words) && next(s) < QUIZ_CHANCE) {
+    const word = words && (cal.grade < 2 || next(s) < WORD_QUIZ_SHARE) ? makeWordQuiz(s, () => next(s)) : null;
+    s.quiz = word ?? (cal.grade >= 2 ? makeQuiz(s, () => next(s)) : null);
     return null;
   }
   const pool = EVENTS.filter((e) => e.when?.(s, cal)
@@ -547,14 +557,15 @@ export function answerQuiz(prev: GameState, idx: number): QuizResult {
   const s = clone(prev);
   const before = snap(s);
   const correct = idx === q.answer;
-  const c = careerById(q.careerId);
+  const c = q.careerId ? careerById(q.careerId) : undefined;
   s.year.quizTotal += 1;
   if (correct) {
     s.year.quizRight += 1;
     s.mood = clamp(s.mood + 4, 0, 100);
     if (c?.field) s.fields[c.field] = clamp(s.fields[c.field] + 2, 0, 100);
+    if (q.kind === 'word') s.stats.know = clamp(s.stats.know + 1, 0, 100);
   }
-  if (!s.known.includes(q.careerId)) s.known.push(q.careerId);
+  if (q.careerId && !s.known.includes(q.careerId)) s.known.push(q.careerId);
   s.quiz = null;
   const head = correct ? '정답!' : `아쉬워요. 정답은 “${q.options[q.answer]}”.`;
   return { ok: true, state: s, correct, text: `${head} ${quizExplain(q)}`, delta: diff(before, snap(s)) };

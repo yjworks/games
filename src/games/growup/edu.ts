@@ -1,5 +1,6 @@
 import { CAREERS, Career, Riasec, careerById } from './careers';
 import { FIELD_LABEL, PLACES, STAT_LABEL } from './data';
+import { QUIZ_KINDS, Reading, meaningsOf, quizTerms, readingById, wordQuestion } from './reading';
 import { FieldKey, GameState, Quiz, StatKey, YearStats } from './types';
 
 /**
@@ -113,9 +114,34 @@ export function makeQuiz(s: GameState, rand: () => number): Quiz {
   return { careerId: c.id, kind: 'subject', question: `${c.emoji} ${c.title}에게 특히 도움이 되는 과목은?`, options, answer };
 }
 
+/** 읽었던 낱말(영어·한자·고사성어·속담) */
+const quizable = (s: GameState): Reading[] =>
+  (s.read ?? []).map(readingById).filter((r): r is Reading => !!r && QUIZ_KINDS.includes(r.kind));
+
+export const wordQuizReady = (s: GameState) => quizable(s).length > 0;
+
+/** 낱말 퀴즈 — 읽었던 낱말 하나의 뜻을 묻는다. 오답은 같은 종류의 다른 뜻 */
+export function makeWordQuiz(s: GameState, rand: () => number): Quiz | null {
+  const seen = quizable(s);
+  if (!seen.length) return null;
+  const r = seen[Math.floor(rand() * seen.length)];
+  const terms = quizTerms(r);
+  const [word, meaning] = terms[Math.floor(rand() * terms.length)];
+  const others = meaningsOf(r.kind).filter((m) => m !== meaning);
+  if (others.length < 3) return null;
+  const { options, answer } = shuffleIn(rand, meaning, pickOthers(rand, others, meaning, 3));
+  return { kind: 'word', readingId: r.id, question: wordQuestion(r.kind, word), options, answer };
+}
+
 /** 퀴즈 풀이 — 맞든 틀리든 직업 카드를 보여 준다 */
 export function quizExplain(q: Quiz): string {
-  const c = careerById(q.careerId)!;
+  if (q.kind === 'word') {
+    const r = q.readingId ? readingById(q.readingId) : undefined;
+    if (!r) return '';
+    return r.term ? `${r.title} — ${r.body ?? ''}` : `“${r.title}” 낱말장에서 나온 문제예요. 수첩의 읽을거리에서 다시 볼 수 있어요.`;
+  }
+  const c = careerById(q.careerId ?? '');
+  if (!c) return '';
   return `${c.emoji} ${c.title} — ${c.info} 관련 과목: ${c.subjects.join('·')}.`;
 }
 

@@ -1,6 +1,7 @@
 import { TOTAL_TURNS, calendar } from './calendar';
 import { careerById } from './careers';
 import { DISTRICTS, placeById } from './data';
+import { readingById } from './reading';
 import {
   Expression, actStatus, actsOf, answerQuiz, candidates, doActivity, expression, fill, findAct, finish,
   openLabel, pendingEvent, placeOpen, placeStage, reflect, resolveEvent, restSick,
@@ -211,7 +212,8 @@ export function screenModel(flow: Flow, g: GameState): ScreenModel {
       };
     case 'result': {
       const act = flow.report.act ? findAct(flow.report.act) : undefined;
-      return { ...base, title: OUT[flow.report.outcome], lines: [act ? `${act.emoji} ${act.name}` : '', ...flow.report.lines].filter(Boolean), choices: [], anyKey: true };
+      const rd = flow.report.reading ? readingById(flow.report.reading) : undefined;
+      return { ...base, title: OUT[flow.report.outcome], lines: [act ? `${act.emoji} ${act.name}` : '', ...flow.report.lines, rd ? `📖 ${rd.title}` : ''].filter(Boolean), choices: [], anyKey: true };
     }
     case 'review': {
       const y = g.history[g.history.length - 1];
@@ -222,7 +224,7 @@ export function screenModel(flow: Flow, g: GameState): ScreenModel {
     }
     case 'quiz': {
       const q = g.quiz!;
-      return { ...base, title: '직업 퀴즈', lines: [q.question], choices: q.options.map((o) => ({ label: o, enabled: true })) };
+      return { ...base, title: q.kind === 'word' ? '낱말 퀴즈' : '직업 퀴즈', lines: [q.question], choices: q.options.map((o) => ({ label: o, enabled: true })) };
     }
     case 'event': {
       const ev = pendingEvent(g)!;
