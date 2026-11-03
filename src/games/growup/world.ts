@@ -113,6 +113,16 @@ const BUILD: Record<PlaceId, (g: Grid, x: number, stage: Stage) => number> = {
     for (let i = 0; i < 8; i++) put(g, x + i, base - 4, i % 2 ? B.WoolW : B.WoolB);
     return base - 4;
   },
+  lang: (g, x) => {
+    /* 상가 건물 — 1층 가게, 2층 학원 간판 */
+    rect(g, x + 1, base - 4, x + 6, base, B.Quartz);
+    rect(g, x + 2, base - 3, x + 5, base - 3, B.Glass);
+    for (let i = 1; i <= 6; i++) put(g, x + i, base - 2, i % 2 ? B.WoolB : B.WoolW);
+    put(g, x + 2, base - 1, B.Glass); put(g, x + 5, base - 1, B.Glass);
+    door(g, x);
+    rect(g, x, base - 5, x + 7, base - 5, B.Slab);
+    return base - 5;
+  },
   library: (g, x) => {
     rect(g, x + 1, base - 3, x + 6, base, B.Plank);
     rect(g, x + 1, base - 3, x + 6, base - 3, B.Books);

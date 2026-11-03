@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { newGame, TOTAL_TURNS } from '../src/games/growup/engine';
 import { Flow, goto, press, screenModel, settle } from '../src/games/growup/flow';
-import { makeQuiz, riasec, topRiasec, careersForType, nearMisses, careerNeeds, yearTips } from '../src/games/growup/edu';
+import { makeQuiz, makeWordQuiz, riasec, topRiasec, careersForType, nearMisses, careerNeeds, yearTips } from '../src/games/growup/edu';
 import { CAREERS, careerById } from '../src/games/growup/careers';
 import { piboFace, packRows, PIBO_W, PIBO_H } from '../src/games/growup/pibo';
 import { PRESETS, presetGrid, resizeGrid, floodFill, blankGrid } from '../src/games/growup/pixelart';
 import { GameState } from '../src/games/growup/types';
+import { READINGS, QUIZ_KINDS, pickReading, quizTerms, readingById } from '../src/games/growup/reading';
+import { PLACES } from '../src/games/growup/data';
+import { doActivity, answerQuiz } from '../src/games/growup/engine';
 
 const make = (seed = 1) => newGame({ name: '하늘', look: { hair: 0, style: 0 }, mode: 'classic', seed, now: 0 });
 
@@ -107,7 +110,7 @@ describe('교육 장치', () => {
       expect(new Set(q.options).size).toBe(4);
       expect(q.answer).toBeGreaterThanOrEqual(0);
       expect(q.answer).toBeLessThan(4);
-      const c = careerById(q.careerId)!;
+      const c = careerById(q.careerId!)!;
       if (q.kind === 'job') expect(q.options[q.answer]).toBe(c.title);
       if (q.kind === 'subject') expect(c.subjects).toContain(q.options[q.answer]);
     }
@@ -176,5 +179,58 @@ describe('픽셀 초상', () => {
     g.px[5] = '#000000'; g.px[6] = '#000000'; g.px[9] = '#000000'; g.px[10] = '#000000';
     const f = floodFill(g, 0, 0, '#ff0000');
     expect(f.px.filter((c) => c === '#ff0000')).toHaveLength(12);
+  });
+});
+
+describe('읽을거리', () => {
+  it('id가 겹치지 않고, 낱말장은 뜻이 비어 있지 않다', () => {
+    const ids = READINGS.map((r) => r.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const r of READINGS) {
+      expect(r.title.length).toBeGreaterThan(0);
+      expect(r.body || r.rows).toBeTruthy();
+      for (const [w, m] of quizTerms(r)) { expect(w.length).toBeGreaterThan(0); expect(m.length).toBeGreaterThan(0); }
+    }
+  });
+
+  it('모든 장소의 모든 활동에서 읽을거리가 나온다', () => {
+    for (const p of PLACES) for (const st of p.stages) for (const a of st.acts) {
+      expect(pickReading([], p.id, a.id, () => 0.5), `${p.id}/${a.id}`).not.toBeNull();
+    }
+  });
+
+  it('어학원 낱말은 쉬운 것부터 차례로, 다 읽으면 복습으로 나온다', () => {
+    const read: string[] = [];
+    for (let i = 0; i < 60; i++) {
+      const r = pickReading(read, 'lang', 'english', () => 0.3)!;
+      expect(r.kind).toBe('english');
+      if (!read.includes(r.id)) read.push(r.id);
+    }
+    expect(read[0]).toBe('en-hello');
+    expect(read.length).toBe(READINGS.filter((r) => r.kind === 'english').length);
+  });
+
+  it('한 달을 보내면 읽을거리가 결과와 수첩에 남는다', () => {
+    const r = doActivity(make(), 'lang', 'hanja');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.report.reading).toBe('hj-num');
+    expect(r.state.read).toEqual(['hj-num']);
+  });
+
+  it('낱말 퀴즈는 읽은 낱말에서 나오고, 보기 4개가 서로 다르며 정답이 맞다', () => {
+    const g: GameState = { ...make(), read: READINGS.filter((r) => QUIZ_KINDS.includes(r.kind)).map((r) => r.id) };
+    const rr = rnd(9);
+    for (let i = 0; i < 400; i++) {
+      const q = makeWordQuiz(g, rr)!;
+      expect(q.kind).toBe('word');
+      expect(new Set(q.options).size).toBe(4);
+      const terms = quizTerms(readingById(q.readingId!)!);
+      expect(terms.some(([w, m]) => q.question.includes(w) && m === q.options[q.answer])).toBe(true);
+    }
+    expect(makeWordQuiz(make(), rr)).toBeNull();
+    const q = makeWordQuiz({ ...make(), read: ['id-two-birds'] }, rr)!;
+    const a = answerQuiz({ ...make(), quiz: q }, q.answer);
+    expect(a.ok && a.correct).toBe(true);
   });
 });

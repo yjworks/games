@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { GameShell } from '../../shared/react/GameShell';
 import { HUB_HREF, gameById } from '../../shared/registry';
 import { growupTutorial } from './tutorial';
@@ -19,6 +19,7 @@ import {
 import { RIASEC_INFO, RIASEC_KEYS, careersForType, nearMisses, riasec, topRiasec } from './edu';
 import { Flow, screenModel } from './flow';
 import { FRIENDS, FRIEND_LEVELS, FRIEND_MET } from './friends';
+import { READINGS, READ_KIND, ReadKind, Reading, readingById } from './reading';
 import { LAYER, useButtons } from './input';
 import { EXPR_KEYS, EXPR_NAMES, STAGE_KEYS, STAGE_NAMES, presetUrl, shrinkImage } from './portraits';
 import { PRESETS } from './pixelart';
@@ -516,7 +517,7 @@ function Command({ game, flow, arrived, shown, press, goto }: {
       const q = game.quiz!;
       return (
         <div className="gu-cmd">
-          <h3 className="gu-cmd-title">❓ 직업 퀴즈</h3>
+          <h3 className="gu-cmd-title">{q.kind === 'word' ? '📖 낱말 퀴즈' : '❓ 직업 퀴즈'}</h3>
           <p className="gu-cmd-text big">{q.question}</p>
           <div className="gu-options">
             {q.options.map((o, i) => <ChoiceBtn key={o} n={i + 1} label={o} onClick={() => pressN(i)} />)}
@@ -563,7 +564,7 @@ function NotebookBtn({ small }: { small?: boolean }) {
     <button className="gu-place notebook" style={{ ['--pc' as string]: '#c9a05b' }} onClick={() => setNotebook(true)}>
       <span className="gu-place-emoji">📔</span>
       <span className="gu-place-name">내 수첩</span>
-      <span className="gu-place-sub">실력·친구·기록</span>
+      <span className="gu-place-sub">실력·친구·읽을거리</span>
     </button>
   );
 }
@@ -653,6 +654,7 @@ function ResultView({ game, report, onNext }: { game: GameState; report: TurnRep
       <h3 className={`gu-cmd-title result ${report.outcome}`}>{OUTCOME_TEXT[report.outcome]} <small>{report.when}</small></h3>
       <DeltaChips d={report.delta} />
       {report.lines.map((l) => <p key={l} className="gu-cmd-line">{l}</p>)}
+      {report.reading && <ReadingCard id={report.reading} />}
       {report.counsel && <RiasecMini game={game} />}
       {report.exam && <p className="gu-cmd-box">📝 {report.exam.grade} 시험 — {report.exam.label} ({report.exam.score}점)</p>}
       {report.yearEnd && (
@@ -666,6 +668,60 @@ function ResultView({ game, report, onNext }: { game: GameState; report: TurnRep
         </div>
       )}
       <AnyKey text={last ? '아무 버튼이나 눌러 졸업식으로' : report.yearEnd ? '아무 버튼이나 눌러 한 해 돌아보기' : '아무 버튼이나 눌러 다음 달로'} onClick={onNext} />
+    </div>
+  );
+}
+
+/** 읽을거리 한 장 — 상식은 글, 영어·한자는 낱말장 */
+function ReadingBody({ r }: { r: Reading }) {
+  return (
+    <>
+      {r.rows && (
+        <dl className={`gu-read-rows ${r.kind}`}>
+          {r.rows.map(([w, m]) => <Fragment key={w}><dt>{w}</dt><dd>{m}</dd></Fragment>)}
+        </dl>
+      )}
+      {r.body && <p>{r.body}</p>}
+    </>
+  );
+}
+
+function ReadingCard({ id }: { id: string }) {
+  const r = readingById(id);
+  if (!r) return null;
+  const k = READ_KIND[r.kind];
+  return (
+    <div className={`gu-read ${r.kind}`}>
+      <div className="gu-read-head"><span className="gu-read-kind">📖 읽을거리 · {k.emoji} {k.name}</span><b>{r.title}</b></div>
+      <ReadingBody r={r} />
+    </div>
+  );
+}
+
+const READ_ORDER: ReadKind[] = ['fact', 'english', 'hanja', 'idiom', 'proverb', 'korean'];
+
+/** 수첩 — 지금까지 읽은 것을 종류별로 */
+function ReadingShelf({ game }: { game: GameState }) {
+  const read = (game.read ?? []).map(readingById).filter((r): r is Reading => !!r);
+  if (!read.length) return <p className="gu-muted">아직 읽은 게 없어요. 장소에서 한 달을 보내면 하나씩 읽어요. 어학원에서는 영어·한자·속담을 배워요.</p>;
+  return (
+    <div className="gu-shelf">
+      <p className="gu-muted">읽은 것 {read.length} / {READINGS.length} · 낱말은 가끔 퀴즈로 다시 나와요</p>
+      {READ_ORDER.map((kind) => {
+        const list = read.filter((r) => r.kind === kind).reverse();
+        if (!list.length) return null;
+        return (
+          <section key={kind}>
+            <h3>{READ_KIND[kind].emoji} {READ_KIND[kind].name} <small>{list.length}</small></h3>
+            {list.map((r) => (
+              <details key={r.id} className="gu-shelf-item">
+                <summary>{r.title}</summary>
+                <ReadingBody r={r} />
+              </details>
+            ))}
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -787,7 +843,7 @@ function Notebook({ game, onClose }: { game: GameState; onClose: () => void }) {
     <Modal label="내 수첩" onClose={onClose} className="gu-notebook">
       <div className="gu-sheet-head">
         <span className="gu-sheet-emoji">📔</span>
-        <div><h2>{game.name}의 수첩</h2><p>실력 · 친구 · 지난 기록</p></div>
+        <div><h2>{game.name}의 수첩</h2><p>실력 · 친구 · 읽을거리 · 지난 기록</p></div>
         <button className="gu-close" onClick={onClose} aria-label="닫기">✕</button>
       </div>
       <NotebookBody game={game} />
@@ -796,7 +852,7 @@ function Notebook({ game, onClose }: { game: GameState; onClose: () => void }) {
 }
 
 function NotebookBody({ game }: { game: GameState }) {
-  const [tab, setTab] = useState<'stat' | 'friend' | 'log'>('stat');
+  const [tab, setTab] = useState<'stat' | 'friend' | 'read' | 'log'>('stat');
   const switchClassic = useGrow((s) => s.toClassic);
   const reset = useGrow((s) => s.reset);
   const cal = calendar(Math.min(game.turn, TOTAL_TURNS - 1));
@@ -815,7 +871,7 @@ function NotebookBody({ game }: { game: GameState }) {
         </div>
       </div>
       <div className="gu-tabs" role="tablist">
-        {([['stat', '실력'], ['friend', '친구'], ['log', '기록']] as const).map(([k, l]) => (
+        {([['stat', '실력'], ['friend', '친구'], ['read', '읽을거리'], ['log', '기록']] as const).map(([k, l]) => (
           <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>
         ))}
       </div>
@@ -844,6 +900,7 @@ function NotebookBody({ game }: { game: GameState }) {
           })}
         </ul>
       )}
+      {tab === 'read' && <ReadingShelf game={game} />}
       {tab === 'log' && (
         <div className="gu-log">
           <p className="gu-muted">알게 된 직업 {game.known.length}개 · 수상 {game.awards.filter((a) => a.rank !== 'fail').length}번{game.lastExam ? ` · 최근 시험 ${game.lastExam.score}점` : ''}</p>

@@ -43,7 +43,7 @@ const CLASS = (lv: number): Activity => ({
 });
 
 /**
- * 장소 14곳 — 구역 4개(집·학교·동네·시내)에 나뉜다. 학년이 오르면 공사 중이던 곳이 하나씩 열린다.
+ * 장소 15곳 — 구역 4개(집·학교·동네·시내)에 나뉜다(구역마다 많아야 4곳 — 버튼 ①~④). 학년이 오르면 공사 중이던 곳이 하나씩 열린다.
  * 장소마다 활동은 4개(버튼 ①~④). 교실·내 방처럼 학교급마다 활동이 바뀌는 곳도 있다.
  */
 export const PLACES: Place[] = [
@@ -81,6 +81,15 @@ export const PLACES: Place[] = [
     ]),
   },
 
+  {
+    id: 'lang', district: 'home', name: '어학원', emoji: '🔤', color: '#d98a3a', from: 0,
+    stages: same('어학원', '아파트 상가 2층. 국어·영어·한자를 배우고, 배운 낱말은 수첩에 쌓인다.', [
+      { id: 'korean', name: '국어 교실', emoji: '📖', desc: '헷갈리는 맞춤법과 속담을 익힌다.', main: 'express', cost: 1, stats: { express: 4, know: 2 }, fields: { write: 4, edu: 1 }, fatigue: 8, stress: 3 },
+      { id: 'english', name: '영어 학원', emoji: '🔤', desc: '쉬운 낱말과 짧은 대화부터.', main: 'know', diff: 1, cost: 2, stats: { know: 3, express: 3 }, fields: { edu: 2, biz: 2, write: 1 }, fatigue: 10, stress: 5 },
+      { id: 'hanja', name: '한자·고사성어', emoji: '📜', desc: '한 글자에 담긴 뜻, 네 글자에 담긴 이야기.', main: 'know', cost: 1, stats: { know: 4, logic: 1 }, fields: { write: 3, edu: 2 }, fatigue: 8, stress: 3 },
+      { id: 'engspeech', name: '영어 말하기 대회', emoji: '🎤', desc: '외운 문장을 무대에서 또박또박.', main: 'express', diff: 2, contest: 'write', lock: { visits: REG, stat: 'express', min: 35 }, stats: { express: 6, social: 2, know: 2 }, fields: { write: 6, edu: 2 }, bold: 5, fatigue: 14, stress: 8 },
+    ]),
+  },
   /* ── ② 학교 ── */
   {
     id: 'classroom', district: 'school', name: '교실', emoji: '🏫', color: '#5b8def', from: 0,
@@ -227,7 +236,7 @@ export const PLACES: Place[] = [
 export const placeById = (id: string) => PLACES.find((p) => p.id === id);
 
 export const DISTRICTS: District[] = [
-  { id: 'home', name: '집', emoji: '🏠', color: '#e9a15b', places: ['room', 'kitchen'] },
+  { id: 'home', name: '집', emoji: '🏠', color: '#e9a15b', places: ['room', 'kitchen', 'lang'] },
   { id: 'school', name: '학교', emoji: '🏫', color: '#5b8def', places: ['classroom', 'field', 'club', 'counsel'] },
   { id: 'town', name: '동네', emoji: '🏘️', color: '#4fbf6b', places: ['library', 'park', 'market', 'welfare'] },
   { id: 'city', name: '시내', emoji: '🏙️', color: '#8b6cf0', places: ['academy', 'maker', 'media', 'parttime'] },

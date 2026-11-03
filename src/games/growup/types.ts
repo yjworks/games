@@ -11,7 +11,7 @@ export type FriendId = 'minjun' | 'seoyeon' | 'doyun' | 'haeun';
 export type DistrictId = 'home' | 'school' | 'town' | 'city';
 
 export type PlaceId =
-  | 'room' | 'kitchen'
+  | 'room' | 'kitchen' | 'lang'
   | 'classroom' | 'field' | 'club' | 'counsel'
   | 'library' | 'park' | 'market' | 'welfare'
   | 'academy' | 'maker' | 'media' | 'parttime';
@@ -144,8 +144,11 @@ export interface YearSummary extends YearStats {
 
 /** 직업 퀴즈 — 보기 4개, 버튼 ①~④로 답한다 */
 export interface Quiz {
-  careerId: string;
-  kind: 'job' | 'field' | 'subject';
+  /** 직업 퀴즈의 직업(낱말 퀴즈는 비어 있다) */
+  careerId?: string;
+  /** 낱말 퀴즈 — 읽었던 읽을거리 id */
+  readingId?: string;
+  kind: 'job' | 'field' | 'subject' | 'word';
   question: string;
   options: [string, string, string, string];
   answer: number;
@@ -189,6 +192,8 @@ export interface GameState {
   quiz: Quiz | null;
   /** 퀴즈·체험으로 알게 된 직업 */
   known: string[];
+  /** 읽은 읽을거리 id(읽은 순서) — 예전 저장에는 없다 */
+  read?: string[];
   /** 아파서 이번 달은 쉬어야 한다 */
   sick: boolean;
   /** 고르기를 기다리는 사건 id */
@@ -234,6 +239,8 @@ export interface TurnReport {
   yearEnd?: { grade: string; delta: Partial<Record<StatKey, number>>; summary: YearSummary };
   /** 진로 상담 결과 */
   counsel?: { field: FieldKey; value: number }[];
+  /** 이번 달 읽을거리 id */
+  reading?: string;
 }
 
 export interface CareerScore {

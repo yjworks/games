@@ -43,6 +43,7 @@ interface Style { roof: string[]; flat?: boolean; stripe?: string; wall: string[
 const STYLE: Record<PlaceId, Style> = {
   room: { roof: ['#a8403a', '#8a3030', '#c45048'], wall: ['#c49a5a', '#b08848', '#d0a868'] },
   kitchen: { roof: ['#7a5a3a', '#6a4a2e', '#8a6a48'], wall: ['#b5523a', '#a4462f', '#c4614a'] },
+  lang: { roof: ['#d98a3a', '#f4f4f4'], stripe: 'v', wall: ['#ece8e0', '#e0dcd2', '#f6f2ea'], window: '#4a7ad8' },
   classroom: { roof: ['#9a9da4', '#8a8d93', '#aaadb4'], flat: true, wall: ['#b5523a', '#a4462f', '#c4614a'] },
   field: { roof: [], wall: [], special: 'field' },
   club: { roof: ['#3a8a8a', '#2e7474', '#4a9a9a'], flat: true, wall: ['#7a7d84', '#5e6168', '#9a9da4'] },
@@ -137,8 +138,8 @@ export function paintTown(layout: TownLayout, o: TownOpts): TownScene {
   }
 
   /* 집 마당 — 관심 분야 소품(꽃밭)과 트로피(연못 옆) */
-  o.props.slice(0, 2).forEach((f, i) => drawProp(c, FIELD_PROPS[f], 224 + i * 14, 18));
-  for (let i = 0; i < Math.min(o.trophies, 3); i++) drawProp(c, TROPHY, 202, 8 + i * 11);
+  o.props.slice(0, 2).forEach((f, i) => drawProp(c, FIELD_PROPS[f], 236 + i * 14, 18));
+  for (let i = 0; i < Math.min(o.trophies, 3); i++) drawProp(c, TROPHY, 220, 8 + i * 11);
 
   return { base, glow };
 }

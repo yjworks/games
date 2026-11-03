@@ -75,9 +75,8 @@ export function buildTown(): TownLayout {
     });
   });
 
-  /* 집 구역 빈자리 — 작은 연못과 꽃밭 */
+  /* 집 구역 빈자리 — 꽃밭(관심 분야 소품과 트로피가 놓인다) */
   const homeTop = BAND_TOP[0];
-  for (let y = homeTop + 1; y < homeTop + 4; y++) for (let x = 21; x < 25; x++) set(x, y, T.Water);
   for (let y = homeTop; y < homeTop + 5; y++) for (let x = 27; x < 33; x++) set(x, y, (x + y) % 3 ? T.Flower : T.Grass);
 
   /* 거리 아래 풀밭에 나무 */
