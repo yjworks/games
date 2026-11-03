@@ -1043,17 +1043,19 @@
 
 @media (min-width: 900px) {
   .gu-main { max-width: 1120px; }
+  /* 왼쪽 그림(지도·장소, 272:304)이 높이를 정하고, 오른쪽 패널은 그 높이 안에서 스크롤한다 */
   .gu-stage {
     display: grid;
-    grid-template-columns: minmax(320px, 440px) minmax(0, 1fr);
+    grid-template-columns: min(calc((100vh - 150px) * 0.8947), 50%, 560px) minmax(0, 1fr);
+    grid-template-columns: min(calc((100dvh - 150px) * 0.8947), 50%, 560px) minmax(0, 1fr);
     grid-template-rows: auto auto 1fr;
     column-gap: 12px;
-    align-items: start;
+    align-items: stretch;
   }
   .gu-stage > .gu-hud { grid-column: 1 / -1; }
-  .gu-stage > .gu-scene { grid-column: 1; grid-row: 2 / span 2; }
+  .gu-stage > .gu-scene { grid-column: 1; grid-row: 2 / span 2; align-self: start; }
   .gu-stage > .gu-dialog { grid-column: 2; grid-row: 2; }
-  .gu-stage > .gu-cmd { grid-column: 2; grid-row: 3; }
+  .gu-stage > .gu-cmd { grid-column: 2; grid-row: 3; contain: size; min-height: 240px; overflow-y: auto; }
   .gu-districts { grid-template-columns: 1fr; }
 }
 

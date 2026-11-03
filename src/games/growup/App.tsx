@@ -231,6 +231,20 @@ function TitleScreen({ onDex, onPortraits }: { onDex: () => void; onPortraits: (
 
 /* ══════════════ 게임 화면 ══════════════ */
 
+/** 화면 너비 조건(예: 넓은 화면에서 두 단 배치) */
+function useMedia(query: string): boolean {
+  const [on, setOn] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.(query).matches);
+  useEffect(() => {
+    const m = window.matchMedia?.(query);
+    if (!m) return;
+    const f = () => setOn(m.matches);
+    f();
+    m.addEventListener('change', f);
+    return () => m.removeEventListener('change', f);
+  }, [query]);
+  return on;
+}
+
 function useNow(active: boolean) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -278,6 +292,7 @@ function Playing({ game, flow, press, setBusy, wake }: {
   const [emerge, setEmerge] = useState<PlaceId | null>(null);
   /** 장소로 갈 때마다 하나씩 — 지도가 이 값이 바뀌면 걸어간다 */
   const [trip, setTrip] = useState(0);
+  const wide = useMedia('(min-width: 900px)');
   const stageRef = useRef<HTMLElement>(null);
   /* 게임을 시작하면 맨 위로 */
   useEffect(() => { stageRef.current?.closest('.gu-root')?.scrollTo({ top: 0 }); }, []);
@@ -389,7 +404,7 @@ function Playing({ game, flow, press, setBusy, wake }: {
         </div>
         {inside && placeFlow === inside ? (
           <div className="gu-scene" key={`scene-${inside}`}>
-            <WorldView focus
+            <WorldView focus tall={wide}
               stage={cal.stage} season={cal.season} look={game.look} expr={expr}
               props={props} trophies={trophies} friends={met}
               at={inside} effect={effect} rain={game.stress >= 70}
