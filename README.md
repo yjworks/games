@@ -91,6 +91,7 @@ GitHub Pages는 꺼져 있습니다(`gh-pages` 브랜치는 예전 배포본이�
 이 저장소의 `ci.yml`은 타입 검사·테스트·빌드를 보고, `main`에서 통과하면 `hugo.yml`을 바로 실행시킵니다
 (저장소 secret `DEPLOY_TOKEN` — 블로그 저장소 하나만, Actions: Read and write 권한의 fine-grained 토큰. 없으면 건너뜀).
 블로그 저장소의 30분 예약 점검은 보조입니다.
+릴리스: `v`로 시작하는 태그(예: `v1.0.0`)를 올리면 `release.yml`이 검사·빌드 후 GitHub Release를 만들고 빌드본(`games-v1.0.0.zip`)을 붙입니다.
 `base`가 상대 경로(`./`)라서 계정 이름이나 저장소 이름이 바뀌어도 그대로 동작합니다.
 서비스 워커의 경로도 전부 상대 경로입니다.
 
