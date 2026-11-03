@@ -1,6 +1,6 @@
 import { CAREERS, Career, Riasec, careerById } from './careers';
 import { FIELD_LABEL, PLACES, STAT_LABEL } from './data';
-import { QUIZ_KINDS, Reading, meaningsOf, quizTerms, readingById, wordQuestion } from './reading';
+import { Reading, questionsOf, quizFrom, readingById } from './reading';
 import { FieldKey, GameState, Quiz, StatKey, YearStats } from './types';
 
 /**
@@ -116,21 +116,17 @@ export function makeQuiz(s: GameState, rand: () => number): Quiz {
 
 /** 읽었던 낱말(영어·한자·고사성어·속담) */
 const quizable = (s: GameState): Reading[] =>
-  (s.read ?? []).map(readingById).filter((r): r is Reading => !!r && QUIZ_KINDS.includes(r.kind));
+  (s.read ?? []).map(readingById).filter((r): r is Reading => !!r && questionsOf(r).length > 0);
 
 export const wordQuizReady = (s: GameState) => quizable(s).length > 0;
 
-/** 낱말 퀴즈 — 읽었던 낱말 하나의 뜻을 묻는다. 오답은 같은 종류의 다른 뜻 */
+/** 배운 것 퀴즈 — 배웠던 것 하나를 다시 묻는다(최근에 배운 것일수록 자주) */
 export function makeWordQuiz(s: GameState, rand: () => number): Quiz | null {
   const seen = quizable(s);
   if (!seen.length) return null;
-  const r = seen[Math.floor(rand() * seen.length)];
-  const terms = quizTerms(r);
-  const [word, meaning] = terms[Math.floor(rand() * terms.length)];
-  const others = meaningsOf(r.kind).filter((m) => m !== meaning);
-  if (others.length < 3) return null;
-  const { options, answer } = shuffleIn(rand, meaning, pickOthers(rand, others, meaning, 3));
-  return { kind: 'word', readingId: r.id, question: wordQuestion(r.kind, word), options, answer };
+  const recent = seen.slice(-12);
+  const from = rand() < 0.6 ? recent : seen;
+  return quizFrom(from[Math.floor(rand() * from.length)], rand);
 }
 
 /** 퀴즈 풀이 — 맞든 틀리든 직업 카드를 보여 준다 */
@@ -138,7 +134,7 @@ export function quizExplain(q: Quiz): string {
   if (q.kind === 'word') {
     const r = q.readingId ? readingById(q.readingId) : undefined;
     if (!r) return '';
-    return r.term ? `${r.title} — ${r.body ?? ''}` : `“${r.title}” 낱말장에서 나온 문제예요. 수첩의 읽을거리에서 다시 볼 수 있어요.`;
+    return r.body ? `${r.title} — ${r.body}` : `“${r.title}” 낱말장에서 나온 문제예요. 수첩의 읽을거리에서 다시 볼 수 있어요.`;
   }
   const c = careerById(q.careerId ?? '');
   if (!c) return '';

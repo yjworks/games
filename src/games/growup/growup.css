@@ -1092,3 +1092,32 @@
 .gu-shelf-item p { margin: 6px 0 2px; color: var(--gu-sub); line-height: 1.5; }
 .gu-shelf-item .gu-read-rows { margin-top: 6px; }
 .gu-shelf-item .gu-read-rows dd { color: var(--gu-sub); }
+
+/* 한 주에 하나씩 배운 것 */
+.gu-weeks li .gu-week-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.gu-week-text b { font-size: 0.86rem; font-weight: 900; }
+.gu-week-text small { font-size: 0.74rem; color: var(--gu-sub); line-height: 1.45; }
+.gu-learned ul { margin: 2px 0; padding-left: 18px; display: flex; flex-direction: column; gap: 2px; }
+
+/* 인증 */
+.gu-certs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.gu-cert {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 8px;
+  padding: 6px 10px;
+  border-radius: 3px;
+  background: var(--gu-ink);
+  font-size: 0.82rem;
+}
+.gu-cert-name { font-weight: 900; }
+.gu-cert-level { font-weight: 900; color: var(--gu-sub); }
+.gu-cert.got .gu-cert-level { color: var(--gu-accent); }
+.gu-cert-bar { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.gu-cert-bar span { display: block; height: 100%; background: var(--gu-accent); }
+.gu-cert small { grid-column: 1 / -1; color: var(--gu-sub); font-size: 0.72rem; }
+.gu-exam-dots { display: flex; gap: 6px; }
+.gu-exam-dots span { width: 22px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); }
+.gu-exam-dots span.done { background: var(--gu-sub); }
+.gu-exam-dots span.now { background: var(--gu-accent); }
+.gu-shelf-item summary i { font-style: normal; }
