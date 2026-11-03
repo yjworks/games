@@ -6,7 +6,7 @@ import { ALLOWANCE, FIELD_KEYS, FIELD_LABEL, PLACES, STAT_KEYS, placeById } from
 import { EVENTS, GameEvent, eventById } from './events';
 import { FRIENDS, FRIEND_EVENTS, FRIEND_LEVELS, FRIEND_MET } from './friends';
 import { makeQuiz, makeWordQuiz, quizExplain, wordQuizReady, yearTips } from './edu';
-import { pickReading } from './reading';
+import { EXAM_PASS, EXAM_RETRY, LEVEL_NAMES, MAX_LEVEL, TRACKS, certBonus, levelNeed, makeExam, pickReading, trackById, trackProgress } from './reading';
 import {
   Activity, Award, CareerScore, Delta, Effect, ExamResult, FieldKey, Four, GameState, Look, Mode,
   Outcome, Place, PlaceId, PlaceStage, StatKey, TurnReport, WeekLog, YearStats, YearSummary,
@@ -24,6 +24,9 @@ export const MISS_MS = 24 * 60 * 60 * 1000;
 const EVENT_CHANCE = 0.3;
 /** 무작위 사건 자리에 직업 퀴즈가 대신 나올 확률(초3부터) */
 const QUIZ_CHANCE = 0.35;
+/** 인증 시험을 볼 수 있을 때 그달에 시험이 나올 확률 */
+const EXAM_CHANCE = 0.6;
+
 /** 퀴즈 가운데 낱말 퀴즈의 몫 */
 const WORD_QUIZ_SHARE = 0.5;
 /** 같은 사건이 다시 나오기까지의 최소 간격(달) */
@@ -322,7 +325,10 @@ export function doActivity(prev: GameState, placeId: PlaceId, actId: string): Ac
     const r = next(s);
     const wo: Outcome = act.safe ? 'ok' : r < o.fail ? 'fail' : r < o.fail + o.great ? 'great' : 'ok';
     applyEffect(s, quarter, MULT[wo]);
-    weeks.push({ outcome: wo, text: weekText(s, act, wo, w) });
+    /* 한 주에 하나씩 배운다 */
+    const bite = pickReading(s.read ?? [], act.id, () => next(s));
+    if (!(s.read ?? []).includes(bite.id)) s.read = [...(s.read ?? []), bite.id];
+    weeks.push({ outcome: wo, text: weekText(s, act, wo, w), bite: bite.id });
   }
   const greats = weeks.filter((w) => w.outcome === 'great').length;
   const fails = weeks.filter((w) => w.outcome === 'fail').length;
@@ -390,16 +396,12 @@ export function doActivity(prev: GameState, placeId: PlaceId, actId: string): Ac
       : `${place.name}에 자주 왔다! “${lockAct.name}” 하려면: ${now.reason}`);
   }
 
-  /* 읽을거리 — 그곳에서 한 달 보내며 하나 읽는다 */
-  const rd = pickReading(s.read ?? [], placeId, act.id, () => next(s));
-  if (rd && !(s.read ?? []).includes(rd.id)) s.read = [...(s.read ?? []), rd.id];
-
   const report = endMonth(s, lines);
   return {
     ok: true,
     state: s,
     report: {
-      when, place: placeId, act: actId, outcome, weeks, reading: rd?.id,
+      when, place: placeId, act: actId, outcome, weeks, learned: [...new Set(weeks.map((w) => w.bite!))],
       delta: diff(before, snap(s)),
       lines,
       counsel,
@@ -523,6 +525,13 @@ function pickEvent(s: GameState): string | null {
   /* 친구와 가까워진 달에는 친구 사건이 먼저 */
   const fe = FRIEND_EVENTS.find((e) => s.friends[e.friend] >= FRIEND_LEVELS[e.level] && s.eventSeen[e.id] === undefined);
   if (fe) { s.eventSeen[fe.id] = s.turn; return fe.id; }
+  /* 인증 시험 — 배운 것이 충분히 쌓이면 */
+  const due = examDue(s);
+  if (due && next(s) < EXAM_CHANCE) {
+    s.exam = { track: due.track, level: due.level, qs: makeExam(s.read ?? [], trackById(due.track)!, () => next(s)), i: 0, right: 0 };
+    if (s.exam.qs.length >= 3) return null;
+    s.exam = null;
+  }
   if (next(s) >= EVENT_CHANCE) return null;
   /* 퀴즈 — 사건 대신. 읽은 낱말이 있으면 낱말 퀴즈도 섞어 낸다(직업 퀴즈는 초2부터) */
   const words = wordQuizReady(s);
@@ -595,6 +604,58 @@ export function reflect(prev: GameState, idx: number): ReviewResult {
 export function findAct(id: string): Activity | undefined {
   for (const p of PLACES) for (const st of p.stages) for (const a of st.acts) if (a.id === id) return a;
   return undefined;
+}
+
+/* ── 인증 — 배운 것이 쌓이면 시험을 보고, 붙으면 진로에 힘이 된다 ── */
+
+/** 지금 볼 수 있는 인증 시험(가장 많이 배운 쪽부터) */
+export function examDue(s: GameState): { track: string; level: number } | null {
+  const read = s.read ?? [];
+  let best: { track: string; level: number; ratio: number } | null = null;
+  for (const t of TRACKS) {
+    const level = (s.certs?.[t.id] ?? 0) + 1;
+    if (level > MAX_LEVEL) continue;
+    const failed = s.examFail?.[t.id];
+    if (failed !== undefined && s.turn - failed < EXAM_RETRY) continue;
+    const { done, total } = trackProgress(read, t);
+    if (done < levelNeed(t, level)) continue;
+    const ratio = done / total;
+    if (!best || ratio > best.ratio) best = { track: t.id, level, ratio };
+  }
+  return best && { track: best.track, level: best.level };
+}
+
+export type ExamStep =
+  | { ok: true; state: GameState; correct: boolean; answer: string; done: boolean; passed: boolean; text: string }
+  | { ok: false; reason: string };
+
+/** 시험 한 문제에 답한다. 마지막 문제면 합격·불합격을 정한다(떨어져도 벌점은 없다) */
+export function answerExam(prev: GameState, idx: number): ExamStep {
+  const ex = prev.exam;
+  if (!ex) return { ok: false, reason: '보고 있는 시험이 없어요' };
+  const q = ex.qs[ex.i];
+  if (!q || idx < 0 || idx > 3) return { ok: false, reason: '없는 보기예요' };
+  const s = clone(prev);
+  const e = s.exam!;
+  const correct = idx === q.answer;
+  if (correct) e.right += 1;
+  e.i += 1;
+  const answer = q.options[q.answer];
+  if (e.i < e.qs.length) return { ok: true, state: s, correct, answer, done: false, passed: false, text: '' };
+  const t = trackById(e.track)!;
+  const need = Math.min(EXAM_PASS, e.qs.length - 1);
+  const passed = e.right >= need;
+  const label = `${t.emoji} ${t.name} 인증 ${LEVEL_NAMES[e.level]}`;
+  s.exam = null;
+  if (passed) {
+    s.certs = { ...(s.certs ?? {}), [t.id]: e.level };
+    s.mood = clamp(s.mood + 8, 0, 100);
+    s.stats.know = clamp(s.stats.know + 2, 0, 100);
+    if (s.examFail) delete s.examFail[t.id];
+    return { ok: true, state: s, correct, answer, done: true, passed, text: `${e.qs.length}문제 중 ${e.right}문제를 맞혀 ${label}을 땄어요! ${t.real}` };
+  }
+  s.examFail = { ...(s.examFail ?? {}), [t.id]: s.turn };
+  return { ok: true, state: s, correct, answer, done: true, passed, text: `${e.qs.length}문제 중 ${e.right}문제를 맞혔어요. ${need}문제를 맞히면 붙어요. 수첩의 읽을거리를 다시 보고 ${EXAM_RETRY}달 뒤에 또 도전해요.` };
 }
 
 export function pendingEvent(s: GameState): GameEvent | null {
@@ -720,7 +781,7 @@ export function scoreCareer(s: GameState, c: Career): CareerScore | null {
   if (c.id === 'athlete' && s.stats.body < 60) return null;
 
   const fieldPart = c.field ? s.fields[c.field] : clamp(40 - s.bold, 0, 80);
-  let score = st * 0.65 + fieldPart * 0.35 + awardBonus(s, c.field);
+  let score = st * 0.65 + fieldPart * 0.35 + awardBonus(s, c.field) + certBonus(s.certs, c.field, c.field2);
   if (c.kind === '창업' && s.flags.includes('mentor')) score += 4;
   /* 단짝의 응원 — 같은 분야를 좋아하는 단짝이 있으면 조금 더 */
   if (c.field && FRIENDS.some((f) => s.friends[f.id] >= FRIEND_LEVELS[1] && f.fields.includes(c.field!))) score += 3;

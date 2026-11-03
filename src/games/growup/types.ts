@@ -158,6 +158,18 @@ export interface Quiz {
 export interface WeekLog {
   outcome: Outcome;
   text: string;
+  /** 이번 주에 배운 것(읽을거리 id) */
+  bite?: string;
+}
+
+/** 진행 중인 인증 시험 */
+export interface ExamState {
+  track: string;
+  level: number;
+  qs: Quiz[];
+  /** 지금 문제 번호와 맞힌 수 */
+  i: number;
+  right: number;
 }
 
 export interface GameState {
@@ -192,8 +204,14 @@ export interface GameState {
   quiz: Quiz | null;
   /** 퀴즈·체험으로 알게 된 직업 */
   known: string[];
-  /** 읽은 읽을거리 id(읽은 순서) — 예전 저장에는 없다 */
+  /** 배운 것(읽을거리 id, 배운 순서) — 예전 저장에는 없다 */
   read?: string[];
+  /** 딴 인증: 인증 id → 단계(1~3) */
+  certs?: Record<string, number>;
+  /** 인증 시험에 떨어진 턴 — 몇 달 뒤 다시 볼 수 있다 */
+  examFail?: Record<string, number>;
+  /** 보고 있는 인증 시험 */
+  exam?: ExamState | null;
   /** 아파서 이번 달은 쉬어야 한다 */
   sick: boolean;
   /** 고르기를 기다리는 사건 id */
@@ -239,8 +257,8 @@ export interface TurnReport {
   yearEnd?: { grade: string; delta: Partial<Record<StatKey, number>>; summary: YearSummary };
   /** 진로 상담 결과 */
   counsel?: { field: FieldKey; value: number }[];
-  /** 이번 달 읽을거리 id */
-  reading?: string;
+  /** 이번 달에 배운 것(읽을거리 id) */
+  learned?: string[];
 }
 
 export interface CareerScore {

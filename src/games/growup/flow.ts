@@ -1,9 +1,9 @@
 import { TOTAL_TURNS, calendar } from './calendar';
 import { careerById } from './careers';
 import { DISTRICTS, placeById } from './data';
-import { readingById } from './reading';
+import { LEVEL_NAMES, readingById, trackById } from './reading';
 import {
-  Expression, actStatus, actsOf, answerQuiz, candidates, doActivity, expression, fill, findAct, finish,
+  Expression, actStatus, actsOf, answerExam, answerQuiz, candidates, doActivity, expression, fill, findAct, finish,
   openLabel, pendingEvent, placeOpen, placeStage, reflect, resolveEvent, restSick,
 } from './engine';
 import type { Button } from './input';
@@ -27,6 +27,7 @@ export type Flow =
   | { s: 'result'; report: TurnReport }
   | { s: 'review' }
   | { s: 'quiz' }
+  | { s: 'exam' }
   | { s: 'event' }
   | { s: 'eventResult'; title: string; emoji: string; text: string; delta?: Delta; correct?: boolean }
   | { s: 'graduation' }
@@ -47,6 +48,7 @@ export interface Step { flow: Flow; game: GameState; fx?: Fx; toast?: string }
 export function settle(g: GameState): Flow {
   if (g.ending) return { s: 'ending' };
   if (g.reviewPending) return { s: 'review' };
+  if (g.exam) return { s: 'exam' };
   if (g.quiz) return { s: 'quiz' };
   if (g.pending) return { s: 'event' };
   if (g.turn >= TOTAL_TURNS) return { s: 'graduation' };
@@ -103,6 +105,17 @@ export function press(flow: Flow, game: GameState, b: Button): Step {
       const r = reflect(game, n - 1);
       if (!r.ok) return same(flow, game);
       return { flow: { s: 'eventResult', title: '한 해 돌아보기', emoji: '📔', text: r.text }, game: r.state, fx: { kind: 'choice', good: true } };
+    }
+    case 'exam': {
+      if (b === 'back') return same(flow, game);
+      const r = answerExam(game, n - 1);
+      if (!r.ok) return same(flow, game, r.reason);
+      const mark = r.correct ? '⭕ 정답!' : `❌ 정답은 “${r.answer}”`;
+      if (!r.done) return { flow, game: r.state, toast: mark, fx: { kind: 'quiz', correct: r.correct } };
+      return {
+        flow: { s: 'eventResult', title: r.passed ? '합격!' : '다음에 다시!', emoji: r.passed ? '🎓' : '📚', text: `${mark} ${r.text}`, correct: r.passed },
+        game: r.state, fx: { kind: 'quiz', correct: r.passed },
+      };
     }
     case 'quiz': {
       if (b === 'back') return same(flow, game);
@@ -208,12 +221,12 @@ export function screenModel(flow: Flow, g: GameState): ScreenModel {
     case 'month':
       return {
         ...base, title: flow.report.when, anyKey: true, choices: [],
-        lines: (flow.report.weeks ?? []).map((w, i) => `${i + 1}주 ${w.outcome === 'great' ? '★' : w.outcome === 'fail' ? '✗' : '·'} ${w.text}`),
+        lines: (flow.report.weeks ?? []).map((w, i) => `${i + 1}주 ${w.outcome === 'great' ? '★' : w.outcome === 'fail' ? '✗' : '·'} ${(w.bite && readingById(w.bite)?.title) || w.text}`),
       };
     case 'result': {
       const act = flow.report.act ? findAct(flow.report.act) : undefined;
-      const rd = flow.report.reading ? readingById(flow.report.reading) : undefined;
-      return { ...base, title: OUT[flow.report.outcome], lines: [act ? `${act.emoji} ${act.name}` : '', ...flow.report.lines, rd ? `📖 ${rd.title}` : ''].filter(Boolean), choices: [], anyKey: true };
+      const learned = (flow.report.learned ?? []).map(readingById).filter(Boolean).map((r) => `📖 ${r!.title}`);
+      return { ...base, title: OUT[flow.report.outcome], lines: [act ? `${act.emoji} ${act.name}` : '', ...flow.report.lines, ...learned].filter(Boolean), choices: [], anyKey: true };
     }
     case 'review': {
       const y = g.history[g.history.length - 1];
@@ -224,7 +237,13 @@ export function screenModel(flow: Flow, g: GameState): ScreenModel {
     }
     case 'quiz': {
       const q = g.quiz!;
-      return { ...base, title: q.kind === 'word' ? '낱말 퀴즈' : '직업 퀴즈', lines: [q.question], choices: q.options.map((o) => ({ label: o, enabled: true })) };
+      return { ...base, title: q.kind === 'word' ? '배운 것 퀴즈' : '직업 퀴즈', lines: [q.question], choices: q.options.map((o) => ({ label: o, enabled: true })) };
+    }
+    case 'exam': {
+      const ex = g.exam!;
+      const t = trackById(ex.track)!;
+      const q = ex.qs[ex.i];
+      return { ...base, title: `${t.name} 인증 ${LEVEL_NAMES[ex.level]} ${ex.i + 1}/${ex.qs.length}`, lines: [q.question], choices: q.options.map((o) => ({ label: o, enabled: true })) };
     }
     case 'event': {
       const ev = pendingEvent(g)!;

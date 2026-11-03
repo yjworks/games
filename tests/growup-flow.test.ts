@@ -6,9 +6,9 @@ import { CAREERS, careerById } from '../src/games/growup/careers';
 import { piboFace, packRows, PIBO_W, PIBO_H } from '../src/games/growup/pibo';
 import { PRESETS, presetGrid, resizeGrid, floodFill, blankGrid } from '../src/games/growup/pixelart';
 import { GameState } from '../src/games/growup/types';
-import { READINGS, QUIZ_KINDS, pickReading, quizTerms, readingById } from '../src/games/growup/reading';
+import { ACT_TOPIC, READINGS, TOPIC_INFO, certBonus, levelNeed, makeExam, pickReading, questionsOf, quizFrom, readingsOf, topicOf, trackById, trackOfTopic } from '../src/games/growup/reading';
 import { PLACES } from '../src/games/growup/data';
-import { doActivity, answerQuiz } from '../src/games/growup/engine';
+import { doActivity, answerQuiz, answerExam, examDue } from '../src/games/growup/engine';
 
 const make = (seed = 1) => newGame({ name: '하늘', look: { hair: 0, style: 0 }, mode: 'classic', seed, now: 0 });
 
@@ -182,55 +182,102 @@ describe('픽셀 초상', () => {
   });
 });
 
-describe('읽을거리', () => {
-  it('id가 겹치지 않고, 낱말장은 뜻이 비어 있지 않다', () => {
+describe('읽을거리 · 인증', () => {
+  it('id가 겹치지 않고, 모든 읽을거리로 보기 4개짜리 문제를 낼 수 있다', () => {
     const ids = READINGS.map((r) => r.id);
     expect(new Set(ids).size).toBe(ids.length);
+    const rr = rnd(3);
     for (const r of READINGS) {
       expect(r.title.length).toBeGreaterThan(0);
       expect(r.body || r.rows).toBeTruthy();
-      for (const [w, m] of quizTerms(r)) { expect(w.length).toBeGreaterThan(0); expect(m.length).toBeGreaterThan(0); }
+      expect(questionsOf(r).length, r.id).toBeGreaterThan(0);
+      for (let i = 0; i < 6; i++) {
+        const q = quizFrom(r, rr)!;
+        expect(q, r.id).not.toBeNull();
+        expect(new Set(q.options).size, r.id).toBe(4);
+        expect(questionsOf(r).some((x) => x.question === q.question && x.answer === q.options[q.answer]), r.id).toBe(true);
+      }
     }
   });
 
-  it('모든 장소의 모든 활동에서 읽을거리가 나온다', () => {
+  it('모든 활동에 배울 분야가 있고, 분야마다 인증이 있다', () => {
     for (const p of PLACES) for (const st of p.stages) for (const a of st.acts) {
-      expect(pickReading([], p.id, a.id, () => 0.5), `${p.id}/${a.id}`).not.toBeNull();
+      expect(ACT_TOPIC[a.id], a.id).toBeTruthy();
+      expect(readingsOf(topicOf(a.id)).length, a.id).toBeGreaterThanOrEqual(6);
     }
+    for (const t of Object.keys(TOPIC_INFO)) expect(trackOfTopic(t as never), t).toBeTruthy();
   });
 
-  it('어학원 낱말은 쉬운 것부터 차례로, 다 읽으면 복습으로 나온다', () => {
-    const read: string[] = [];
-    for (let i = 0; i < 60; i++) {
-      const r = pickReading(read, 'lang', 'english', () => 0.3)!;
-      expect(r.kind).toBe('english');
-      if (!read.includes(r.id)) read.push(r.id);
-    }
-    expect(read[0]).toBe('en-hello');
-    expect(read.length).toBe(READINGS.filter((r) => r.kind === 'english').length);
-  });
-
-  it('한 달을 보내면 읽을거리가 결과와 수첩에 남는다', () => {
+  it('한 달 4주 동안 주마다 하나씩 배운다', () => {
     const r = doActivity(make(), 'lang', 'hanja');
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.report.reading).toBe('hj-num');
-    expect(r.state.read).toEqual(['hj-num']);
+    expect(r.report.weeks!.map((w) => w.bite)).toEqual(['hj-num', 'id-two-birds', 'hj-week1', 'id-three-days']);
+    expect(r.state.read).toHaveLength(4);
+    expect(r.report.learned).toHaveLength(4);
   });
 
-  it('낱말 퀴즈는 읽은 낱말에서 나오고, 보기 4개가 서로 다르며 정답이 맞다', () => {
-    const g: GameState = { ...make(), read: READINGS.filter((r) => QUIZ_KINDS.includes(r.kind)).map((r) => r.id) };
-    const rr = rnd(9);
-    for (let i = 0; i < 400; i++) {
-      const q = makeWordQuiz(g, rr)!;
-      expect(q.kind).toBe('word');
-      expect(new Set(q.options).size).toBe(4);
-      const terms = quizTerms(readingById(q.readingId!)!);
-      expect(terms.some(([w, m]) => q.question.includes(w) && m === q.options[q.answer])).toBe(true);
+  it('어학원 낱말은 쉬운 것부터 차례로, 다 배우면 복습으로 나온다', () => {
+    const read: string[] = [];
+    for (let i = 0; i < 60; i++) {
+      const r = pickReading(read, 'english', () => 0.3);
+      expect(r.topic).toBe('english');
+      if (!read.includes(r.id)) read.push(r.id);
     }
+    expect(read[0]).toBe('en-hello');
+    expect(read.length).toBe(readingsOf('english').length);
+  });
+
+  it('배운 것 퀴즈는 배운 것에서 나온다', () => {
+    const rr = rnd(9);
     expect(makeWordQuiz(make(), rr)).toBeNull();
     const q = makeWordQuiz({ ...make(), read: ['id-two-birds'] }, rr)!;
+    expect(q.readingId).toBe('id-two-birds');
     const a = answerQuiz({ ...make(), quiz: q }, q.answer);
     expect(a.ok && a.correct).toBe(true);
+  });
+
+  it('충분히 배우면 인증 시험이 생기고, 5문제 중 4문제를 맞히면 인증을 딴다', () => {
+    const t = trackById('sport')!;
+    const all = readingsOf('sport').map((r) => r.id);
+    const g0 = make();
+    expect(examDue({ ...g0, read: all.slice(0, levelNeed(t, 1) - 1) })).toBeNull();
+    const g = { ...g0, read: all };
+    expect(examDue(g)).toEqual({ track: 'sport', level: 1 });
+    const qs = makeExam(all, t, rnd(4));
+    expect(qs).toHaveLength(5);
+    let s: GameState = { ...g, exam: { track: 'sport', level: 1, qs, i: 0, right: 0 } };
+    for (let i = 0; i < 5; i++) {
+      const r = answerExam(s, i === 0 ? (qs[0].answer + 1) % 4 : qs[i].answer);
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.done).toBe(i === 4);
+      s = r.state;
+      if (r.done) expect(r.passed).toBe(true);
+    }
+    expect(s.certs).toEqual({ sport: 1 });
+    expect(s.exam).toBeNull();
+    expect(settle(s)).toEqual({ s: 'town' });
+    expect(examDue(s)).toEqual(levelNeed(t, 2) <= all.length ? { track: 'sport', level: 2 } : null);
+  });
+
+  it('떨어지면 벌점 없이 몇 달 뒤 다시 본다', () => {
+    const t = trackById('econ')!;
+    const all = readingsOf('economy').map((r) => r.id);
+    const qs = makeExam(all, t, rnd(5));
+    let s: GameState = { ...make(), read: all, exam: { track: 'econ', level: 1, qs, i: 0, right: 0 } };
+    const before = { ...s.stats };
+    for (let i = 0; i < qs.length; i++) { const r = answerExam(s, (qs[i].answer + 1) % 4); if (r.ok) s = r.state; }
+    expect(s.certs ?? {}).toEqual({});
+    expect(s.stats).toEqual(before);
+    expect(examDue(s)).toBeNull();
+    expect(examDue({ ...s, turn: s.turn + 3 })).toEqual({ track: 'econ', level: 1 });
+  });
+
+  it('인증은 이어진 진로에 점수를 더한다(많아야 6)', () => {
+    expect(certBonus({ cook: 2 }, 'food')).toBe(4);
+    expect(certBonus({ cook: 3, care: 3 }, 'food')).toBe(6);
+    expect(certBonus({ cook: 3 }, 'it')).toBe(0);
+    expect(certBonus(undefined, 'food')).toBe(0);
   });
 });
