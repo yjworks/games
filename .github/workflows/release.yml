@@ -1,11 +1,18 @@
 name: Release
 
-# v 로 시작하는 태그를 올리면 그 커밋을 검사·빌드해 GitHub Release 를 만들고 빌드본(dist.zip)을 붙인다.
-# 사이트 배포는 여기서 하지 않는다(블로그 저장소의 hugo.yml).
+# GitHub Release 를 만들고 빌드본(games-<태그>.zip)을 붙인다. 사이트 배포는 여기서 하지 않는다(블로그 저장소의 hugo.yml).
+#  - v 로 시작하는 태그를 올리면 그 커밋으로
+#  - Actions 에서 수동 실행(태그 이름 입력)하면 main 의 지금 커밋에 태그를 새로 달아서
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "새로 만들 태그(예: v1.0.0)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -13,6 +20,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,6 +39,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          (cd dist && zip -qr "../games-${GITHUB_REF_NAME}.zip" .)
-          gh release create "$GITHUB_REF_NAME" "games-${GITHUB_REF_NAME}.zip" \
-            --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+          case "$TAG" in v*) ;; *) echo "::error::태그는 v 로 시작해야 해요: $TAG"; exit 1 ;; esac
+          (cd dist && zip -qr "../games-${TAG}.zip" .)
+          gh release create "$TAG" "games-${TAG}.zip" --title "$TAG" --generate-notes --target "$GITHUB_SHA"
