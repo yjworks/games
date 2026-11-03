@@ -36,12 +36,17 @@ interface Props {
   onPlace?: (p: PlaceId) => void;
   /** 장소 화면 — at 한 곳만 크게 보여 주고, 아이가 옆에서 걸어 들어온다 */
   focus?: boolean;
+  /** 장소 화면을 세로로 길게(넓은 화면에서 지도와 같은 비율) */
+  tall?: boolean;
 }
 
 /** 장소 화면 — 건물 하나와 양옆 조금만, 위쪽 하늘과 땅속은 잘라 크게 보여 준다 */
 const FOCUS_W = 128;
 const FOCUS_Y = 16;
 const FOCUS_H = 124;
+/** 넓은 화면 — 마을 지도(272×304)와 같은 비율로 세로를 늘려 옆 패널과 높이를 맞춘다 */
+const TALL_H = 143;
+const focusBox = (tall?: boolean) => (tall ? { y: 0, h: TALL_H } : { y: FOCUS_Y, h: FOCUS_H });
 
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; max: number; color: string; size: number; kind: 'dot' | 'drop' | 'spark' | 'heart' }
 
@@ -172,8 +177,9 @@ export function WorldView(p: Props) {
       const sc = sceneRef.current;
       const sk = skyRef.current.sky;
       const VW = vwRef.current;
-      const Y0 = o.focus ? FOCUS_Y : 0;
-      const VH = o.focus ? FOCUS_H : HEIGHT;
+      const fb = focusBox(o.tall);
+      const Y0 = o.focus ? fb.y : 0;
+      const VH = o.focus ? fb.h : HEIGHT;
 
       /* 걷기 */
       if (k.walking) {
@@ -326,8 +332,8 @@ export function WorldView(p: Props) {
     return () => { cancelAnimationFrame(raf); document.removeEventListener('visibilitychange', onVis); };
   }, []);
 
-  const y0 = p.focus ? FOCUS_Y : 0;
-  const vh = p.focus ? FOCUS_H : HEIGHT;
+  const y0 = p.focus ? focusBox(p.tall).y : 0;
+  const vh = p.focus ? focusBox(p.tall).h : HEIGHT;
   const kidTop = ((GROUND * BLOCK - personHeight(p.stage) - 4 - y0) / vh) * 100;
 
   return (
