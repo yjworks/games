@@ -1043,20 +1043,27 @@
 
 @media (min-width: 900px) {
   .gu-main { max-width: 1120px; }
-  /* 왼쪽 그림(지도·장소, 272:304)이 높이를 정하고, 오른쪽 패널은 그 높이 안에서 스크롤한다 */
+  /* 왼쪽: 대화창 + 그림(지도·장소, 272:304)이 높이를 정하고, 오른쪽 명령 패널은 그 높이 안에서 스크롤한다 */
   .gu-stage {
     display: grid;
-    grid-template-columns: min(calc((100vh - 150px) * 0.8947), 50%, 560px) minmax(0, 1fr);
-    grid-template-columns: min(calc((100dvh - 150px) * 0.8947), 50%, 560px) minmax(0, 1fr);
+    grid-template-columns: min(calc((100vh - 250px) * 0.8947), 50%, 540px) minmax(0, 1fr);
+    grid-template-columns: min(calc((100dvh - 250px) * 0.8947), 50%, 540px) minmax(0, 1fr);
     grid-template-rows: auto auto 1fr;
     column-gap: 12px;
     align-items: stretch;
   }
   .gu-stage > .gu-hud { grid-column: 1 / -1; }
-  .gu-stage > .gu-scene { grid-column: 1; grid-row: 2 / span 2; align-self: start; }
-  .gu-stage > .gu-dialog { grid-column: 2; grid-row: 2; }
-  .gu-stage > .gu-cmd { grid-column: 2; grid-row: 3; contain: size; min-height: 240px; overflow-y: auto; }
+  .gu-stage > .gu-dialog { grid-column: 1; grid-row: 2; }
+  .gu-stage > .gu-scene { grid-column: 1; grid-row: 3; align-self: start; }
+  .gu-stage > .gu-cmd { grid-column: 2; grid-row: 2 / span 2; contain: size; min-height: 240px; overflow-y: auto; }
   .gu-districts { grid-template-columns: 1fr; }
+}
+/* 세로가 짧은 넓은 화면 — 구역 목록이 스크롤 없이 들어가게 조금 줄인다 */
+@media (min-width: 900px) and (max-height: 820px) {
+  .gu-stage .gu-district { gap: 4px; padding: 4px 6px; }
+  .gu-stage .gu-district-head { min-height: 26px; }
+  .gu-stage .gu-district-places .gu-place { min-height: 60px; padding: 4px 2px; }
+  .gu-stage .gu-district-places .gu-place-emoji { font-size: 1.45rem; }
 }
 
 /* 메뉴 */
