@@ -1130,3 +1130,34 @@
 .gu-exam-dots span.done { background: var(--gu-sub); }
 .gu-exam-dots span.now { background: var(--gu-accent); }
 .gu-shelf-item summary i { font-style: normal; }
+
+/* 넓은 화면의 시작 화면 — 마을 지도와 시작 카드를 나란히, 화면 높이 안에 스크롤 없이 */
+@media (min-width: 900px) {
+  .gu-title {
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    padding: 14px 16px;
+    --gu-title-h: min(calc(100vh - 92px), 640px);
+    --gu-title-h: min(calc(100dvh - 92px), 640px);
+  }
+  .gu-title > .gu-title-world, .gu-title > .gu-title-card { margin: 0; }
+  .gu-title-world { width: auto; max-width: none; }
+  .gu-title-world .gu-town-map { max-width: none; height: var(--gu-title-h); width: auto; aspect-ratio: 272 / 304; }
+  .gu-title-card { max-width: 440px; max-height: var(--gu-title-h); gap: 10px; padding: 14px 16px; overflow-y: auto; }
+  .gu-title-card .gu-four { grid-template-columns: 1fr 1fr; }
+}
+/* 세로가 짧으면 카드를 더 줄인다 */
+@media (min-width: 900px) and (max-height: 760px) {
+  .gu-title-card .gu-portrait.lg { width: 80px; height: 100px; }
+  .gu-title-card .gu-logo { font-size: 1.3rem; }
+  .gu-title-hero p:not(.gu-logo-sub) { display: none; }
+  .gu-title-card .gu-choice { min-height: 50px; padding: 6px 10px; }
+}
+/* 세로가 아주 짧은 넓은 화면 — 게임 화면 구역 목록도 더 줄인다 */
+@media (min-width: 900px) and (max-height: 680px) {
+  .gu-stage .gu-district-head { min-height: 22px; font-size: 0.8rem; }
+  .gu-stage .gu-district-places .gu-place { min-height: 50px; }
+  .gu-stage .gu-district-places .gu-place-sub { display: none; }
+}
