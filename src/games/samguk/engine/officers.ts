@@ -23,6 +23,7 @@ export function statsOf(s: GameState, id: string): Stats {
   const o = s.officers[id];
   const out = [...base] as Stats;
   if (o) {
+    if (o.grow) for (let i = 0; i < 5; i++) out[i] = Math.min(100, out[i] + (o.grow[i] ?? 0));
     for (const it of o.items) {
       const item = ITEM_BY_ID[it];
       if (!item) continue;

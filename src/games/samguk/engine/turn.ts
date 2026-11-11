@@ -5,7 +5,8 @@ import { aiCaptives, aiCities, aiTurn } from './ai';
 import { type BattleState, autoResolve, createBattle, pendingUnits, runUntilHuman } from './battle';
 import { joinFaction, log, nearestOwnCity, releaseOfficer } from './commands';
 import { deathText, runEvents } from './events';
-import { CHA, bonded, def, factionName, historicalKey, nameOf, stat } from './officers';
+import { CHA, LEAD, bonded, def, factionName, historicalKey, nameOf, stat } from './officers';
+import { gainXpAll } from './growth';
 import { chance, clamp, pick, rint, rnd, shuffle } from './rng';
 import { agriCap, cityName, pickGovernor, updateRank } from './setup';
 import type { AttackOrder, City, GameState, Officer } from './state';
@@ -182,6 +183,11 @@ export function applyBattle(s: GameState, bs: BattleState): BattleReport {
     }
     if (lost && u.side === 1 && u.gone === null && chance(s, 0.3)) { capture(o, enemyF, enemyAt); continue; }
     o.merit += lost ? 10 : u.commander ? 90 : 45;
+    /* 싸우며 쌓은 경험 — 이긴 총대장은 통솔이 더 자란다 */
+    const xp = [...(u.xp ?? [0, 0, 0, 0, 0])];
+    if (!lost && u.commander) xp[LEAD] += 30;
+    const up = gainXpAll(o, xp);
+    if (up.length && s.factions[o.faction]?.human) lines.push(`${nameOf(o.id)} 성장 — ${up.join(', ')}`);
     const home = u.home ? rh : homeOf(u.side);
     if (home && s.cities[home].owner === o.faction) { o.city = home; o.status = 'serving'; }
     else flee(o, o.faction);

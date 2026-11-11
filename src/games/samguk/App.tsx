@@ -31,7 +31,7 @@ function Speech() {
       {who && <Portrait id={who} size={58} year={game?.year} color={toast.color} className="sg-speech-face" />}
       <span className="sg-speech-body">
         {who && <strong>{OFFICER_DEF[who].name}</strong>}
-        <span>{toast.text}</span>
+        {toast.text.split('\n').map((t, i) => <span key={i} className={i ? 'sg-grow-line' : ''}>{t}</span>)}
       </span>
     </button>
   );

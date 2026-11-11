@@ -36,6 +36,10 @@ export interface Officer {
   /** 내응을 약속한 세력 */
   turncoat: number;
   items: string[];
+  /** 성장한 능력(engine/growth.ts) */
+  grow?: number[];
+  /** 능력별 쌓인 경험(100마다 +1) */
+  xp?: number[];
 }
 
 export interface City {

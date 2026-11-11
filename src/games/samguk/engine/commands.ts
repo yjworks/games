@@ -10,6 +10,7 @@ import { chance, clamp, rint, rrange } from './rng';
 import { agriCap, cityName, commCap, pickGovernor, updateRank } from './setup';
 import type { City, GameState, LogEntry, Officer } from './state';
 import { jo } from './josa';
+import { gainXp } from './growth';
 import { KINDS, kindAllowed, kindCost, type UnitKind } from './units';
 
 export interface Result { ok: boolean; msg: string }
@@ -42,10 +43,12 @@ function own(s: GameState, cityId: CityId, f: number): City | null {
 /** 마지막으로 명령을 수행한 장수(화면에서 보고하는 사람) */
 export const lastActor: { id: string | null } = { id: null };
 
-function done(_s: GameState, o: Officer, merit: number) {
+/** 명령을 마쳤다 — 공적, 그리고 그 일에 쓴 능력(k)의 경험 */
+function done(_s: GameState, o: Officer, merit: number, k = -1) {
   lastActor.id = o.id;
   o.acted = true;
   o.merit += merit;
+  if (k >= 0) gainXp(o, k, 16);
 }
 
 /* ───────────── 내정 ───────────── */
@@ -80,7 +83,7 @@ export function develop(s: GameState, cityId: CityId, officerId: string, kind: D
     c.wall = Math.min(100, c.wall + gain);
   }
   c.gold -= COST.develop;
-  done(s, o, 8 + Math.round(gain / 4));
+  done(s, o, 8 + Math.round(gain / 4), POL);
   return ok(`${nameOf(o.id)}의 ${DEV_NAMES[kind]}: +${gain}`);
 }
 
@@ -100,7 +103,7 @@ export function relief(s: GameState, cityId: CityId, officerId: string): Result 
   const gain = Math.max(1, Math.round((stat(s, o.id, CHA) * 0.1 + 4) * mult));
   c.food -= cost;
   c.loyalty = Math.min(100, c.loyalty + gain);
-  done(s, o, 10);
+  done(s, o, 10, CHA);
   return ok(`${jo(nameOf(o.id), '이가')} 군량 ${cost}을 풀었습니다. 민심 +${gain}`);
 }
 
@@ -127,7 +130,7 @@ export function draft(s: GameState, cityId: CityId, officerId: string, amount: n
   c.pop -= n;
   c.gold -= Math.ceil(n / 10);
   c.loyalty = clamp(c.loyalty - Math.max(1, Math.round(n / 800)), 0, 100);
-  done(s, o, 6 + Math.round(n / 500));
+  done(s, o, 6 + Math.round(n / 500), CHA);
   return ok(`${jo(nameOf(o.id), '이가')} ${n.toLocaleString()}명을 모았습니다.`);
 }
 
@@ -141,7 +144,7 @@ export function train(s: GameState, cityId: CityId, officerId: string): Result {
   const gain = Math.max(1, Math.round((stat(s, o.id, LEAD) * 0.2 + 4) * (1 - c.training / 130) * rrange(s, 0.9, 1.1)));
   c.training = Math.min(100, c.training + gain);
   c.morale = Math.min(100, c.morale + 3);
-  done(s, o, 8);
+  done(s, o, 8, LEAD);
   return ok(`${nameOf(o.id)}의 훈련: 훈련 +${gain}`);
 }
 
@@ -154,7 +157,7 @@ export function search(s: GameState, cityId: CityId, officerId: string): Result 
   if (!c) return fail('아군 도시가 아닙니다.');
   const int = stat(s, o.id, INT);
   const cha = stat(s, o.id, CHA);
-  done(s, o, 6);
+  done(s, o, 6, INT);
   const hidden = Object.values(s.officers).filter((x) => x.status === 'free' && x.city === cityId && !x.found);
   if (hidden.length && chance(s, 0.4 + int / 300 + cha / 400)) {
     const t = hidden[rint(s, 0, hidden.length - 1)];
@@ -227,7 +230,7 @@ export function recruit(s: GameState, cityId: CityId, officerId: string, targetI
   if (t.status === 'serving' && t.faction === o.faction) return fail('이미 아군입니다.');
   if (t.status !== 'free' && t.status !== 'serving') return fail('등용할 수 없는 상대입니다.');
   const p = recruitChance(s, o.id, t.id);
-  done(s, o, 10);
+  done(s, o, 10, CHA);
   if (!chance(s, p)) {
     if (t.status === 'serving') t.loyalty = Math.min(100, t.loyalty + 2);
     return fail(`${jo(nameOf(t.id), '이가')} ${nameOf(o.id)}의 권유를 거절했습니다.`);
@@ -499,7 +502,7 @@ export function goodwill(s: GameState, f: number, envoyId: string, target: numbe
   c.gold -= gold;
   const g = Math.max(1, Math.round((gold / 14) * (0.6 + (stat(s, o.id, POL) + stat(s, o.id, CHA)) / 250) * (hasTrait(s, o.id, '외교') ? 1.3 : 1)));
   addRel(s, f, target, g);
-  done(s, o, 10);
+  done(s, o, 10, POL);
   return ok(`${jo(nameOf(o.id), '이가')} ${factionName(s, target)}에 금 ${gold}을 보냈습니다. 우호 +${g} (${s.factions[f].rel[target]})`);
 }
 
@@ -521,7 +524,7 @@ export function proposeAlliance(s: GameState, f: number, envoyId: string, target
   if (allied(s, f, target)) return fail('이미 동맹입니다.');
   const p = allianceChance(s, f, envoyId, target);
   if (p <= 0) return fail('우호가 55 이상이어야 동맹을 청할 수 있습니다.');
-  done(s, o, 15);
+  done(s, o, 15, POL);
   if (!chance(s, p)) { addRel(s, f, target, -5); return fail(`${jo(factionName(s, target), '이가')} 동맹을 거절했습니다.`); }
   setAlliance(s, f, target, 12);
   log(s, `${jo(factionName(s, f), '과와')} ${jo(factionName(s, target), '이가')} 동맹을 맺었습니다.`, 'diplo', f);
@@ -549,7 +552,7 @@ export function demandSurrender(s: GameState, f: number, envoyId: string, target
   if (!o || o.faction !== f) return fail('움직일 수 있는 장수가 아닙니다.');
   const p = surrenderChance(s, f, envoyId, target);
   if (p <= 0) return fail('세력 차이가 세 배는 되어야 항복을 권할 수 있습니다.');
-  done(s, o, 15);
+  done(s, o, 15, CHA);
   if (!chance(s, p)) { addRel(s, f, target, -10); return fail(`${jo(factionName(s, target), '이가')} 항복 권고를 일축했습니다.`); }
   const name = factionName(s, target);
   absorbFaction(s, target, f);
@@ -591,7 +594,7 @@ export function rumor(s: GameState, officerId: string, target: CityId): Result {
   const c = s.cities[target];
   if (c.owner === o.faction || c.owner < 0) return fail('적 도시를 골라야 합니다.');
   if (!adjacentTo(s, o.faction, target)) return fail('아군 도시와 맞닿은 적 도시만 노릴 수 있습니다.');
-  done(s, o, 10);
+  done(s, o, 10, INT);
   if (!chance(s, rumorChance(s, o.id, target))) return fail(`${cityName(target)}에 퍼뜨린 소문이 먹히지 않았습니다.`);
   const d = rint(s, 6, 14);
   c.loyalty = clamp(c.loyalty - d, 0, 100);
@@ -612,7 +615,7 @@ export function discord(s: GameState, officerId: string, targetId: string): Resu
   if (!o) return fail('움직일 수 있는 장수가 아닙니다.');
   const t = s.officers[targetId];
   if (!t || t.status !== 'serving' || t.faction === o.faction) return fail('적 장수를 골라야 합니다.');
-  done(s, o, 10);
+  done(s, o, 10, INT);
   if (!chance(s, discordChance(s, o.id, targetId))) return fail(`${jo(nameOf(targetId), '은는')} 이간에 넘어가지 않았습니다.`);
   const d = rint(s, 8, 18);
   t.loyalty = clamp(t.loyalty - d, 0, 100);
@@ -635,7 +638,7 @@ export function betray(s: GameState, officerId: string, targetId: string): Resul
   if (!t || t.status !== 'serving' || t.faction === o.faction) return fail('적 장수를 골라야 합니다.');
   const p = betrayChance(s, o.id, targetId);
   if (p <= 0) return fail(`${jo(nameOf(targetId), '은는')} 충성이 너무 높아 내응을 권할 수 없습니다.`);
-  done(s, o, 12);
+  done(s, o, 12, INT);
   if (!chance(s, p)) { t.loyalty = Math.min(100, t.loyalty + 5); return fail(`${jo(nameOf(targetId), '이가')} 내응 제의를 거절했습니다.`); }
   t.turncoat = o.faction;
   return ok(`${jo(nameOf(targetId), '이가')} 싸움이 벌어지면 우리 편에 서기로 약속했습니다.`);

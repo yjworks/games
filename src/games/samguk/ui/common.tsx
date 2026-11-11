@@ -1,6 +1,7 @@
 import { Portrait } from './art/Portrait';
 import { ReactNode, useEffect } from 'react';
 import { def, STAT_NAMES, statsOf, rankOf, RANKS, traitsOf } from '../engine/officers';
+import { growthOf } from '../engine/growth';
 import type { GameState } from '../engine/state';
 
 export function Sheet({ title, onClose, children, wide, foot }: {
@@ -37,10 +38,12 @@ export function Bar({ v, max = 100, color }: { v: number; max?: number; color?: 
 /** 능력치 다섯 칸 — hi는 강조할 능력치 번호 */
 export function StatCells({ s, id, hi }: { s: GameState | null; id: string; hi?: number }) {
   const st = s ? statsOf(s, id) : def(id).stats;
+  const gr = s ? growthOf(s.officers[id]) : [0, 0, 0, 0, 0];
   return (
     <span className="sg-stats">
       {st.map((v, i) => (
-        <span key={i} className={`sg-stat ${hi === i ? 'hi' : ''} ${v >= 90 ? 'top' : v >= 75 ? 'good' : v < 40 ? 'low' : ''}`} title={STAT_NAMES[i]}>
+        <span key={i} className={`sg-stat ${hi === i ? 'hi' : ''} ${v >= 90 ? 'top' : v >= 75 ? 'good' : v < 40 ? 'low' : ''} ${gr[i] ? 'grown' : ''}`}
+          title={gr[i] ? `${STAT_NAMES[i]} (성장 +${gr[i]})` : STAT_NAMES[i]}>
           {v}
         </span>
       ))}
