@@ -6,7 +6,7 @@ import { ALLOWANCE, FIELD_KEYS, FIELD_LABEL, PLACES, STAT_KEYS, placeById } from
 import { EVENTS, GameEvent, eventById } from './events';
 import { FRIENDS, FRIEND_EVENTS, FRIEND_LEVELS, FRIEND_MET } from './friends';
 import { makeQuiz, makeWordQuiz, quizExplain, wordQuizReady, yearTips } from './edu';
-import { EXAM_PASS, EXAM_RETRY, LEVEL_NAMES, MAX_LEVEL, TRACKS, certBonus, levelNeed, makeExam, pickReading, trackById, trackProgress } from './reading';
+import { EXAM_MONTHS, EXAM_PASS, EXAM_RETRY, LEVEL_NAMES, LEVEL_STAGE, MAX_LEVEL, TRACKS, certBonus, levelNeed, makeExam, pickReading, trackById, trackProgress } from './reading';
 import {
   Activity, Award, CareerScore, Delta, Effect, ExamResult, FieldKey, Four, GameState, Look, Mode,
   Outcome, Place, PlaceId, PlaceStage, StatKey, TurnReport, WeekLog, YearStats, YearSummary,
@@ -25,7 +25,8 @@ const EVENT_CHANCE = 0.3;
 /** 무작위 사건 자리에 직업 퀴즈가 대신 나올 확률(초3부터) */
 const QUIZ_CHANCE = 0.35;
 /** 인증 시험을 볼 수 있을 때 그달에 시험이 나올 확률 */
-const EXAM_CHANCE = 0.6;
+/** 시험 기간에 볼 수 있는 시험이 있으면 그달에 나올 확률 */
+const EXAM_CHANCE = 1;
 
 /** 퀴즈 가운데 낱말 퀴즈의 몫 */
 const WORD_QUIZ_SHARE = 0.5;
@@ -326,9 +327,10 @@ export function doActivity(prev: GameState, placeId: PlaceId, actId: string): Ac
     const wo: Outcome = act.safe ? 'ok' : r < o.fail ? 'fail' : r < o.fail + o.great ? 'great' : 'ok';
     applyEffect(s, quarter, MULT[wo]);
     /* 한 주에 하나씩 배운다 */
-    const bite = pickReading(s.read ?? [], act.id, () => next(s));
-    if (!(s.read ?? []).includes(bite.id)) s.read = [...(s.read ?? []), bite.id];
-    weeks.push({ outcome: wo, text: weekText(s, act, wo, w), bite: bite.id });
+    const bite = pickReading(s.read ?? [], act.id, () => next(s), calendar(s.turn).stage);
+    const review = (s.read ?? []).includes(bite.id);
+    if (!review) s.read = [...(s.read ?? []), bite.id];
+    weeks.push({ outcome: wo, text: weekText(s, act, wo, w), bite: bite.id, review });
   }
   const greats = weeks.filter((w) => w.outcome === 'great').length;
   const fails = weeks.filter((w) => w.outcome === 'fail').length;
@@ -610,11 +612,13 @@ export function findAct(id: string): Activity | undefined {
 
 /** 지금 볼 수 있는 인증 시험(가장 많이 배운 쪽부터) */
 export function examDue(s: GameState): { track: string; level: number } | null {
+  const cal = calendar(s.turn);
+  if (!EXAM_MONTHS.includes(cal.month)) return null;
   const read = s.read ?? [];
   let best: { track: string; level: number; ratio: number } | null = null;
   for (const t of TRACKS) {
     const level = (s.certs?.[t.id] ?? 0) + 1;
-    if (level > MAX_LEVEL) continue;
+    if (level > MAX_LEVEL || LEVEL_STAGE[level] > cal.stage) continue;
     const failed = s.examFail?.[t.id];
     if (failed !== undefined && s.turn - failed < EXAM_RETRY) continue;
     const { done, total } = trackProgress(read, t);

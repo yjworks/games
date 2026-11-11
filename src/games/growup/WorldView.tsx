@@ -40,13 +40,12 @@ interface Props {
   tall?: boolean;
 }
 
-/** 장소 화면 — 건물 하나와 양옆 조금만, 위쪽 하늘과 땅속은 잘라 크게 보여 준다 */
-const FOCUS_W = 128;
-const FOCUS_Y = 16;
-const FOCUS_H = 124;
-/** 넓은 화면 — 마을 지도(272×304)와 같은 비율로 세로를 늘려 옆 패널과 높이를 맞춘다 */
-const TALL_H = 143;
-const focusBox = (tall?: boolean) => (tall ? { y: 0, h: TALL_H } : { y: FOCUS_Y, h: FOCUS_H });
+/**
+ * 장소 화면 — 건물 하나와 양옆 조금만, 하늘과 땅속은 잘라 크게 보여 준다.
+ * 좁은 화면(모바일)은 가로로 넓게 잘라 그림 높이를 줄이고(아래 활동 목록이 더 보이게),
+ * 넓은 화면은 마을 지도(272×304)와 같은 비율로 세로를 늘려 옆 패널과 높이를 맞춘다.
+ */
+const focusBox = (tall?: boolean) => (tall ? { w: 128, y: 0, h: 143 } : { w: 150, y: 30, h: 110 });
 
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; max: number; color: string; size: number; kind: 'dot' | 'drop' | 'spark' | 'heart' }
 
@@ -73,13 +72,13 @@ const viewFor = (cssW: number) => (cssW >= 576 ? VIEW_W : Math.max(180, Math.min
 export function WorldView(p: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
-  const [viewW, setViewW] = useState(p.focus ? FOCUS_W : VIEW_W);
+  const [viewW, setViewW] = useState(p.focus ? focusBox(p.tall).w : VIEW_W);
   const vwRef = useRef(viewW);
   vwRef.current = viewW;
   useEffect(() => {
     const el = boxRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
-    const pick = () => setViewW(live.current.focus ? FOCUS_W : viewFor(el.clientWidth));
+    const pick = () => setViewW(live.current.focus ? focusBox(live.current.tall).w : viewFor(el.clientWidth));
     const ro = new ResizeObserver(pick);
     ro.observe(el);
     pick();
@@ -104,7 +103,7 @@ export function WorldView(p: Props) {
   skyRef.current = { sky, hour };
 
   const kid = useRef({ x: p.focus ? doorX(p.at) - 9 : doorX(p.at), target: doorX(p.at), face: 1, walking: !!p.focus, arrive: !!p.focus, speed: 12 });
-  const cam = useRef(camFor(doorX(p.at), p.focus ? FOCUS_W : VIEW_W));
+  const cam = useRef(camFor(doorX(p.at), p.focus ? focusBox(p.tall).w : VIEW_W));
   const parts = useRef<Particle[]>([]);
   const cloudOffset = useRef(0);
 
