@@ -6,7 +6,8 @@ import {
 import { allied, autoAllot } from './commands';
 import { KINDS, autoKind, kindOf, type UnitKind } from './units';
 import { jo } from './josa';
-import { INT, LEAD, WAR, nameOf, statsOf, traitsOf, troopCap, worth } from './officers';
+import { INT, LEAD, WAR, bonded, nameOf, statsOf, traitsOf, troopCap, worth } from './officers';
+import { shoutLine, type ShoutKind } from './shouts';
 import { chance, clamp, rint, rnd, rrange, type RngHolder } from './rng';
 import type { AttackOrder, GameState } from './state';
 
@@ -42,7 +43,12 @@ export interface Unit {
   home?: CityId;
   /** 지키는 자리(관문 수비) — 적이 붙기 전에는 이 둘레를 떠나지 않는다 */
   guard?: [number, number];
+  /** 이 전투에서 쌓은 능력별 경험(끝나면 장수에게, engine/growth.ts) */
+  xp?: number[];
 }
+
+/** 장수의 외침(화면이 말풍선으로 보여 주고 비운다) */
+export interface Shout { officer: string; side: 0 | 1; text: string }
 
 /** 아직 도착하지 않은 원군 */
 export interface Reinforcement {
@@ -89,7 +95,9 @@ export interface BattleState extends RngHolder {
   human: [boolean, boolean];
   over: null | { winner: 0 | 1; reason: string };
   /** 방금 터진 필살 전법(장수 컷인 연출용, 화면이 보고 지운다) */
-  flash?: { officer: string; tactic: string } | null;
+  flash?: { officer: string; tactic: string; line?: string } | null;
+  /** 아직 보여 주지 않은 외침 */
+  shouts?: Shout[];
 }
 
 export interface DuelResult {
@@ -476,6 +484,19 @@ export function moveUnit(bs: BattleState, u: Unit, q: number, r: number): boolea
 
 /* ───────────── 공격 ───────────── */
 
+function addXp(u: Unit, k: number, n: number) {
+  if (!u.officer) return;
+  u.xp = u.xp ?? [0, 0, 0, 0, 0];
+  u.xp[k] += n;
+}
+
+function shout(bs: BattleState, u: Unit, kind: ShoutKind) {
+  if (!u.officer) return;
+  const q = bs.shouts ?? (bs.shouts = []);
+  q.push({ officer: u.officer, side: u.side, text: shoutLine(u.officer, kind, bs.log.length * 7 + u.uid) });
+  if (q.length > 4) q.splice(0, q.length - 4);
+}
+
 function atkPower(u: Unit) {
   return (u.stats[LEAD] * 0.55 + u.stats[WAR] * 0.45) * (0.6 + u.training / 250) * (0.6 + u.morale / 250);
 }
@@ -578,9 +599,46 @@ export function attackUnit(bs: BattleState, a: Unit, target: Unit, ranged: boole
   }
   a.morale = Math.min(100, a.morale + 1);
   a.acted = true; a.moved = true;
+  addXp(a, LEAD, 5); addXp(a, WAR, ranged ? 3 : 7);
   bs.log.push(text);
+  followUps(bs, a, target);
   checkEnd(bs);
   return text;
+}
+
+/**
+ * 협공 — 과녁에 맞닿은(또는 사거리 안의) 아군이 이어서 친다. 반격은 없고 행동도 쓰지 않는다.
+ * 인연(형제·의형제·부부·주종) 장수끼리는 거의 늘 따라붙고 더 세게 친다. 한 번에 둘까지.
+ * 그래서 적을 에워쌀수록, 인연 있는 장수를 붙여 둘수록 강하다.
+ */
+export function comboHelpers(bs: BattleState, a: Unit, target: Unit) {
+  return bs.units
+    .filter((b) => b !== a && !b.gone && b.side === a.side && b.confused === 0 && b.kind !== '공성')
+    .map((b) => {
+      const d = dist([b.q, b.r], [target.q, target.r]);
+      return { b, d, ranged: d >= 2 && d <= shootRange(bs, b), bond: !!(a.officer && b.officer && bonded(a.officer, b.officer)) };
+    })
+    .filter((x) => x.d === 1 || x.ranged)
+    .sort((x, y) => Number(y.bond) - Number(x.bond) || y.b.stats[WAR] - x.b.stats[WAR]);
+}
+
+export function comboChance(b: Unit, bond: boolean) {
+  return bond ? 0.8 : clamp(0.2 + (b.stats[WAR] - 60) / 200 + (b.stats[LEAD] - 60) / 400, 0.1, 0.45);
+}
+
+function followUps(bs: BattleState, a: Unit, target: Unit) {
+  let n = 0;
+  for (const { b, ranged, bond } of comboHelpers(bs, a, target)) {
+    if (n >= 2 || target.gone || bs.over) break;
+    if (!chance(bs, comboChance(b, bond))) continue;
+    n++;
+    const dmg = Math.max(10, Math.round(Math.min(target.troops, damage(bs, b, target, ranged) * (bond ? 0.6 : 0.45))));
+    bs.log.push(`${b.name} → ${target.name}: 협공 −${dmg}${bond ? ' (인연)' : ''}`);
+    addXp(b, WAR, 4);
+    if (bond) shout(bs, b, 'bond');
+    else if ((bs.log.length + b.uid) % 3 === 0) shout(bs, b, 'combo');
+    hurt(bs, target, dmg);
+  }
 }
 
 export function attackTile(bs: BattleState, a: Unit, q: number, r: number): string {
@@ -594,6 +652,7 @@ export function attackTile(bs: BattleState, a: Unit, q: number, r: number): stri
   let text = `${a.name} → ${name}: −${dmg}`;
   if (t.hp === 0) { breakBarrier(bs, q, r); text += ` — ${jo(name, '이가')} 무너졌다!`; }
   a.acted = true; a.moved = true;
+  addXp(a, LEAD, 3);
   bs.log.push(text);
   return text;
 }
@@ -609,8 +668,8 @@ function breakBarrier(bs: BattleState, q: number, r: number) {
 function hurt(bs: BattleState, u: Unit, dmg: number) {
   u.troops = Math.max(0, u.troops - dmg);
   u.morale = clamp(u.morale - Math.round((dmg / Math.max(1, u.troops + dmg)) * 55) - 1, 0, 100);
-  if (u.troops <= 0) { u.gone = 'destroyed'; bs.log.push(`${u.name} 부대가 무너졌다.`); }
-  else if (u.morale <= 0) { u.gone = 'routed'; bs.log.push(`${u.name} 부대가 사기를 잃고 달아났다.`); }
+  if (u.troops <= 0) { u.gone = 'destroyed'; bs.log.push(`${u.name} 부대가 무너졌다.`); shout(bs, u, 'rout'); }
+  else if (u.morale <= 0) { u.gone = 'routed'; bs.log.push(`${u.name} 부대가 사기를 잃고 달아났다.`); shout(bs, u, 'rout'); }
 }
 
 /* ───────────── 계략: 화계·혼란 ───────────── */
@@ -638,6 +697,7 @@ export function doFire(bs: BattleState, u: Unit, q: number, r: number): string {
   u.acted = true; u.moved = true;
   if (!chance(bs, p)) { const t = `${u.name}의 화계가 실패했다.`; bs.log.push(t); return t; }
   ignite(bs, q, r);
+  addXp(u, INT, 14);
   const t = `${u.name}의 화계! 불길이 치솟았다.`;
   bs.log.push(t);
   checkEnd(bs);
@@ -669,6 +729,7 @@ export function doConfuse(bs: BattleState, u: Unit, e: Unit): string {
   u.acted = true; u.moved = true;
   if (!chance(bs, confuseChance(bs, u, e))) { const t = `${jo(e.name, '은는')} 혼란에 빠지지 않았다.`; bs.log.push(t); return t; }
   e.confused = 2;
+  addXp(u, INT, 14);
   const t = `${u.name}의 계략! ${e.name} 부대가 혼란에 빠졌다.`;
   bs.log.push(t);
   return t;
@@ -790,6 +851,7 @@ export function doTactic(bs: BattleState, u: Unit, q: number, r: number): string
   u.acted = true; u.moved = true;
   if (!chance(bs, p)) {
     u.morale = Math.max(0, u.morale - 3);
+    addXp(u, def.stat, 4);
     const t = `${u.name}의 ${jo(def.name, '이가')} 막혔다.`;
     bs.log.push(t);
     return t;
@@ -798,7 +860,9 @@ export function doTactic(bs: BattleState, u: Unit, q: number, r: number): string
   const s = u.stats[def.stat];
   const crit = !!u.officer && s >= 88 && chance(bs, s >= 95 ? 0.35 : 0.22);
   const k = crit ? 1.35 : 1;
-  if (crit) bs.flash = { officer: u.officer!, tactic: def.name };
+  if (crit) bs.flash = { officer: u.officer!, tactic: def.name, line: shoutLine(u.officer!, 'tactic', bs.log.length * 7 + u.uid) };
+  else shout(bs, u, 'tactic');
+  addXp(u, def.stat, crit ? 22 : 14);
   const head = `${u.name}의 ${def.name}${crit ? '! 필살' : '!'}`;
   const hit = (e: Unit, mult: number, ranged: boolean) => {
     const dmg = Math.max(10, Math.round(Math.min(e.troops, damage(bs, u, e, ranged) * mult * k)));
@@ -952,6 +1016,7 @@ export function doFlood(bs: BattleState, u: Unit): string {
   bs.floodUsed = true;
   const days = bs.weather === '비' ? 6 : 4;
   for (const k of floodZone(bs)) bs.tiles[k].flood = days;
+  addXp(u, INT, 24);
   const t = `${u.name}의 수공! 둑이 터져 물이 성으로 밀려든다.`;
   bs.log.push(t);
   return t;
@@ -983,6 +1048,7 @@ export function doDuel(bs: BattleState, u: Unit, e: Unit): DuelResult | null {
     const loser = res.winner === 0 ? e : u;
     const winner = res.winner === 0 ? u : e;
     winner.morale = Math.min(100, winner.morale + 15);
+    addXp(winner, WAR, 40); addXp(loser, WAR, 12);
     if (res.outcome === 'killed') { loser.gone = 'killed'; }
     else if (res.outcome === 'captured') { loser.gone = 'captured'; }
     else { loser.morale = Math.max(0, loser.morale - 45); loser.troops = Math.round(loser.troops * 0.8); if (loser.morale <= 0) loser.gone = 'routed'; }

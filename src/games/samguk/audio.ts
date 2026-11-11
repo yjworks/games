@@ -599,6 +599,8 @@ export const sg = {
   /** 명령이 막힘 — 낮게 둔한 현 */
   fail: withSfx((g, t) => { pluck(g, g.sbus, t, midi('E3'), 0.2, 0.2); block(g, g.sbus, t + 0.02, 0.06, 500); }),
   tap: withSfx((g, t) => block(g, g.sbus, t, 0.06, 1300)),
+  /** 장수가 자람 — 고쟁 오름 세 음과 작은 징 */
+  grow: withSfx((g, t) => { phrase(g, g.sbus, t, pluck, 'D5 F#5 A5 D6', 0.07, 0.14); smallGong(g, g.sbus, t + 0.28, 0.08); }),
   /** 달이 넘어감 — 박판 두 번 */
   turn: withSfx((g, t) => { block(g, g.sbus, t, 0.12); block(g, g.sbus, t + 0.13, 0.1, 1050); }),
   /** 역사 사건 — 소라와 고쟁 오름 */
@@ -770,7 +772,7 @@ export function battleCue(line: string): (() => void) | null {
   if (/: 전법 −/.test(line)) return null;
   if (/일기토|베었|사로잡/.test(line)) return null;
   if (/: 사격 −/.test(line)) return () => sg.volley();
-  if (/: 공격 −/.test(line)) return () => sg.clash();
+  if (/: (공격|협공) −/.test(line)) return () => sg.clash();
   if (/ → [^:]+: −\d/.test(line)) return () => sg.siege();
   return null;
 }

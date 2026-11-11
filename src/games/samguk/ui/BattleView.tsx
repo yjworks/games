@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { CITY_BY_ID } from '../data/cities';
 import {
-  type BattleState, type Target, type Unit, TACTICS, TILE_NAMES, alive, attackTargets, attackTile, attackUnit, autoResolve, canFlood,
+  type BattleState, type Shout, type Target, type Unit, TACTICS, comboChance, comboHelpers, TILE_NAMES, alive, attackTargets, attackTile, attackUnit, autoResolve, canFlood,
   confuseChance, dist, doConfuse, doDuel, doFire, doFlood, doRetreat, doTactic, doWait, endSide, fireChance, floodChance, moveUnit,
   reachable, runUntilHuman, shootRange, tacticChance, tacticTargets, tileAt, unitAt,
 } from '../engine/battle';
@@ -17,6 +17,7 @@ import { HEX_R as R, HEX_W as HW, hexCenter as center, paintField } from './art/
 import { Portrait } from './art/Portrait';
 import { surname } from './art/util';
 import { OFFICER_DEF } from '../data/officers';
+import { shoutLine } from '../engine/shouts';
 import type { Fx, Overlay } from './three/BattleScene';
 import { ROOT_NS } from '../../../shared/storage';
 import { gpuTier, lowQuality, read3d, write3d } from './three/gpu';
@@ -58,7 +59,9 @@ export function BattleView({ s }: { s: GameState }) {
   const [shots, setShots] = useState<Shot[]>([]);
   const [lunge, setLunge] = useState<Lunge[]>([]);
   const [shake, setShake] = useState(false);
-  const [flash, setFlash] = useState<{ officer: string; tactic: string } | null>(null);
+  const [flash, setFlash] = useState<{ officer: string; tactic: string; line?: string } | null>(null);
+  const [shoutNow, setShoutNow] = useState<Shout | null>(null);
+  const shoutQ = useRef<Shout[]>([]);
   /* GPU 가속이 있으면 3D가 기본. 고른 적 없이 너무 느리면 알아서 2D로 */
   const view0 = useMemo(() => read3d(VIEW_KEY), []);
   const [view3d, setView3d] = useState(view0.on);
@@ -122,6 +125,35 @@ export function BattleView({ s }: { s: GameState }) {
     return () => clearTimeout(t);
   });
 
+  /* 장수의 외침 — 엔진이 쌓은 것을 받아 하나씩 말풍선으로 */
+  const pushShout = (x: Shout) => { shoutQ.current.push(x); if (shoutQ.current.length > 3) shoutQ.current.splice(0, shoutQ.current.length - 3); };
+  useEffect(() => {
+    if (bs.shouts?.length) { bs.shouts.splice(0).forEach(pushShout); }
+    if (shoutNow || !shoutQ.current.length || cut) return;
+    setShoutNow(shoutQ.current.shift()!);
+  });
+  useEffect(() => {
+    if (!shoutNow) return;
+    const t = setTimeout(() => setShoutNow(null), 2100);
+    return () => clearTimeout(t);
+  }, [shoutNow]);
+  /* 출진할 때 총대장 한마디, 끝나면 이긴 쪽 총대장 한마디 */
+  useEffect(() => {
+    const side = bs.human[0] ? 0 : bs.human[1] ? 1 : 0;
+    const cmd = bs.units.find((u) => u.side === side && u.commander && u.officer) ?? bs.units.find((u) => u.side === side && u.officer);
+    if (cmd?.officer) pushShout({ officer: cmd.officer, side, text: shoutLine(cmd.officer, 'open', cmd.uid + s.month) });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  /* 수훈 — 이긴 쪽에서 이 전투에 가장 많이 활약한(경험을 많이 쌓은) 장수가 한마디 */
+  const mvp = useMemo(() => {
+    if (!bs.over) return null;
+    const w = bs.over.winner;
+    const cand = bs.units.filter((u) => u.side === w && u.officer && (u.gone === null || u.gone === 'retreated'));
+    if (!cand.length) return null;
+    const score = (u: Unit) => (u.xp ?? []).reduce((a, b) => a + b, 0) + (u.commander ? 5 : 0);
+    const best = cand.reduce((a, b) => (score(b) > score(a) ? b : a));
+    return { officer: best.officer!, text: shoutLine(best.officer!, 'win', bs.day + best.uid), faction: best.faction };
+  }, [bs.over]); // eslint-disable-line react-hooks/exhaustive-deps
+
   /* 일기토 연출 */
   useEffect(() => {
     if (!bs.duel) return;
@@ -171,14 +203,14 @@ export function BattleView({ s }: { s: GameState }) {
     const nl: Lunge[] = [];
     const byName = (name: string) => bs.units.find((u) => u.name === name);
     fresh.forEach((line, i) => {
-      const m = /^(\S+?)(?:의 \S+?!(?: 필살)?)? → (\S+?): (공격|사격|전법) −/.exec(line);
+      const m = /^(\S+?)(?:의 \S+?!(?: 필살)?)? → (\S+?): (공격|사격|전법|협공) −/.exec(line);
       if (!m) return;
       const a = byName(m[1]);
       if (!a) return;
       const d = byName(m[2]);
       const to: [number, number] | null = d ? [d.q, d.r] : null;
       if (!to) return;
-      const ranged = m[3] === '사격' || (m[3] === '전법' && (kindOf(a.kind).range > 0 || a.kind === '공성') && dist([a.q, a.r], to) > 1);
+      const ranged = m[3] === '사격' || ((m[3] === '전법' || m[3] === '협공') && (kindOf(a.kind).range > 0 || a.kind === '공성' || m[3] === '협공') && dist([a.q, a.r], to) > 1);
       const [x1, y1] = center(a.q, a.r), [x2, y2] = center(to[0], to[1]);
       if (ranged) {
         ns.push({ id: fxSeq++, x1, y1: y1 - 10, x2, y2: y2 - 6, delay: i * 120 });
@@ -277,7 +309,7 @@ export function BattleView({ s }: { s: GameState }) {
 
   const overlays: Overlay[] = [
     ...[...reach.keys()].filter((k) => !(mineSel && k === mineSel.r * bs.W + mineSel.q)).map((k) => ({ q: k % bs.W, r: Math.floor(k / bs.W), kind: 'reach' as const })),
-    ...targets.map((t) => ({ q: t.q, r: t.r, kind: 'target' as const })),
+    ...targets.map((t) => ({ q: t.q, r: t.r, kind: 'target' as const, label: comboLabel(bs, mineSel, t) })),
     ...special.map((x) => ({ q: x.q, r: x.r, kind: 'special' as const, color: x.color, label: x.p >= 0 ? pct(x.p) : undefined })),
   ];
 
@@ -332,7 +364,13 @@ export function BattleView({ s }: { s: GameState }) {
         {flash && (
           <div className="sg-flash" aria-hidden="true">
             <div className="sg-flash-face"><Portrait id={flash.officer} size={180} year={s.year} color={s.officers[flash.officer]?.faction >= 0 ? s.factions[s.officers[flash.officer].faction]?.color : undefined} className="sg-bigface" /></div>
-            <div className="sg-flash-txt"><b>{flash.tactic}</b><small>{OFFICER_DEF[flash.officer]?.name} · 필살</small></div>
+            <div className="sg-flash-txt"><b>{flash.tactic}</b><small>{OFFICER_DEF[flash.officer]?.name} · 필살</small>{flash.line && <i>「{flash.line}」</i>}</div>
+          </div>
+        )}
+        {shoutNow && !flash && (
+          <div key={shoutNow.text + shoutNow.officer} className={`sg-shout ${shoutNow.side === 0 ? 'atk' : 'def'}`} aria-live="polite">
+            <Portrait id={shoutNow.officer} size={52} year={s.year} color={s.officers[shoutNow.officer]?.faction >= 0 ? s.factions[s.officers[shoutNow.officer].faction]?.color : undefined} className="sg-shout-face" />
+            <div className="sg-shout-body"><b>{OFFICER_DEF[shoutNow.officer]?.name}</b><span>{shoutNow.text}</span></div>
           </div>
         )}
       </div>
@@ -389,7 +427,7 @@ export function BattleView({ s }: { s: GameState }) {
             )}
           </div>
         ) : (
-          <p className="sg-muted">{humanSide !== null ? '움직일 부대를 누르세요.' : '상대가 움직이고 있습니다.'}{view3d ? ' 끌어서 옮기고, 휠·두 손가락으로 당기고, 오른쪽 끌기·두 손가락 돌리기로 둘러봅니다.' : ''}</p>
+          <p className="sg-muted">{humanSide !== null ? '움직일 부대를 누르세요. 적을 에워싸고 칠수록 곁의 아군이 협공합니다(인연 장수는 거의 늘).' : '상대가 움직이고 있습니다.'}{view3d ? ' 끌어서 옮기고, 휠·두 손가락으로 당기고, 오른쪽 끌기·두 손가락 돌리기로 둘러봅니다.' : ''}</p>
         )}
         <div className="sg-bt-log">
           {bs.log.slice(-6).map((l, i) => <p key={bs.log.length - 6 + i}>{l}</p>)}
@@ -431,6 +469,12 @@ export function BattleView({ s }: { s: GameState }) {
             <div className="sg-sheet-head"><h2>{bs.over.winner === 0 ? `${sideName(0)} 승리` : `${sideName(1)} 승리`}</h2></div>
             <div className="sg-sheet-body">
               <p className="sg-result-reason">{bs.over.reason}</p>
+              {mvp && (
+                <div className="sg-mvp">
+                  <Portrait id={mvp.officer} size={64} year={s.year} color={mvp.faction >= 0 ? s.factions[mvp.faction]?.color : undefined} className="sg-mvp-face" />
+                  <div><small>수훈</small><b>{OFFICER_DEF[mvp.officer]?.name}</b><span>「{mvp.text}」</span></div>
+                </div>
+              )}
               <p className="sg-muted">남은 병력 — 공격 {fmt(ta)} · 수비 {fmt(td)} · {bs.day}일째</p>
               <div className="sg-form-go"><button className="sg-btn primary" onClick={done}>결과 확인</button></div>
             </div>
@@ -442,6 +486,18 @@ export function BattleView({ s }: { s: GameState }) {
 }
 
 /** 2D 전장(그림 한 장 위에 칸·부대·연출) — WebGL이 없거나 2D를 고르면 */
+/** 이 과녁을 치면 협공할 수 있는 아군 — 「협공×2」, 인연 장수가 있으면 「인연 협공」 */
+function comboLabel(bs: BattleState, a: Unit | null, t: Target): string | undefined {
+  if (!a || t.kind !== 'unit') return undefined;
+  const e = unitAt(bs, t.q, t.r);
+  if (!e) return undefined;
+  const hs = comboHelpers(bs, a, e).slice(0, 2);
+  if (!hs.length) return undefined;
+  if (hs.some((h) => h.bond)) return '인연 협공';
+  const p = hs.reduce((x, h) => x + comboChance(h.b, false), 0);
+  return p >= 0.25 ? `협공×${hs.length}` : undefined;
+}
+
 function Field2D({ s, bs, sel, reach, targets, special, mineSel, onTile, floats, shots, lunge, shake }: {
   s: GameState; bs: BattleState; sel: number | null; reach: Map<number, number>; targets: Target[];
   special: { q: number; r: number; p: number; color: string }[]; mineSel: Unit | null; onTile: (q: number, r: number) => void;
@@ -484,6 +540,7 @@ function Field2D({ s, bs, sel, reach, targets, special, mineSel, onTile, floats,
             )}
             {canMove && <path d={hexPath(cx, cy, R * 0.9)} className="sg-reach" />}
             {isTarget && <path d={hexPath(cx, cy, R * 0.92)} className="sg-target" />}
+            {isTarget && (() => { const lb = comboLabel(bs, mineSel, targets.find((x) => x.q === q && x.r === r)!); return lb ? <text x={cx} y={cy - 12} className="sg-pct combo">{lb}</text> : null; })()}
             {sp && <path d={hexPath(cx, cy, R * 0.9)} className="sg-special" style={{ stroke: sp.color, fill: `${sp.color}33` }} />}
             {sp && sp.p >= 0 && <text x={cx} y={cy - 12} className="sg-pct">{pct(sp.p)}</text>}
           </g>

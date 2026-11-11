@@ -206,6 +206,8 @@
 .sg-stat.good { color: var(--sg-good); }
 .sg-stat.low { color: #7a6e5e; }
 .sg-stat.hi { background: rgba(214, 170, 82, 0.2); box-shadow: inset 0 0 0 1px rgba(214, 170, 82, 0.4); }
+.sg-stat.grown { position: relative; }
+.sg-stat.grown::after { content: "▲"; position: absolute; top: -3px; right: 0; font-size: 0.45rem; color: #7fdc8a; }
 .sg-bar { display: inline-block; width: 100%; height: 4px; border-radius: 1px; background: rgba(0, 0, 0, 0.45); box-shadow: inset 0 0 0 1px rgba(214, 170, 82, 0.18); overflow: hidden; }
 .sg-bar span { display: block; height: 100%; background: linear-gradient(90deg, #a87526, #f2d48a); }
 
@@ -474,6 +476,8 @@ button.sg-oline:hover { background: rgba(214, 170, 82, 0.07); }
   animation: g-pop-in 0.22s ease-out;
 }
 .sg-speech.bad { background: linear-gradient(180deg, #f1dccc, #d9b6a2); }
+.sg-grow-line { color: #1f6a2e; font-weight: 800; animation: sg-grow-in 0.6s ease-out 0.15s both; }
+@keyframes sg-grow-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .sg-speech-body { display: flex; flex-direction: column; gap: 3px; font-size: 0.9rem; line-height: 1.6; min-width: 0; }
 .sg-speech-body strong { color: #7a2a1c; font-size: 0.96rem; font-weight: 800; letter-spacing: 0.06em; }
 .sg-speech-face { width: 60px; height: 60px; }
@@ -677,6 +681,12 @@ button.sg-oline:hover { background: rgba(214, 170, 82, 0.07); }
 .sg-result { max-width: 460px; text-align: center; }
 .sg-result-reason { font-size: 1.05rem; font-weight: 800; color: var(--sg-gold-2); margin: 6px 0; }
 .sg-result .sg-form-go { justify-content: center; }
+.sg-mvp { display: flex; align-items: center; gap: 12px; margin: 10px auto 6px; padding: 8px 12px; max-width: 360px; text-align: left; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(214, 170, 82, 0.35); animation: sg-shout-in 0.4s ease-out 0.2s both; }
+.sg-mvp-face { width: 64px; height: 64px; flex: none; }
+.sg-mvp div { display: flex; flex-direction: column; gap: 2px; }
+.sg-mvp small { font-size: 0.7rem; color: var(--sg-gold); letter-spacing: 0.3em; }
+.sg-mvp b { font-size: 1rem; color: #fff3d8; }
+.sg-mvp span { font-size: 0.92rem; font-weight: 700; color: var(--sg-text); }
 
 /* 병종 */
 .sg-kinds { display: flex; flex-direction: column; gap: 8px; padding: 8px; border: 1px solid rgba(160, 122, 53, 0.35); border-radius: 8px; background: rgba(0, 0, 0, 0.18); }
@@ -781,6 +791,27 @@ button.sg-oline:hover { background: rgba(214, 170, 82, 0.07); }
 .sg-flash-txt { display: flex; flex-direction: column; animation: sgFlashTxt 1.5s cubic-bezier(0.2, 0.9, 0.2, 1) forwards; }
 .sg-flash-txt b { font-size: clamp(2.4rem, 9vw, 5rem); font-weight: 800; color: #fff3d8; letter-spacing: 0.15em; text-shadow: 0 0 2px #000, 5px 6px 0 #7a1a8a, 0 0 30px rgba(220, 150, 255, 0.7); }
 .sg-flash-txt small { font-size: 1rem; color: #f0d8ff; letter-spacing: 0.3em; }
+.sg-flash-txt i { margin-top: 6px; font-style: normal; font-size: clamp(0.95rem, 2.6vw, 1.25rem); font-weight: 800; color: #fff; text-shadow: 0 0 3px #000, 0 2px 6px #000; }
+
+/* 장수 외침 말풍선 — 전장 왼쪽 아래 */
+.sg-shout {
+  position: absolute; left: 10px; bottom: 10px; z-index: 6; max-width: min(78%, 420px);
+  display: flex; align-items: center; gap: 10px; padding: 6px 14px 6px 6px;
+  background: linear-gradient(180deg, rgba(242, 229, 198, 0.97), rgba(221, 199, 154, 0.97));
+  color: #2b1d12; border: 1px solid #6b4f26; border-left: 5px solid #b2322a;
+  box-shadow: 0 0 0 1px #000, 0 10px 24px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  animation: sg-shout-in 0.25s ease-out, sg-shout-out 0.3s ease-in 1.8s forwards;
+}
+.sg-shout.def { border-left-color: #2d5c9a; }
+.sg-shout-face { width: 52px; height: 52px; flex: none; }
+.sg-shout-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.sg-shout-body b { font-size: 0.78rem; color: #7a2a1c; letter-spacing: 0.08em; }
+.sg-shout.def .sg-shout-body b { color: #1f4272; }
+.sg-shout-body span { font-size: 0.98rem; font-weight: 800; line-height: 1.4; }
+@keyframes sg-shout-in { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes sg-shout-out { to { opacity: 0; transform: translateY(-6px); } }
+.sg-pct.combo { fill: #ffd27a; font-size: 9px; }
 @keyframes sgFlash { 0% { opacity: 0; } 10% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes sgFlashFace { 0% { transform: translateX(-60vw) skewX(-12deg); } 20% { transform: translateX(0) skewX(0); } 100% { transform: translateX(14px); } }
 @keyframes sgFlashTxt { 0% { transform: translateX(60vw); opacity: 0; } 25% { transform: translateX(0); opacity: 1; } 100% { transform: translateX(-10px); } }

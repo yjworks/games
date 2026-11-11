@@ -3,7 +3,9 @@ import { clearProgress, setProgress } from '../../shared/progress';
 import { sg } from './audio';
 import type { CityId } from './data/types';
 import type { Result } from './engine/commands';
-import { factionName } from './engine/officers';
+import { factionName, nameOf } from './engine/officers';
+import { growNote } from './engine/growth';
+import { jo } from './engine/josa';
 import { loadGame, saveGame } from './engine/save';
 import { DEFAULT_OPTIONS, newGame } from './engine/setup';
 import type { GameState, Options } from './engine/state';
@@ -86,15 +88,19 @@ export const useGame = create<UIState>((set, get) => ({
     const s = get().game;
     if (!s) return;
     lastActor.id = null;
+    growNote.text = null;
     const r = fn(s);
     const by = lastActor.id;
+    const grew = growNote.text;
+    growNote.text = null;
     if (s.attacks.length) advance(s);
     if (r && !quiet) {
       const f = currentHuman(s);
       const speaker = by ?? (f >= 0 ? s.factions[f].advisor ?? s.factions[f].ruler : null);
       const color = f >= 0 ? s.factions[f].color : undefined;
-      set({ toast: { text: r.msg, ok: r.ok, at: Date.now(), by: speaker, color } });
-      if (r.ok) sg.ok(); else sg.fail();
+      const text = grew && by ? `${r.msg}\n▲ ${jo(nameOf(by), '은는')} 한 뼘 자랐다 — ${grew}` : r.msg;
+      set({ toast: { text, ok: r.ok, at: Date.now(), by: speaker, color } });
+      if (grew) sg.grow(); else if (r.ok) sg.ok(); else sg.fail();
     }
     set({ rev: get().rev + 1 });
     return r;
@@ -113,9 +119,25 @@ export const useGame = create<UIState>((set, get) => ({
   battleDone: () => {
     const s = get().game;
     if (!s) return;
+    /* 싸우고 자란 사람 쪽 장수를 알린다 */
+    const before = new Map(Object.values(s.officers).map((o) => [o.id, [...(o.grow ?? [0, 0, 0, 0, 0])]]));
     finishBattle(s);
     afterAdvance(s);
+    const NAMES = ['통솔', '무력', '지력', '정치', '매력'];
+    const ups: string[] = [];
+    let who: string | null = null;
+    for (const o of Object.values(s.officers)) {
+      if (o.status !== 'serving' || !s.factions[o.faction]?.human || !o.grow) continue;
+      const b = before.get(o.id) ?? [0, 0, 0, 0, 0];
+      const d = o.grow.map((g, k) => g - (b[k] ?? 0));
+      const parts = d.map((x, k) => (x > 0 ? `${NAMES[k]}+${x}` : '')).filter(Boolean);
+      if (parts.length) { ups.push(`${nameOf(o.id)} ${parts.join(' ')}`); who = who ?? o.id; }
+    }
     set({ rev: get().rev + 1 });
+    if (ups.length) {
+      set({ toast: { text: `싸움 속에서 장수들이 자랐습니다.\n▲ ${ups.slice(0, 4).join(' · ')}${ups.length > 4 ? ` 외 ${ups.length - 4}명` : ''}`, ok: true, at: Date.now(), by: who } });
+      sg.grow();
+    }
   },
   select: (city) => set({ city }),
   open: (panel) => set({ panel }),
