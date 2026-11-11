@@ -160,6 +160,8 @@ export interface WeekLog {
   text: string;
   /** 이번 주에 배운 것(읽을거리 id) */
   bite?: string;
+  /** 이미 배운 것을 다시 본 주(복습) */
+  review?: boolean;
 }
 
 /** 진행 중인 인증 시험 */

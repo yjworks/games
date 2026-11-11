@@ -1161,3 +1161,14 @@
   .gu-stage .gu-district-places .gu-place { min-height: 50px; }
   .gu-stage .gu-district-places .gu-place-sub { display: none; }
 }
+.gu-review { display: inline-block; margin-right: 5px; padding: 0 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); color: var(--gu-sub); font-size: 0.68rem; font-style: normal; font-weight: 800; vertical-align: 1px; }
+
+/* 모바일 장소 화면 — 활동 카드를 조금 촘촘하게 해서 네 개가 한눈에 더 들어오게 */
+@media (max-width: 899px) {
+  .gu-acts { gap: 6px; }
+  .gu-act { gap: 8px; padding: 7px 9px; }
+  .gu-act-emoji { font-size: 1.35rem; }
+  .gu-act-body { gap: 3px; }
+  .gu-act-body small { line-height: 1.3; }
+  .gu-act .gu-hints .gu-chip { padding: 1px 5px; font-size: 0.66rem; }
+}

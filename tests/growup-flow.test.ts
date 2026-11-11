@@ -237,11 +237,12 @@ describe('읽을거리 · 인증', () => {
     expect(a.ok && a.correct).toBe(true);
   });
 
-  it('충분히 배우면 인증 시험이 생기고, 5문제 중 4문제를 맞히면 인증을 딴다', () => {
+  it('충분히 배우면 학기 말(7월·12월)에 인증 시험이 생기고, 5문제 중 4문제를 맞히면 인증을 딴다', () => {
     const t = trackById('sport')!;
     const all = readingsOf('sport').map((r) => r.id);
-    const g0 = make();
+    const g0 = { ...make(), turn: 4 }; // 초1 7월
     expect(examDue({ ...g0, read: all.slice(0, levelNeed(t, 1) - 1) })).toBeNull();
+    expect(examDue({ ...g0, turn: 3, read: all })).toBeNull(); // 6월에는 시험이 없다
     const g = { ...g0, read: all };
     expect(examDue(g)).toEqual({ track: 'sport', level: 1 });
     const qs = makeExam(all, t, rnd(4));
@@ -258,26 +259,43 @@ describe('읽을거리 · 인증', () => {
     expect(s.certs).toEqual({ sport: 1 });
     expect(s.exam).toBeNull();
     expect(settle(s)).toEqual({ s: 'town' });
-    expect(examDue(s)).toEqual(levelNeed(t, 2) <= all.length ? { track: 'sport', level: 2 } : null);
+    expect(examDue(s)).toBeNull(); // 중급은 중학생부터
+    expect(examDue({ ...s, turn: 76 })).toEqual({ track: 'sport', level: 2 }); // 중1 7월
   });
 
-  it('떨어지면 벌점 없이 몇 달 뒤 다시 본다', () => {
+  it('떨어지면 벌점 없이 다음 시험 기간에 다시 본다', () => {
     const t = trackById('econ')!;
     const all = readingsOf('economy').map((r) => r.id);
     const qs = makeExam(all, t, rnd(5));
-    let s: GameState = { ...make(), read: all, exam: { track: 'econ', level: 1, qs, i: 0, right: 0 } };
+    let s: GameState = { ...make(), turn: 4, read: all, exam: { track: 'econ', level: 1, qs, i: 0, right: 0 } };
     const before = { ...s.stats };
     for (let i = 0; i < qs.length; i++) { const r = answerExam(s, (qs[i].answer + 1) % 4); if (r.ok) s = r.state; }
     expect(s.certs ?? {}).toEqual({});
     expect(s.stats).toEqual(before);
     expect(examDue(s)).toBeNull();
-    expect(examDue({ ...s, turn: s.turn + 3 })).toEqual({ track: 'econ', level: 1 });
+    expect(examDue({ ...s, turn: 9 })).toEqual({ track: 'econ', level: 1 }); // 초1 12월
   });
 
-  it('인증은 이어진 진로에 점수를 더한다(많아야 6)', () => {
-    expect(certBonus({ cook: 2 }, 'food')).toBe(4);
-    expect(certBonus({ cook: 3, care: 3 }, 'food')).toBe(6);
+  it('인증은 이어진 진로에 점수를 더한다(많아야 4)', () => {
+    expect(certBonus({ cook: 1 }, 'food')).toBe(2);
+    expect(certBonus({ cook: 3, care: 3 }, 'food')).toBe(4);
     expect(certBonus({ cook: 3 }, 'it')).toBe(0);
     expect(certBonus(undefined, 'food')).toBe(0);
+  });
+
+  it('학교급에 맞는 것만 나오고, 한 분야를 다 배우면 가까운 분야로 이어진다', () => {
+    const elem = readingsOf('history').filter((r) => (r.stage ?? 0) === 0).map((r) => r.id);
+    expect(readingsOf('history').some((r) => (r.stage ?? 0) > 0)).toBe(true);
+    for (let i = 0; i < 30; i++) expect(pickReading([], 'class', Math.random, 0).stage ?? 0).toBe(0);
+    const near = pickReading(elem, 'class', () => 0.1, 0);
+    expect(['writing', 'study']).toContain(near.topic);
+  });
+
+  it('이미 배운 것을 다시 보면 복습으로 표시된다', () => {
+    const all = readingsOf('hanja').map((r) => r.id);
+    const r = doActivity({ ...make(), read: all }, 'lang', 'hanja');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.report.weeks!.every((w) => w.review)).toBe(true);
   });
 });
