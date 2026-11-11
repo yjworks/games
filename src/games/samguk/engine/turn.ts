@@ -260,9 +260,10 @@ function economy(s: GameState) {
   for (const c of Object.values(s.cities) as City[]) {
     c.traded = false;
     if (c.owner < 0) {
-      /* 공백지는 수비대가 조금씩 다시 모인다 */
+      /* 공백지는 수비대가 조금씩 다시 모이고, 주인을 잃은 대군은 흩어진다(멸망한 세력의 도시가 난공불락으로 남지 않게) */
       const cap = Math.round(c.pop * 0.004 / 100) * 100 + 500;
       if (c.troops < cap) c.troops = Math.min(cap, c.troops + 200);
+      else if (c.troops > cap) c.troops = Math.max(cap, Math.round(c.troops * 0.85));
       continue;
     }
     const f = s.factions[c.owner];

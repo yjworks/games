@@ -169,6 +169,13 @@ export const SCENARIOS: ScenarioDef[] = [
     ],
     liberty: '유비는 유표의 객장으로 신야에 주둔했으나 독립 세력으로 두었다.',
     emperor: 'cao',
+    /* 이력은 해 단위라 208년 9월 형주 항복·장판 뒤의 소속이 7월 시작에 먼저 잡힌다 — 그 전 소속으로 되돌린다 */
+    overrides: {
+      liucong: 'liubiao', liuqi: 'liubiao', caimao: 'liubiao', kuaiyue: 'liubiao', wenpin: 'liubiao', huangzhong: 'liubiao',
+      wangcan: 'liubiao', zhangyun: 'liubiao', hansong: 'liubiao', songzhong: 'liubiao', fusun: 'liubiao', hanxuan: 'liubiao',
+      jinxuan: 'liubiao', zhaofan: 'liubiao', liudu: 'liubiao', huojun: 'liubiao', yiji: 'liubiao', xianglang: 'liubiao',
+      liyan: 'liubiao', xushu: 'liubei',
+    },
     hanAlive: true,
     factions: [
       { key: 'cao', ruler: 'caocao', capital: 'ye', cities: ['ye', 'xuchang', 'nanpi', 'pingyuan', 'beihai', 'ji', 'beiping', 'jinyang', 'shangdang', 'puyang', 'chenliu', 'xiapi', 'xiaopei', 'langya', 'qiao', 'runan', 'shouchun', 'luoyang', 'henei', 'hongnong', 'changan', 'wan'], power: 1.4 },
