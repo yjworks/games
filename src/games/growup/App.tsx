@@ -231,6 +231,9 @@ function TitleScreen({ onDex, onPortraits }: { onDex: () => void; onPortraits: (
 
 /* ══════════════ 게임 화면 ══════════════ */
 
+/** 두 단 배치(그림 왼쪽, 패널 오른쪽) — 넓은 화면, 또는 가로로 눕힌 휴대폰. growup.css 의 두 단 규칙과 같은 조건 */
+const TWO_COLUMN = '(min-width: 900px), (orientation: landscape) and (min-width: 600px) and (max-height: 480px)';
+
 /** 화면 너비 조건(예: 넓은 화면에서 두 단 배치) */
 function useMedia(query: string): boolean {
   const [on, setOn] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.(query).matches);
@@ -292,7 +295,7 @@ function Playing({ game, flow, press, setBusy, wake }: {
   const [emerge, setEmerge] = useState<PlaceId | null>(null);
   /** 장소로 갈 때마다 하나씩 — 지도가 이 값이 바뀌면 걸어간다 */
   const [trip, setTrip] = useState(0);
-  const wide = useMedia('(min-width: 900px)');
+  const wide = useMedia(TWO_COLUMN);
   const stageRef = useRef<HTMLElement>(null);
   /* 게임을 시작하면 맨 위로 */
   useEffect(() => { stageRef.current?.closest('.gu-root')?.scrollTo({ top: 0 }); }, []);

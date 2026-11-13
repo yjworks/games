@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 import type { Expression } from './engine';
 import { FRIENDS } from './friends';
 import { DISTRICTS, HAIR_COLORS, PLACES } from './data';
 import { gradeLabel } from './calendar';
 import { Sky, skyOf } from './render';
 import { PERSON_W, drawPerson, personHeight } from './sprites';
-import { MAP_PX_H, MAP_PX_W, TILE, buildTown, findPath } from './towntop';
+import { MAP_H, MAP_PX_H, MAP_PX_W, MAP_W, TILE, buildTown, findPath } from './towntop';
 import { paintTown, townKey } from './townpaint';
 import { FieldKey, FriendId, Look, PlaceId, Stage } from './types';
 import type { Season } from './world';
@@ -266,9 +266,22 @@ export function TownMap(p: Props) {
     return () => { cancelAnimationFrame(raf); document.removeEventListener('visibilitychange', onVis); };
   }, []);
 
+  /** 건물(과 문 앞 길)을 눌러도 그 장소로 간다 — 간판만 누르기에는 작아서 */
+  function onTap(e: MouseEvent<HTMLCanvasElement>) {
+    const r = e.currentTarget.getBoundingClientRect();
+    const tx = ((e.clientX - r.left) / r.width) * MAP_W;
+    const ty = ((e.clientY - r.top) / r.height) * MAP_H;
+    const hit = PLACES.find((pl) => {
+      const l = LAYOUT.lots[pl.id];
+      return tx >= l.x && tx < l.x + l.w && ty >= l.y - 1 && ty < l.y + l.h + 1;
+    });
+    if (hit && openSet.has(hit.id)) p.onPlace?.(hit.id);
+  }
+
   return (
     <div className="gu-town-map">
-      <canvas ref={canvasRef} width={MAP_PX_W} height={MAP_PX_H} className="gu-town-canvas"
+      <canvas ref={canvasRef} width={MAP_PX_W} height={MAP_PX_H} className={`gu-town-canvas ${p.onPlace ? 'tappable' : ''}`}
+        onClick={p.onPlace ? onTap : undefined}
         role="img" aria-label={`마을 지도 — ${p.season}, ${sky === 'night' ? '밤' : sky === 'dusk' ? '저녁' : '낮'}`} />
       {PLACES.map((pl) => {
         const lot = LAYOUT.lots[pl.id];
