@@ -1,7 +1,7 @@
 import { TutorialContent } from '../../shared/tutorial';
 
 export const samgukTutorial: TutorialContent = {
-  goal: '후한 말 53개 도시를 무대로 장수를 거느리고 내정·외교·전쟁을 지휘해, 마지막 남은 세력이 되면 천하통일입니다.',
+  goal: '후한 말 53개 도시를 무대로 장수를 거느리고 내정·외교·전쟁을 지휘해, 다른 세력을 모두 꺾고 53개 도시를 모두 차지하면 천하통일입니다.',
   sections: [
     {
       title: '한 달의 흐름',

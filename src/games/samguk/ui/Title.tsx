@@ -5,7 +5,7 @@ import { CITY_BY_ID } from '../data/cities';
 import { SLOTS, slotInfo } from '../engine/save';
 import type { Difficulty, Lifespan, Options } from '../engine/state';
 import { useGame } from '../store';
-import { StatCells } from './common';
+import { StatCells, StatHeader } from './common';
 import { Encyclopedia } from './Encyclopedia';
 import { jo } from '../engine/josa';
 import { TitleScene } from './art/TitleScene';
@@ -115,6 +115,7 @@ export function Setup() {
       <div className="sg-setup-col">
         <h3 className="sg-h">군주 선택 <small>여럿 고르면 번갈아 지휘(핫시트)</small></h3>
         <div className="sg-fac-list">
+          <div className="sg-fac-head" aria-hidden="true"><span>군주 · 도읍 · 도시 수 · 나이</span><StatHeader /></div>
           {factions.map((f) => {
             const d = OFFICER_DEF[f.ruler];
             const on = picked.includes(f.ruler);
