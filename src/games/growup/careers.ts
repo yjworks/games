@@ -171,7 +171,7 @@ const RAW: RawCareer[] = [
   },
   /* ── 미술 ── */
   {
-    id: 'designer', title: '디자이너', emoji: '🎨', kind: '취업', field: 'art', minField: 25,
+    id: 'designer', title: '디자이너', emoji: '🎨', kind: '취업', field: 'art', minField: 30,
     weights: { create: 0.6, craft: 0.2, express: 0.2 },
     info: '제품·화면·브랜드·공간이 어떻게 보이고 쓰일지 설계합니다. 예쁘기만 한 게 아니라 쓰기 편해야 합니다.',
     path: '시각·산업·UX 디자인 전공이 일반적입니다. 학력보다 포트폴리오를 보는 경우가 많습니다.',
@@ -182,7 +182,7 @@ const RAW: RawCareer[] = [
     ],
   },
   {
-    id: 'webtoon', title: '웹툰 작가', emoji: '🖍️', kind: '프리랜서', field: 'art', field2: 'write', minField: 25, minField2: 15,
+    id: 'webtoon', title: '웹툰 작가', emoji: '🖍️', kind: '프리랜서', field: 'art', field2: 'write', minField: 30, minField2: 15,
     weights: { create: 0.5, express: 0.3, craft: 0.2 },
     info: '이야기를 짓고 그림으로 연재합니다. 마감과 독자 반응 사이에서 매주 한 편을 완성합니다.',
     path: '만화·애니메이션 전공, 공모전 수상, 도전 연재 플랫폼에서의 인기 등 다양한 길로 데뷔합니다.',
@@ -217,7 +217,7 @@ const RAW: RawCareer[] = [
   },
   /* ── 글·미디어 ── */
   {
-    id: 'writer', title: '작가', emoji: '📚', kind: '프리랜서', field: 'write', minField: 30,
+    id: 'writer', title: '작가', emoji: '📚', kind: '프리랜서', field: 'write', minField: 35,
     weights: { express: 0.5, create: 0.3, know: 0.2 },
     info: '소설·에세이·동화·시나리오처럼 글로 이야기를 짓습니다. 쓰는 시간만큼 읽고 관찰하는 시간이 중요합니다.',
     path: '문예창작·국문학 전공, 신춘문예나 공모전 당선, 출판사 투고, 온라인 연재 등으로 데뷔합니다.',
@@ -228,7 +228,7 @@ const RAW: RawCareer[] = [
     ],
   },
   {
-    id: 'reporter', title: '기자·PD', emoji: '🎙️', kind: '취업', field: 'write', minField: 25,
+    id: 'reporter', title: '기자·PD', emoji: '🎙️', kind: '취업', field: 'write', minField: 30,
     weights: { express: 0.4, know: 0.3, social: 0.3 },
     info: '사실을 취재해 기사나 방송으로 전합니다. 무엇을 어떻게 알릴지 고르는 책임이 큰 일입니다.',
     path: '전공은 다양하며, 언론사 공채 시험(필기·실무·면접)을 거쳐 들어가는 경우가 많습니다.',
@@ -239,7 +239,7 @@ const RAW: RawCareer[] = [
     ],
   },
   {
-    id: 'creator', title: '크리에이터', emoji: '📹', kind: '프리랜서', field: 'write', field2: 'art', minField: 20, minField2: 10,
+    id: 'creator', title: '크리에이터', emoji: '📹', kind: '프리랜서', field: 'write', field2: 'art', minField: 25, minField2: 15,
     boldMin: 10,
     weights: { express: 0.4, create: 0.3, social: 0.3 },
     info: '영상·글·방송 같은 콘텐츠를 직접 기획하고 만들어 구독자와 소통합니다. 촬영·편집·운영을 혼자 해내기도 합니다.',

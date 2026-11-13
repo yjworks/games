@@ -66,7 +66,7 @@ export const PLACES: Place[] = [
       { label: '내 방', desc: '입시와 꿈 사이, 내 시간을 쓰는 곳.', acts: [
         REST,
         { id: 'cram', name: '수능 공부', emoji: '📚', desc: '모의고사 오답 노트를 채운다.', main: 'know', diff: 2, stats: { know: 6, logic: 4 }, fatigue: 14, stress: 12, bold: -2 },
-        { id: 'blog', name: '글쓰기·채널 운영', emoji: '✍️', desc: '블로그와 채널에 한 편씩 쌓는다.', main: 'express', diff: 1, stats: { express: 5, create: 2 }, fields: { write: 6, biz: 2 }, fatigue: 8 },
+        { id: 'blog', name: '글쓰기·채널 운영', emoji: '✍️', desc: '블로그와 채널에 한 편씩 쌓는다.', main: 'express', diff: 1, stats: { express: 5, create: 2 }, fields: { write: 4, biz: 2 }, fatigue: 8 },
         { id: 'workout', name: '홈트레이닝', emoji: '🏋️', desc: '매일 아침 맨몸 운동.', main: 'body', stats: { body: 5 }, fields: { sport: 4 }, fatigue: 12, stress: -8 },
       ] },
     ],
@@ -84,10 +84,10 @@ export const PLACES: Place[] = [
   {
     id: 'lang', district: 'home', name: '어학원', emoji: '🔤', color: '#d98a3a', from: 0,
     stages: same('어학원', '아파트 상가 2층. 국어·영어·한자를 배우고, 배운 낱말은 수첩에 쌓인다.', [
-      { id: 'korean', name: '국어 교실', emoji: '📖', desc: '헷갈리는 맞춤법과 속담을 익힌다.', main: 'express', cost: 1, stats: { express: 4, know: 2 }, fields: { write: 4, edu: 1 }, fatigue: 8, stress: 3 },
-      { id: 'english', name: '영어 학원', emoji: '🔤', desc: '쉬운 낱말과 짧은 대화부터.', main: 'know', diff: 1, cost: 2, stats: { know: 3, express: 3 }, fields: { edu: 2, biz: 2, write: 1 }, fatigue: 10, stress: 5 },
-      { id: 'hanja', name: '한자·고사성어', emoji: '📜', desc: '한 글자에 담긴 뜻, 네 글자에 담긴 이야기.', main: 'know', cost: 1, stats: { know: 4, logic: 1 }, fields: { write: 3, edu: 2 }, fatigue: 8, stress: 3 },
-      { id: 'engspeech', name: '영어 말하기 대회', emoji: '🎤', desc: '외운 문장을 무대에서 또박또박.', main: 'express', diff: 2, contest: 'write', lock: { visits: REG, stat: 'express', min: 35 }, stats: { express: 6, social: 2, know: 2 }, fields: { write: 6, edu: 2 }, bold: 5, fatigue: 14, stress: 8 },
+      { id: 'korean', name: '국어 교실', emoji: '📖', desc: '헷갈리는 맞춤법과 속담을 익힌다.', main: 'express', cost: 1, stats: { express: 4, know: 2 }, fields: { write: 2, edu: 2 }, fatigue: 8, stress: 3 },
+      { id: 'english', name: '영어 학원', emoji: '🔤', desc: '쉬운 낱말과 짧은 대화부터.', main: 'know', diff: 1, cost: 2, stats: { know: 3, express: 3 }, fields: { biz: 2, it: 1, sci: 1 }, fatigue: 10, stress: 5 },
+      { id: 'hanja', name: '한자·고사성어', emoji: '📜', desc: '한 글자에 담긴 뜻, 네 글자에 담긴 이야기.', main: 'know', cost: 1, stats: { know: 4, logic: 1 }, fields: { edu: 2, write: 1 }, fatigue: 8, stress: 3 },
+      { id: 'engspeech', name: '영어 말하기 대회', emoji: '🎤', desc: '외운 문장을 무대에서 또박또박.', main: 'express', diff: 2, contest: 'write', lock: { visits: REG, stat: 'express', min: 35 }, stats: { express: 6, social: 2, know: 2 }, fields: { biz: 3, edu: 2, write: 1 }, bold: 5, fatigue: 14, stress: 8 },
     ]),
   },
   /* ── ② 학교 ── */
@@ -103,13 +103,13 @@ export const PLACES: Place[] = [
       { label: '중학교 교실', desc: '과목도 많아지고 실험도 한다.', acts: [
         CLASS(1),
         { id: 'lab', name: '과학 실험', emoji: '🔬', desc: '가설을 세우고 직접 확인한다.', main: 'logic', diff: 1, stats: { know: 3, logic: 3 }, fields: { sci: 6 }, fatigue: 10 },
-        { id: 'debate', name: '토론 수업', emoji: '⚖️', desc: '근거를 들어 내 생각을 말한다.', main: 'express', diff: 1, stats: { express: 4, logic: 2, social: 1 }, fields: { write: 3, edu: 2 }, fatigue: 9, stress: 4 },
+        { id: 'debate', name: '토론 수업', emoji: '⚖️', desc: '근거를 들어 내 생각을 말한다.', main: 'express', diff: 1, stats: { express: 4, logic: 2, social: 1 }, fields: { write: 2, edu: 2 }, fatigue: 9, stress: 4 },
         { id: 'scifair', name: '과학 탐구 대회', emoji: '🧪', desc: '탐구 보고서로 학교 대표를 겨룬다.', main: 'logic', diff: 2, contest: 'sci', lock: { visits: REG, stat: 'logic', min: 40 }, stats: { logic: 5, know: 3 }, fields: { sci: 10 }, bold: 4, fatigue: 16, stress: 8 },
       ] },
       { label: '고등학교 교실', desc: '진로를 정해야 하는 마지막 교실.', acts: [
         CLASS(2),
-        { id: 'report', name: '탐구 보고서', emoji: '📑', desc: '궁금한 주제를 끝까지 파고든다.', main: 'logic', diff: 1, stats: { know: 3, logic: 3, express: 1 }, fields: { sci: 3, write: 3 }, fatigue: 12, stress: 6 },
-        { id: 'debate', name: '토론 수업', emoji: '⚖️', desc: '근거를 들어 내 생각을 말한다.', main: 'express', diff: 1, stats: { express: 4, logic: 2, social: 1 }, fields: { write: 3, edu: 2 }, fatigue: 9, stress: 4 },
+        { id: 'report', name: '탐구 보고서', emoji: '📑', desc: '궁금한 주제를 끝까지 파고든다.', main: 'logic', diff: 1, stats: { know: 3, logic: 3, express: 1 }, fields: { sci: 3, write: 2 }, fatigue: 12, stress: 6 },
+        { id: 'debate', name: '토론 수업', emoji: '⚖️', desc: '근거를 들어 내 생각을 말한다.', main: 'express', diff: 1, stats: { express: 4, logic: 2, social: 1 }, fields: { write: 2, edu: 2 }, fatigue: 9, stress: 4 },
         { id: 'olympiad', name: '교내 경시대회', emoji: '🏅', desc: '수학·과학 실력을 겨룬다.', main: 'know', diff: 2, contest: 'sci', lock: { visits: REG, stat: 'know', min: 55 }, stats: { know: 5, logic: 4 }, fields: { sci: 10 }, bold: 4, fatigue: 18, stress: 10 },
       ] },
     ],
@@ -163,7 +163,7 @@ export const PLACES: Place[] = [
       { id: 'novel', name: '동화·소설 읽기', emoji: '📖', desc: '다른 사람의 삶을 살아 본다.', main: 'express', stats: { express: 3, create: 2 }, fields: { write: 4 }, mood: 4, stress: -3, fatigue: 5 },
       { id: 'science', name: '과학책 읽기', emoji: '🔭', desc: '우주, 공룡, 인체의 비밀.', main: 'know', diff: 1, stats: { know: 4 }, fields: { sci: 5 }, fatigue: 6 },
       { id: 'libstudy', name: '열람실 공부', emoji: '📝', desc: '조용한 열람실에서 집중.', main: 'know', diff: 1, stats: { know: 4, logic: 2 }, fatigue: 10, stress: 6, bold: -1 },
-      { id: 'bookclub', name: '독서 모임', emoji: '💬', desc: '같은 책을 읽고 생각을 나눈다.', main: 'express', diff: 1, lock: { visits: REG }, stats: { express: 4, social: 3 }, fields: { write: 5, edu: 2 }, fatigue: 8 },
+      { id: 'bookclub', name: '독서 모임', emoji: '💬', desc: '같은 책을 읽고 생각을 나눈다.', main: 'express', diff: 1, lock: { visits: REG }, stats: { express: 4, social: 3 }, fields: { write: 3, edu: 2 }, fatigue: 8 },
     ]),
   },
   {
@@ -216,9 +216,9 @@ export const PLACES: Place[] = [
   {
     id: 'media', district: 'city', name: '미디어센터', emoji: '🎬', color: '#d05050', from: 6,
     stages: same('미디어센터', '찍고, 쓰고, 세상에 내보낸다.', [
-      { id: 'video', name: '영상 만들기', emoji: '🎥', desc: '찍고 자르고 자막을 단다.', main: 'create', diff: 1, stats: { create: 4, express: 2 }, fields: { write: 4, it: 2, art: 2 }, fatigue: 10 },
+      { id: 'video', name: '영상 만들기', emoji: '🎥', desc: '찍고 자르고 자막을 단다.', main: 'create', diff: 1, stats: { create: 4, express: 2 }, fields: { write: 2, it: 2, art: 2 }, fatigue: 10 },
       { id: 'design', name: '디자인 실습', emoji: '🖌️', desc: '포스터와 로고를 컴퓨터로.', main: 'create', diff: 1, stats: { create: 4, craft: 2 }, fields: { art: 6, it: 1 }, fatigue: 9 },
-      { id: 'podcast', name: '팟캐스트 녹음', emoji: '🎙️', desc: '친구와 수다를 방송으로.', main: 'express', diff: 1, stats: { express: 5, social: 2 }, fields: { write: 5, music: 1 }, fatigue: 8 },
+      { id: 'podcast', name: '팟캐스트 녹음', emoji: '🎙️', desc: '친구와 수다를 방송으로.', main: 'express', diff: 1, stats: { express: 5, social: 2 }, fields: { write: 3, music: 1 }, fatigue: 8 },
       { id: 'channel', name: '채널 운영', emoji: '📡', desc: '구독자와 함께 키우는 내 채널.', main: 'express', diff: 3, contest: 'write', lock: { visits: REG, stat: 'express', min: 45 }, stats: { express: 6, create: 4, social: 3 }, fields: { write: 10, biz: 3 }, bold: 6, fatigue: 16, stress: 8 },
     ]),
   },

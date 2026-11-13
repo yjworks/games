@@ -1,3 +1,4 @@
+import { MORE } from './reading-more';
 import { FieldKey, Quiz } from './types';
 
 /**
@@ -27,6 +28,8 @@ export interface Reading {
   term?: [string, string];
   /** 상식·바른 우리말 문제 */
   q?: Q5;
+  /** 이 학교급부터 나온다(1 중학생, 2 고등학생). 없으면 초등학생부터 */
+  stage?: 0 | 1 | 2;
 }
 
 export const READ_KIND: Record<ReadKind, { name: string; emoji: string }> = {
@@ -593,7 +596,7 @@ const HANJA: Reading[] = [
   i4('id-fifty', '오십보백보(五十步百步)', '조금 차이는 있어도 크게 보면 같다.', '싸움터에서 50걸음 도망친 병사가 100걸음 도망친 병사를 비웃었다는 『맹자』 이야기예요.'),
 ];
 
-export const READINGS: Reading[] = [...FACTS, ...KOREAN, ...ENGLISH, ...HANJA];
+export const READINGS: Reading[] = [...FACTS, ...MORE, ...KOREAN, ...ENGLISH, ...HANJA];
 const BY_ID = new Map(READINGS.map((r) => [r.id, r]));
 export const readingById = (id: string) => BY_ID.get(id);
 export const readingsOf = (topic: Topic) => READINGS.filter((r) => r.topic === topic);
@@ -601,12 +604,29 @@ export const readingsOf = (topic: Topic) => READINGS.filter((r) => r.topic === t
 /** 어학원 낱말은 쉬운 것부터 차례로, 상식은 아직 안 읽은 것 가운데 아무거나 */
 const ORDERED: Topic[] = ['korean', 'english', 'hanja'];
 
-/** 한 주에 배울 것 — 다 배웠으면 복습으로 아무거나 */
-export function pickReading(read: readonly string[], act: string, rand: () => number): Reading {
+/** 한 분야를 다 배우면 이어서 배울 가까운 분야 */
+export const RELATED: Partial<Record<Topic, Topic[]>> = {
+  mind: ['care', 'sport'], study: ['math', 'history'], coding: ['making', 'math'], art: ['media', 'music'],
+  writing: ['speak', 'history'], sport: ['mind', 'care'], food: ['life', 'science'], life: ['food', 'care'],
+  history: ['writing', 'study'], speak: ['writing', 'career'], music: ['art', 'media'], science: ['math', 'making'],
+  math: ['science', 'study'], media: ['art', 'coding'], economy: ['career', 'life'], teach: ['study', 'career'],
+  career: ['economy', 'teach'], care: ['mind', 'life'], making: ['coding', 'science'],
+};
+
+/**
+ * 한 주에 배울 것 — 지금 학교급까지 나온 것 가운데 아직 안 배운 것.
+ * 그 분야를 다 배웠으면 가까운 분야에서, 그것도 다 배웠으면 복습으로 아무거나.
+ */
+export function pickReading(read: readonly string[], act: string, rand: () => number, stage: 0 | 1 | 2 = 2): Reading {
   const topic = topicOf(act);
-  const pool = readingsOf(topic);
+  const open = (t: Topic) => readingsOf(t).filter((r) => (r.stage ?? 0) <= stage);
+  const pool = open(topic);
   const fresh = pool.filter((r) => !read.includes(r.id));
   if (fresh.length) return ORDERED.includes(topic) ? fresh[0] : fresh[Math.floor(rand() * fresh.length)];
+  for (const near of RELATED[topic] ?? []) {
+    const nf = open(near).filter((r) => !read.includes(r.id));
+    if (nf.length) return nf[Math.floor(rand() * nf.length)];
+  }
   return pool[Math.floor(rand() * pool.length)];
 }
 
@@ -675,10 +695,10 @@ export interface Track {
 }
 
 export const TRACKS: Track[] = [
-  { id: 'eng', name: '영어', emoji: '🔤', topics: ['english'], fields: ['biz', 'edu', 'write'], real: '토익·토플 같은 공인 영어 시험이 있어요.' },
-  { id: 'hanja', name: '한자', emoji: '📜', topics: ['hanja'], fields: ['write', 'edu'], real: '한국어문회 한자능력검정시험처럼 8급부터 특급까지 나뉜 시험이 있어요.' },
+  { id: 'eng', name: '영어', emoji: '🔤', topics: ['english'], fields: ['biz', 'it', 'sci'], real: '토익·토플 같은 공인 영어 시험이 있어요.' },
+  { id: 'hanja', name: '한자', emoji: '📜', topics: ['hanja'], fields: ['edu'], real: '한국어문회 한자능력검정시험처럼 8급부터 특급까지 나뉜 시험이 있어요.' },
   { id: 'korean', name: '우리말', emoji: '✏️', topics: ['korean', 'writing', 'speak'], fields: ['write', 'edu'], real: 'KBS한국어능력시험, 국어능력인증시험 같은 시험이 있어요.' },
-  { id: 'history', name: '한국사', emoji: '🏯', topics: ['history'], fields: ['edu', 'write'], real: '국사편찬위원회의 한국사능력검정시험이 있어요.' },
+  { id: 'history', name: '한국사', emoji: '🏯', topics: ['history'], fields: ['edu'], real: '국사편찬위원회의 한국사능력검정시험이 있어요.' },
   { id: 'science', name: '과학', emoji: '🔬', topics: ['science'], fields: ['sci', 'med'], real: '과학 탐구 대회와 영재교육원이 있어요.' },
   { id: 'math', name: '수학', emoji: '➗', topics: ['math', 'study'], fields: ['sci', 'it', 'eng'], real: '한국수학올림피아드(KMO) 같은 대회가 있어요.' },
   { id: 'coding', name: '코딩', emoji: '💻', topics: ['coding'], fields: ['it'], real: '정보처리기능사 같은 국가기술자격과 한국정보올림피아드 같은 대회가 있어요.' },
@@ -688,8 +708,8 @@ export const TRACKS: Track[] = [
   { id: 'care', name: '응급처치·돌봄', emoji: '🩹', topics: ['care', 'mind'], fields: ['med', 'edu'], real: '대한적십자사 같은 곳에서 응급처치(심폐소생술) 교육을 받고 수료증을 받을 수 있어요.' },
   { id: 'econ', name: '경제', emoji: '💰', topics: ['economy'], fields: ['biz'], real: '매경TEST, TESAT 같은 경제 이해력 시험이 있어요.' },
   { id: 'art', name: '예술', emoji: '🎨', topics: ['art', 'music'], fields: ['art', 'music'], real: '예술 쪽은 자격증보다 내 작품을 모은 포트폴리오가 더 중요할 때가 많아요.' },
-  { id: 'media', name: '미디어', emoji: '🎬', topics: ['media'], fields: ['write', 'art', 'it'], real: 'GTQ(그래픽기술자격) 같은 시험도 있지만, 직접 만든 작품이 가장 큰 경력이에요.' },
-  { id: 'career', name: '진로·가르치기', emoji: '🧭', topics: ['career', 'teach'], fields: ['edu'], real: '커리어넷 진로 검사와 직업 체험으로 내 길을 찾아볼 수 있어요.' },
+  { id: 'media', name: '미디어', emoji: '🎬', topics: ['media'], fields: ['art', 'it'], real: 'GTQ(그래픽기술자격) 같은 시험도 있지만, 직접 만든 작품이 가장 큰 경력이에요.' },
+  { id: 'career', name: '진로·가르치기', emoji: '🧭', topics: ['career', 'teach'], fields: ['edu', 'biz'], real: '커리어넷 진로 검사와 직업 체험으로 내 길을 찾아볼 수 있어요.' },
 ];
 
 export const trackById = (id: string) => TRACKS.find((t) => t.id === id);
@@ -700,8 +720,13 @@ export const MAX_LEVEL = 3;
 /** 시험 문제 수와 합격선 */
 export const EXAM_SIZE = 5;
 export const EXAM_PASS = 4;
-/** 떨어지면 몇 달 뒤 다시 볼 수 있나 */
+/** 떨어지면 몇 달 뒤 다시 볼 수 있나(다음 시험 기간) */
 export const EXAM_RETRY = 3;
+/** 인증 시험은 학기 말(7월·12월)에만 본다 */
+export const EXAM_MONTHS = [7, 12];
+/** 단계마다 열리는 학교급 — 초급은 초등학생부터, 중급은 중학생부터, 고급은 고등학생부터 */
+export const LEVEL_STAGE = [0, 0, 1, 2] as const;
+export const STAGE_NAMES = ['초등학생', '중학생', '고등학생'] as const;
 
 const trackPool = (t: Track) => READINGS.filter((r) => t.topics.includes(r.topic) && questionsOf(r).length);
 
@@ -729,7 +754,7 @@ export function makeExam(read: readonly string[], t: Track, rand: () => number):
   return out;
 }
 
-/** 진로에 더해 줄 인증 점수 — 그 분야에 이어진 인증의 단계 합 × 2, 많아야 6 */
+/** 진로에 더해 줄 인증 점수 — 그 분야에 이어진 인증의 단계 합 × 2, 많아야 4 */
 export function certBonus(certs: Record<string, number> | undefined, field: FieldKey | null | undefined, field2?: FieldKey | null): number {
   if (!certs || !field) return 0;
   let sum = 0;
@@ -737,7 +762,7 @@ export function certBonus(certs: Record<string, number> | undefined, field: Fiel
     const lv = certs[t.id] ?? 0;
     if (lv && (t.fields.includes(field) || (field2 && t.fields.includes(field2)))) sum += lv;
   }
-  return Math.min(6, sum * 2);
+  return Math.min(4, sum * 2);
 }
 
 /** 이 분야 진로와 이어진 인증들 */

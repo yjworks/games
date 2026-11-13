@@ -19,7 +19,7 @@ import {
 import { RIASEC_INFO, RIASEC_KEYS, careersForType, nearMisses, riasec, topRiasec } from './edu';
 import { Flow, screenModel } from './flow';
 import { FRIENDS, FRIEND_LEVELS, FRIEND_MET } from './friends';
-import { EXAM_RETRY, LEVEL_NAMES, MAX_LEVEL, READINGS, READ_KIND, Reading, TOPIC_INFO, TRACKS, Track, levelNeed, readingById, topicOf, trackById, trackOfTopic, trackProgress, tracksFor } from './reading';
+import { EXAM_RETRY, LEVEL_NAMES, LEVEL_STAGE, MAX_LEVEL, STAGE_NAMES as SCHOOL_NAMES, READINGS, READ_KIND, Reading, TOPIC_INFO, TRACKS, Track, levelNeed, readingById, topicOf, trackById, trackOfTopic, trackProgress, tracksFor } from './reading';
 import { LAYER, useButtons } from './input';
 import { EXPR_KEYS, EXPR_NAMES, STAGE_KEYS, STAGE_NAMES, presetUrl, shrinkImage } from './portraits';
 import { PRESETS } from './pixelart';
@@ -665,7 +665,7 @@ function MonthView({ report, shown, onNext }: { report: TurnReport; shown: numbe
             <li key={i} className={`${i < shown ? 'on' : ''} ${w.outcome}`}>
               <span className="gu-week-n">{i + 1}주</span>
               <span className="gu-week-icon">{i < shown ? WEEK_ICON[w.outcome] : '…'}</span>
-              <span className="gu-week-text">{i < shown ? <WeekBite text={w.text} bite={w.bite} /> : ''}</span>
+              <span className="gu-week-text">{i < shown ? <WeekBite text={w.text} bite={w.bite} review={w.review} /> : ''}</span>
             </li>
           ))}
         </ol>
@@ -716,20 +716,30 @@ function ReadingBody({ r }: { r: Reading }) {
   );
 }
 
+/** 다음 인증 시험까지 무엇이 남았는지 한 줄로 */
+function certNext(game: GameState, t: Track): string {
+  const lv = game.certs?.[t.id] ?? 0;
+  if (lv >= MAX_LEVEL) return '모두 땄어요!';
+  const name = LEVEL_NAMES[lv + 1];
+  const stage = calendar(Math.min(game.turn, TOTAL_TURNS - 1)).stage;
+  const left = Math.max(0, levelNeed(t, lv + 1) - trackProgress(game.read ?? [], t).done);
+  if (left > 0) return `${name} 시험까지 ${left}개 더 배우기`;
+  if (LEVEL_STAGE[lv + 1] > stage) return `${name} 시험은 ${SCHOOL_NAMES[LEVEL_STAGE[lv + 1]]}이 되면`;
+  const fail = game.examFail?.[t.id];
+  if (fail !== undefined && game.turn - fail < EXAM_RETRY) return `다음 시험 기간에 ${name} 다시 도전`;
+  return `7월·12월 시험 기간에 ${name} 시험`;
+}
+
 /** 인증 하나의 진도 — 배운 개수와 다음 시험까지 */
 function CertRow({ game, t }: { game: GameState; t: Track }) {
   const lv = game.certs?.[t.id] ?? 0;
   const { done, total } = trackProgress(game.read ?? [], t);
-  const next = lv < MAX_LEVEL ? levelNeed(t, lv + 1) : total;
-  const left = Math.max(0, next - done);
-  const fail = game.examFail?.[t.id];
-  const wait = fail !== undefined ? EXAM_RETRY - (game.turn - fail) : 0;
   return (
     <li className={`gu-cert ${lv ? 'got' : ''}`}>
       <span className="gu-cert-name">{t.emoji} {t.name}</span>
       <span className="gu-cert-level">{lv ? `🎓 ${LEVEL_NAMES[lv]}` : '—'}</span>
       <span className="gu-cert-bar"><span style={{ width: `${(done / total) * 100}%` }} /></span>
-      <small>{lv >= MAX_LEVEL ? '모두 땄어요!' : left > 0 ? `${LEVEL_NAMES[lv + 1]} 시험까지 ${left}개 더 배우기` : wait > 0 ? `${wait}달 뒤 ${LEVEL_NAMES[lv + 1]} 시험에 다시 도전` : `${LEVEL_NAMES[lv + 1]} 시험을 곧 볼 수 있어요`}</small>
+      <small>{certNext(game, t)}</small>
     </li>
   );
 }
@@ -742,7 +752,7 @@ function ReadingShelf({ game }: { game: GameState }) {
   const topics = [...new Set(read.map((r) => r.topic))];
   return (
     <div className="gu-shelf">
-      <h3>🎓 인증 <small>배운 것이 쌓이면 시험을 봐요 · 5문제 중 4문제</small></h3>
+      <h3>🎓 인증 <small>배운 것이 쌓이면 7월·12월에 시험 · 5문제 중 4문제</small></h3>
       <ul className="gu-certs">{started.map((t) => <CertRow key={t.id} game={game} t={t} />)}</ul>
       <p className="gu-muted">배운 것 {read.length} / {READINGS.length} · 가끔 퀴즈로 다시 나와요</p>
       {topics.map((topic) => {
@@ -764,28 +774,24 @@ function ReadingShelf({ game }: { game: GameState }) {
 }
 
 /** 4주 진행 — 한 주에 하나씩 배운 것 */
-function WeekBite({ text, bite }: { text: string; bite?: string }) {
+function WeekBite({ text, bite, review }: { text: string; bite?: string; review?: boolean }) {
   const r = bite ? readingById(bite) : undefined;
   if (!r) return <>{text}</>;
   const sub = r.rows ? r.rows.map(([w, m]) => `${w} ${m}`).join(' · ') : r.body;
-  return <><b>{r.kind !== 'fact' && `${READ_KIND[r.kind].emoji} `}{r.title}</b>{sub && <small>{sub}</small>}</>;
+  return <><b>{review && <i className="gu-review">복습</i>}{r.kind !== 'fact' && `${READ_KIND[r.kind].emoji} `}{r.title}</b>{sub && <small>{sub}</small>}</>;
 }
 
 /** 결과 — 이번 달에 배운 것과 인증까지 남은 것 */
 function Learned({ game, report }: { game: GameState; report: TurnReport }) {
   const list = (report.learned ?? []).map(readingById).filter((r): r is Reading => !!r);
   if (!list.length) return null;
+  const reviewed = new Set((report.weeks ?? []).filter((w) => w.review).map((w) => w.bite));
   const t = report.act ? trackOfTopic(topicOf(report.act)) : undefined;
-  const lv = t ? game.certs?.[t.id] ?? 0 : 0;
-  let hint = '';
-  if (t && lv < MAX_LEVEL) {
-    const left = levelNeed(t, lv + 1) - trackProgress(game.read ?? [], t).done;
-    hint = left > 0 ? `🎓 ${t.name} 인증 ${LEVEL_NAMES[lv + 1]}까지 ${left}개 더` : `🎓 ${t.name} 인증 ${LEVEL_NAMES[lv + 1]} 시험을 볼 수 있어요!`;
-  }
+  const hint = t ? `🎓 ${t.name} 인증: ${certNext(game, t)}` : '';
   return (
     <div className="gu-cmd-box gu-learned">
       <strong>📖 이번 달에 배운 것</strong>
-      <ul>{list.map((r) => <li key={r.id}>{r.title}</li>)}</ul>
+      <ul>{list.map((r) => <li key={r.id}>{reviewed.has(r.id) && <i className="gu-review">복습</i>}{r.title}</li>)}</ul>
       <small>수첩 › 읽을거리에 모였어요{hint ? ` · ${hint}` : ''}</small>
     </div>
   );
