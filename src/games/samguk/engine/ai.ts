@@ -1,7 +1,7 @@
 import { NEIGHBORS } from '../data/cities';
 import type { CityId } from '../data/types';
 import {
-  allied, appointAdvisor, attack, autoAllot, captiveChance, develop, draft, draftMax, factionPower, goodwill,
+  allied, appointAdvisor, attack, autoAllot, captiveChance, connected, develop, draft, draftMax, factionPower, goodwill,
   moveOfficer, proposeAlliance, recruit, recruitChance, relief, reliefCost, reward, search, train, transport,
   treatCaptive, demandSurrender, surrenderChance, rumor, rumorChance, trade, buyPrice,
 } from './commands';
@@ -129,10 +129,21 @@ function aiMilitary(s: GameState, f: number) {
     }
   }
 
-  /* 공격 */
-  const ratio = ATTACK_RATIO[s.options.difficulty] * (0.9 + (10 - def(fac.ruler).amb) * 0.03);
+  /* 공격 — 오래 싸우지 않으면 기준을 낮춘다(후반 수십 년 교착 방지): 2년에 약 −15%, 최대 −25% */
+  const idle = fac.idle ?? 0;
+  const ratio = ATTACK_RATIO[s.options.difficulty] * (0.9 + (10 - def(fac.ruler).amb) * 0.03) * Math.max(0.75, 1 - idle / 160);
   let attacks = 0;
   const targeted = new Set<CityId>();
+  /* 대세 — 1년 넘게 싸우지 못한 큰 세력(국력 두세 배)은 소모전을 감당할 수 있으니 더 과감하게 친다.
+     평소(초반)에는 적용하지 않아 약소 세력으로 시작한 사람이 곧바로 몰리지 않는다 */
+  const myPower = factionPower(s, f);
+  const powerOf = new Map<number, number>();
+  const boldness = (owner: number) => {
+    if (owner < 0 || idle < 12) return 1;
+    if (!powerOf.has(owner)) powerOf.set(owner, factionPower(s, owner));
+    const pr = myPower / Math.max(1, powerOf.get(owner)!);
+    return pr >= 3 ? 0.75 : pr >= 2 ? 0.85 : 1;
+  };
   const order = [...cities].sort((a, b) => b.troops - a.troops);
   for (const c of order) {
     if (attacks >= 3) break;
@@ -153,7 +164,7 @@ function aiMilitary(s: GameState, f: number) {
       const cap = leaders.reduce((a, o) => a + troopCap(s, o.id), 0);
       const force = Math.min(pool, cap) * (1 + leaders.slice(0, 3).reduce((a, o) => a + stat(s, o.id, LEAD), 0) / 600);
       const r = force / defense;
-      if (r < ratio) continue;
+      if (r < ratio * boldness(t.owner)) continue;
       const score = r + (t.owner < 0 ? 0.3 : 0) + (t.id === s.factions[t.owner]?.capital ? 0.2 : 0) + t.pop / 2_000_000;
       if (!pick || score > pick.score) pick = { t, score, pool };
     }
@@ -181,6 +192,7 @@ function aiMilitary(s: GameState, f: number) {
     const res = attack(s, c.id, pick.t.id, team.map((o) => o.id), troops, food, kinds);
     if (res.ok) { attacks++; targeted.add(pick.t.id); }
   }
+  fac.idle = attacks ? 0 : idle + 1;
 
   /* 후방 → 전방 수송 */
   for (const c of cities) {
@@ -194,15 +206,28 @@ function aiMilitary(s: GameState, f: number) {
     const keepT = 1500;
     if (c.troops > keepT + 2000 || (c.gold > 600 && c.food > 6000)) {
       const carrier = avail.length > 1 || staff > 1 ? avail.sort((a, b) => worth(s, a.id) - worth(s, b.id))[0] : null;
-      if (carrier) {
-        transport(s, c.id, carrier.id, next, Math.max(0, c.gold - 300), Math.max(0, c.food - 5000), Math.max(0, c.troops - keepT));
-        continue;
-      }
+      if (carrier) transport(s, c.id, carrier.id, next, Math.max(0, c.gold - 300), Math.max(0, c.food - 5000), Math.max(0, c.troops - keepT));
     }
-    /* 장수도 앞으로 */
-    if (staff > 2) {
+    /* 장수도 앞으로 — 후방은 한 명만 남기고, 싸움을 잘하는 장수부터 한 달에 둘까지 */
+    for (let k = 0; k < 2; k++) {
+      if (officersIn(s, c.id, f).length <= (d >= 2 ? 1 : 2)) break;
       const mover = free(s, c.id, f).filter((o) => o.id !== fac.ruler).sort((a, b) => stat(s, b.id, LEAD) + stat(s, b.id, WAR) - stat(s, a.id, LEAD) - stat(s, a.id, WAR))[0];
-      if (mover) moveOfficer(s, mover.id, next);
+      if (!mover || stat(s, mover.id, LEAD) + stat(s, mover.id, WAR) < 90) break;
+      moveOfficer(s, mover.id, next);
+    }
+  }
+  /* 전선끼리 고르게 — 장수가 넘치는 전선 도시에서, 병력은 많은데 장수가 모자란 전선 도시로 한 달에 둘까지 */
+  const fronts = cities.filter((c) => distTo[c.id] === 0);
+  for (const c of fronts) {
+    for (let k = 0; k < 2; k++) {
+      if (officersIn(s, c.id, f).length <= 8) break;
+      const to = fronts
+        .filter((x) => x !== c && x.troops >= 15000 && officersIn(s, x.id, f).length < 4 && connected(s, c.id, x.id, f))
+        .sort((a, b) => b.troops - a.troops)[0];
+      if (!to) break;
+      const mover = free(s, c.id, f).filter((o) => o.id !== fac.ruler).sort((a, b) => stat(s, b.id, LEAD) + stat(s, b.id, WAR) - stat(s, a.id, LEAD) - stat(s, a.id, WAR))[0];
+      if (!mover) break;
+      moveOfficer(s, mover.id, to.id);
     }
   }
   /* 장수가 없는 도시에 한 명씩 */

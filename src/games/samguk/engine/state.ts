@@ -85,6 +85,8 @@ export interface Faction {
   rank: number;
   /** 이 세력이 이번 달 명령을 끝냈는지 */
   done: boolean;
+  /** (컴퓨터) 마지막 출진 뒤 지난 달 수 — 오래 쉬면 더 과감해진다 */
+  idle?: number;
 }
 
 export interface LogEntry {

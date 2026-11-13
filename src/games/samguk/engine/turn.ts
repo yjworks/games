@@ -450,8 +450,15 @@ export function checkOver(s: GameState) {
   if (s.over) return;
   const alive = s.factions.filter((f) => f.alive);
   const humans = s.factions.filter((f) => f.human);
-  if (alive.length === 1) { s.over = { winner: alive[0].idx, year: s.year, month: s.month }; return; }
-  if (humans.length && !humans.some((f) => f.alive)) s.over = { lost: true, year: s.year, month: s.month };
+  /* 통일 — 마지막 남은 세력이 공백지까지 모두 차지해야 한다(빈 도시를 남긴 채 끝나지 않게) */
+  const empty = (Object.values(s.cities) as City[]).some((c) => c.owner < 0);
+  if (alive.length === 1 && !empty) { s.over = { winner: alive[0].idx, year: s.year, month: s.month }; return; }
+  if (alive.length === 1 && !s.fired.includes('last-rival')) {
+    s.fired.push('last-rival');
+    const n = (Object.values(s.cities) as City[]).filter((c) => c.owner < 0).length;
+    log(s, `천하에 맞설 세력이 더는 없다. 남은 공백지 ${n}곳을 거두면 통일이다.`, 'event', alive[0].idx);
+  }
+  if ((humans.length && !humans.some((f) => f.alive)) || alive.length === 0) s.over = { lost: true, year: s.year, month: s.month };
 }
 
 /** 전체 세력 요약(일람·AI 공용) */
